@@ -1,0 +1,19 @@
+# IDE
+.idea/
+.vscode/
+.venv/
+
+# server
+server/data/
+server/*.exe
+server/tmp/
+
+# web
+web/node_modules/
+web/dist/
+web/coverage/
+
+# misc
+.DS_Store
+Thumbs.db
+*.log

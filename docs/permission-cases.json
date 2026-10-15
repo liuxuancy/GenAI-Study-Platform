@@ -1,0 +1,37 @@
+{
+  "description": "权限匹配的共用测试用例，前后端都用 Match(granted, required) 跑一遍。规则：权限码按 ':' 分段；'*' 只能作为完整的最后一段，匹配剩余的一段或多段；格式非法的权限码一律不匹配；区分大小写。",
+  "cases": [
+    { "granted": "course:course:view",   "required": "course:course:view",   "match": true,  "note": "完全相同" },
+    { "granted": "course:course:view",   "required": "course:course:create", "match": false, "note": "动作不同" },
+    { "granted": "course:course:view",   "required": "course:course",        "match": false, "note": "授予的比要求的长" },
+    { "granted": "course:course",        "required": "course:course:view",   "match": false, "note": "没有 '*' 就不做前缀匹配" },
+
+    { "granted": "course:*",             "required": "course:course:view",   "match": true,  "note": "模块通配覆盖 资源:动作" },
+    { "granted": "course:*",             "required": "course:lesson:create", "match": true,  "note": "模块通配覆盖任意资源" },
+    { "granted": "course:*",             "required": "course:x",             "match": true,  "note": "通配可以只匹配一段" },
+    { "granted": "course:*",             "required": "course",               "match": false, "note": "通配至少要匹配一段" },
+    { "granted": "course:*",             "required": "courseware:item:view", "match": false, "note": "按段匹配，不是字符串前缀" },
+    { "granted": "course:*",             "required": "learn:lesson:view",    "match": false, "note": "其他模块" },
+    { "granted": "course:course:*",      "required": "course:course:view",   "match": true,  "note": "资源级通配" },
+    { "granted": "course:course:*",      "required": "course:lesson:view",   "match": false, "note": "资源级通配不覆盖其他资源" },
+
+    { "granted": "*",                    "required": "system:user:view",     "match": true,  "note": "全局通配" },
+    { "granted": "*",                    "required": "course:*",             "match": true,  "note": "全局通配覆盖通配要求" },
+    { "granted": "*",                    "required": "*",                    "match": true,  "note": "全局通配覆盖自身" },
+
+    { "granted": "course:*",             "required": "course:*",             "match": true,  "note": "通配要求需要同等的授予" },
+    { "granted": "course:course:view",   "required": "course:*",             "match": false, "note": "具体授予不满足通配要求" },
+    { "granted": "course:course:*",      "required": "course:*",             "match": false, "note": "窄通配不满足宽通配要求" },
+
+    { "granted": "course:*:view",        "required": "course:course:view",   "match": false, "note": "非法授予：'*' 不在最后一段" },
+    { "granted": "course:cour*",         "required": "course:course",        "match": false, "note": "非法授予：段内部分通配" },
+    { "granted": "course::view",         "required": "course::view",         "match": false, "note": "非法授予：空段" },
+    { "granted": "course:",              "required": "course:",              "match": false, "note": "非法授予：结尾冒号" },
+    { "granted": "",                     "required": "course:course:view",   "match": false, "note": "非法授予：空字符串" },
+    { "granted": "*",                    "required": "",                     "match": false, "note": "非法要求：空字符串" },
+    { "granted": "*",                    "required": "course:*:view",        "match": false, "note": "非法要求：'*' 不在最后一段" },
+
+    { "granted": "Course:course:view",   "required": "course:course:view",   "match": false, "note": "区分大小写" },
+    { "granted": "system:*",             "required": "course:course:view",   "match": false, "note": "无关模块的通配" }
+  ]
+}
