@@ -1,8 +1,10 @@
-// Package db 负责打开 SQLite。
+// Package db 负责打开 SQLite、建表和删除本地数据库文件。
 package db
 
 import (
+	"errors"
 	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"time"
@@ -42,4 +44,22 @@ func Close(gdb *gorm.DB) error {
 		return err
 	}
 	return sqlDB.Close()
+}
+
+// Migrate 根据结构体自动建表、加字段。不会删字段或改字段名。
+func Migrate(gdb *gorm.DB, models ...any) error {
+	if err := gdb.AutoMigrate(models...); err != nil {
+		return fmt.Errorf("auto migrate: %w", err)
+	}
+	return nil
+}
+
+// RemoveFiles 删除数据库文件以及 WAL 模式附带的 -wal、-shm 文件，文件不存在不算错误。
+func RemoveFiles(path string) error {
+	for _, file := range []string{path, path + "-wal", path + "-shm"} {
+		if err := os.Remove(file); err != nil && !errors.Is(err, fs.ErrNotExist) {
+			return fmt.Errorf("remove %s: %w", file, err)
+		}
+	}
+	return nil
 }

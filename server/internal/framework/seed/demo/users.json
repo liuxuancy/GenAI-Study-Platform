@@ -1,0 +1,4 @@
+[
+  { "username": "student2", "password": "student123", "nickname": "学生二号", "role": "ROLE_STUDENT" },
+  { "username": "student3", "password": "student123", "nickname": "学生三号", "role": "ROLE_STUDENT" }
+]

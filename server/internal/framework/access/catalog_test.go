@@ -1,10 +1,10 @@
-package authz
+package access
 
 import (
 	"errors"
 	"testing"
 
-	"learnhub/internal/errs"
+	"learnhub/internal/platform/errs"
 )
 
 func sampleDefinitions() []PermissionDef {
