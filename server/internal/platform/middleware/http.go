@@ -11,9 +11,9 @@ import (
 
 	"github.com/gin-gonic/gin"
 
-	"learnhub/internal/errs"
-	"learnhub/internal/logs"
-	"learnhub/internal/resp"
+	"learnhub/internal/platform/errs"
+	"learnhub/internal/platform/logs"
+	"learnhub/internal/platform/resp"
 )
 
 // Logger 每个请求记一条日志。必须放在最外层，才能拿到最终状态码（包括 panic 后的 500）。

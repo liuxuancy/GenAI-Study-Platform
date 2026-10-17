@@ -1,6 +1,6 @@
 // 权限码匹配规则和格式校验。
 
-package authz
+package access
 
 import "strings"
 
@@ -36,6 +36,12 @@ func Match(granted, required string) bool {
 func ValidCode(code string) bool {
 	_, ok := parseCode(code)
 	return ok
+}
+
+// Namespace 返回权限码的第一段，即使用方，例如 teacher:course:view 返回 teacher。
+func Namespace(code string) string {
+	namespace, _, _ := strings.Cut(code, codeSeparator)
+	return namespace
 }
 
 // IsWildcard 判断合法权限码是否以 '*' 结尾。

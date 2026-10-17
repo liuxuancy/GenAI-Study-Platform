@@ -7,7 +7,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 
-	"learnhub/internal/logs"
+	"learnhub/internal/platform/logs"
 )
 
 func echoRequestIDHandler(ctx *gin.Context) {

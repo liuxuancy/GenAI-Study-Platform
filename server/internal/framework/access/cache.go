@@ -1,6 +1,6 @@
 // 进程内权限缓存：按用户 ID 缓存 Principal，过期或 Reset 后重新加载。
 
-package authz
+package access
 
 import (
 	"context"

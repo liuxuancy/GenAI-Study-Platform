@@ -1,6 +1,6 @@
 // 三个固定角色，以及当前请求的身份 Principal。
 
-package authz
+package access
 
 // 三个固定角色，用户创建后角色不可修改。
 const (

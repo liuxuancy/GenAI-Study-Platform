@@ -1,4 +1,4 @@
-package authz
+package access
 
 import (
 	"encoding/json"
@@ -7,7 +7,7 @@ import (
 )
 
 // 与前端共用的用例文件
-const sharedCasesPath = "../../../docs/permission-cases.json"
+const sharedCasesPath = "../../../../docs/permission-cases.json"
 
 type permissionCase struct {
 	Granted  string `json:"granted"`

@@ -4,6 +4,8 @@ package main
 import (
 	"context"
 	"errors"
+	"flag"
+	"fmt"
 	"log/slog"
 	"net/http"
 	"os"
@@ -12,28 +14,56 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"gorm.io/gorm"
 
-	"learnhub/internal/config"
-	"learnhub/internal/db"
-	"learnhub/internal/logs"
-	"learnhub/internal/router"
+	"learnhub/internal/framework/model"
+	"learnhub/internal/framework/module"
+	"learnhub/internal/framework/router"
+	"learnhub/internal/framework/seed"
+	"learnhub/internal/platform/config"
+	"learnhub/internal/platform/db"
+	"learnhub/internal/platform/logs"
 )
+
+// enabledModules 要加载的业务模块，新增模块时在这里加一行。
+func enabledModules() []module.Module {
+	return []module.Module{}
+}
 
 func main() {
 	if err := run(); err != nil {
-		slog.Error("server exited", "err", err)
+		logs.CtxError(context.Background(), "server exited: %v", err)
 		os.Exit(1)
 	}
 }
 
 func run() error {
+	resetDemo := flag.Bool("reset-demo", false, "删除本地数据库，重新写入种子数据和演示数据后启动（仅 dev）")
+	flag.Parse()
+
 	cfg, err := config.Load()
 	if err != nil {
 		return err
 	}
 	setupLogger(cfg)
 	if cfg.UsesDevSecret() {
-		slog.Warn("JWT_SECRET 未设置，正在使用内置开发密钥，仅限本地开发")
+		logs.CtxWarn(context.Background(), "JWT_SECRET 未设置，正在使用内置开发密钥，仅限本地开发")
+	}
+
+	// 汇总模块：权限码、默认授权、数据表有任何冲突都在这里失败
+	registry, err := module.NewRegistry(enabledModules()...)
+	if err != nil {
+		return fmt.Errorf("register modules: %w", err)
+	}
+
+	if *resetDemo {
+		if !cfg.IsDev() {
+			return errors.New("--reset-demo is only allowed when APP_ENV=dev")
+		}
+		if err := db.RemoveFiles(cfg.DBPath); err != nil {
+			return err
+		}
+		logs.CtxWarn(context.Background(), "本地数据库已删除，将重新写入种子数据和演示数据：%s", cfg.DBPath)
 	}
 
 	// 建立数据库连接
@@ -43,14 +73,18 @@ func run() error {
 	}
 	defer func() {
 		if err := db.Close(gdb); err != nil {
-			slog.Error("close db", "err", err)
+			logs.CtxError(context.Background(), "close db: %v", err)
 		}
 	}()
+
+	if err := prepareDatabase(gdb, registry, *resetDemo); err != nil {
+		return err
+	}
 
 	gin.SetMode(gin.ReleaseMode) // 请求日志由我们自己的 Logger 输出
 	server := &http.Server{
 		Addr:              cfg.HTTPAddr,
-		Handler:           router.New(router.Deps{DB: gdb}),
+		Handler:           router.New(router.Deps{DB: gdb, Registry: registry}),
 		ReadHeaderTimeout: 10 * time.Second,
 	}
 	// 监听退出信号，os.Interrupt（Ctrl+C），syscall.SIGTERM（容器退出）
@@ -60,7 +94,7 @@ func run() error {
 	// 启动后台服务监听
 	serverErr := make(chan error, 1)
 	go func() {
-		slog.Info("server listening", "addr", cfg.HTTPAddr, "env", cfg.Env, "db", cfg.DBPath)
+		logs.CtxInfo(context.Background(), "server listening: addr=%s env=%s db=%s", cfg.HTTPAddr, cfg.Env, cfg.DBPath)
 		serverErr <- server.ListenAndServe()
 	}()
 
@@ -76,10 +110,28 @@ func run() error {
 	}
 
 	// 收到 Ctrl+C / SIGTERM：最多等 5 秒让进行中的请求处理完
-	slog.Info("shutting down")
+	logs.CtxInfo(context.Background(), "shutting down")
 	shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 	return server.Shutdown(shutdownCtx)
+}
+
+// prepareDatabase 建表、写种子数据；loadDemo 为 true 时再写入演示数据。
+func prepareDatabase(gdb *gorm.DB, registry *module.Registry, loadDemo bool) error {
+	ctx := context.Background()
+	models := append(model.FrameworkModels(), registry.Models()...)
+	if err := db.Migrate(gdb, models...); err != nil {
+		return err
+	}
+	if err := seed.Run(ctx, gdb, registry.DefaultGrants()); err != nil {
+		return fmt.Errorf("seed: %w", err)
+	}
+	if loadDemo {
+		if err := seed.LoadDemo(ctx, gdb, registry.Modules()); err != nil {
+			return fmt.Errorf("load demo data: %w", err)
+		}
+	}
+	return nil
 }
 
 func setupLogger(cfg config.Config) {

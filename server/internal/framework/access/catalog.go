@@ -1,11 +1,11 @@
 // 权限码定义和目录：汇总各模块声明的权限码，校验授权。
 
-package authz
+package access
 
 import (
 	"fmt"
 
-	"learnhub/internal/errs"
+	"learnhub/internal/platform/errs"
 )
 
 type PermissionType string

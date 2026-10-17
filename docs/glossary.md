@@ -2,6 +2,17 @@
 
 项目里出现的概念、代码中的名字和含义。新增概念时请同步更新这份文件。
 
+## 目录分组
+
+| 代码里的名字 | 中文 | 说明 |
+|---|---|---|
+| `platform/` | 基础设施 | 和权限、业务都无关的通用包：config、db、logs、errs、resp、middleware |
+| `framework/` | 权限框架 | 登录 + 权限：identity、access、model、module、seed、router、testutil |
+| `modules/` | 业务模块 | account、system、course，每个模块一个目录，互不 import |
+| `identity` | 身份认证 | 回答"你是谁"：密码哈希、JWT、校验 token 的中间件、白名单 |
+| `access` | 访问控制 | 回答"你能做什么"：权限码、目录、Principal、缓存、RequirePermission |
+| `account` | 账号模块 | 账号相关的接口：登录、退出、me、个人信息、改密码，地址 `/api/account/*` |
+
 ## 权限
 
 | 代码里的名字 | 中文 | 说明 |
@@ -49,6 +60,18 @@
 | Service | 业务层 | 业务逻辑和归属检查，不依赖 HTTP |
 | Result | 统一响应体 | `{code, msg, data}`，code 为 0 表示成功 |
 
+## 模块
+
+| 代码里的名字 | 中文 | 说明 |
+|---|---|---|
+| Module | 业务模块 | 实现 `module.Module` 接口，向框架声明自己的使用方、权限码、默认授权、数据表和路由 |
+| Namespaces | 模块拥有的使用方 | 一个模块可以拥有多个使用方，如课程模块拥有 `teacher` 和 `student`；两个模块不能拥有同一个使用方 |
+| DefaultGrants | 默认授权 | 模块为角色准备的初始授权，只能授予本模块的权限码，不能给 `ROLE_ADMIN` 配授权 |
+| Registry | 模块注册表 | 启动时汇总所有模块并检查冲突，任何问题都让启动失败 |
+| enabledModules | 启用的模块列表 | `cmd/server/main.go` 里的函数，新增模块时在这里加一行 |
+| Deps | 模块依赖 | 框架提供给模块的东西（数据库、权限码目录等），模块之间不互相 import |
+| DemoProvider | 演示数据提供者 | 可选接口，模块实现它就能在 `--reset-demo` 时写入自己的演示数据 |
+
 ## 错误
 
 | 代码里的名字 | 中文 | 说明 |
@@ -64,8 +87,10 @@
 |---|---|---|
 | `sys_user` | 用户表 | 用户、角色、状态、token_version |
 | `sys_role_permission` | 角色权限表 | 每个角色持有的权限码，可以包含通配码 |
-| Seed | 种子数据 | 首次启动时自动写入：测试账号、默认授权。可重复执行，不覆盖管理员的修改 |
-| Fixture / 演示数据 | 演示数据 | `seed/demo/` 下的 JSON 文件，团队共享同一份展示数据，用重置命令加载 |
+| Seed | 种子数据 | 每次启动都会执行：补齐测试账号（已存在的不动）；授权表为空时写入默认授权。不覆盖管理员的修改 |
+| Fixture / 演示数据 | 演示数据 | `internal/framework/seed/demo/` 下的 JSON 文件和各模块的 DemoProvider，团队共享同一份展示数据，用 `--reset-demo` 加载 |
+| `--reset-demo` | 重置演示数据 | 启动参数：删除本地数据库，重新建表、写种子数据和演示数据后启动服务，仅限 dev |
+| testutil | 测试脚手架 | `testutil.NewDB(t, 模块...)` 返回一个已建表、已写种子数据的临时库，测试结束自动删除 |
 | AutoMigrate | 自动建表 | GORM 根据结构体自动建表、加字段；不删字段、不改字段名 |
 | WAL | 预写日志模式 | SQLite 的一种模式，读写互不阻塞 |
 

@@ -5,13 +5,15 @@ import (
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
 
-	"learnhub/internal/errs"
-	"learnhub/internal/middleware"
-	"learnhub/internal/resp"
+	"learnhub/internal/framework/module"
+	"learnhub/internal/platform/errs"
+	"learnhub/internal/platform/middleware"
+	"learnhub/internal/platform/resp"
 )
 
 type Deps struct {
-	DB *gorm.DB
+	DB       *gorm.DB
+	Registry *module.Registry
 }
 
 func New(deps Deps) *gin.Engine {
@@ -24,6 +26,9 @@ func New(deps Deps) *gin.Engine {
 
 	api := engine.Group("/api")
 	api.GET("/health", resp.H(healthHandler(deps.DB)))
+
+	// 各业务模块自己注册路由
+	deps.Registry.Register(api, module.Deps{DB: deps.DB, Catalog: deps.Registry.Catalog()})
 
 	return engine
 }
