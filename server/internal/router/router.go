@@ -18,8 +18,8 @@ func New(deps Deps) *gin.Engine {
 	engine := gin.New()
 	_ = engine.SetTrustedProxies(nil) // 本地部署，不信任代理头，直接用连接地址作为客户端 IP
 
-	// 顺序有讲究：Logger 在外层才能记到 ErrorHandler 处理后的最终状态
-	engine.Use(middleware.Logger(), middleware.ErrorHandler())
+	// 顺序有讲究：RequestID 最先，后续日志才带 request_id；Logger 在 ErrorHandler 外层才能记到最终状态
+	engine.Use(middleware.RequestID(), middleware.Logger(), middleware.ErrorHandler())
 	engine.NoRoute(resp.H(notFoundHandler))
 
 	api := engine.Group("/api")

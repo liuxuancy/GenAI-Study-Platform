@@ -1,3 +1,4 @@
+// Package config 从环境变量读取运行配置。
 package config
 
 import (
@@ -10,12 +11,12 @@ import (
 const DevJWTSecret = "learnhub-dev-secret-do-not-use-in-prod"
 
 type Config struct {
-	Env          string        // APP_ENV：dev（默认）| prod
-	HTTPAddr     string        // HTTP_ADDR
-	DBPath       string        // DB_PATH：SQLite 文件路径
-	JWTSecret    string        // JWT_SECRET
-	JWTTTL       time.Duration // JWT_TTL：token 有效期
-	PermCacheTTL time.Duration // PERM_CACHE_TTL：权限缓存时长
+	Env                string        // APP_ENV：dev（默认）| prod
+	HTTPAddr           string        // HTTP_ADDR
+	DBPath             string        // DB_PATH：SQLite 文件路径
+	JWTSecret          string        // JWT_SECRET
+	JWTTTL             time.Duration // JWT_TTL：token 有效期
+	PermissionCacheTTL time.Duration // PERMISSION_CACHE_TTL：权限缓存时长
 }
 
 // Load 从环境变量读取配置。
@@ -34,7 +35,7 @@ func Load() (Config, error) {
 	if cfg.JWTTTL, err = getConfigDuration("JWT_TTL", 24*time.Hour); err != nil {
 		return Config{}, err
 	}
-	if cfg.PermCacheTTL, err = getConfigDuration("PERM_CACHE_TTL", 30*time.Second); err != nil {
+	if cfg.PermissionCacheTTL, err = getConfigDuration("PERMISSION_CACHE_TTL", 30*time.Second); err != nil {
 		return Config{}, err
 	}
 	// 开发密钥是公开的，用它签的 token 谁都能伪造

@@ -15,6 +15,7 @@ import (
 
 	"learnhub/internal/config"
 	"learnhub/internal/db"
+	"learnhub/internal/logs"
 	"learnhub/internal/router"
 )
 
@@ -85,10 +86,19 @@ func setupLogger(cfg config.Config) {
 	var handler slog.Handler
 	if cfg.IsDev() {
 		// dev 输出易读的文本日志
-		handler = slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelDebug})
+		handler = slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{
+			Level:       slog.LevelDebug,
+			AddSource:   true,
+			ReplaceAttr: logs.ShortSource,
+		})
 	} else {
 		// prod 输出 JSON 便于采集
-		handler = slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelInfo})
+		handler = slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{
+			Level:       slog.LevelInfo,
+			AddSource:   true,
+			ReplaceAttr: logs.ShortSource,
+		})
 	}
-	slog.SetDefault(slog.New(handler))
+	// 包一层 ContextHandler，自动带出 ctx 里的 request_id 等字段
+	logs.Setup(handler)
 }

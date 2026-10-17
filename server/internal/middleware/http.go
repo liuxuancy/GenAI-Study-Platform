@@ -1,7 +1,9 @@
-// Package middleware 全局 HTTP 中间件。
+// 请求日志 Logger 和错误处理 ErrorHandler。
+
 package middleware
 
 import (
+	"fmt"
 	"log/slog"
 	"net/http"
 	"runtime/debug"
@@ -10,6 +12,7 @@ import (
 	"github.com/gin-gonic/gin"
 
 	"learnhub/internal/errs"
+	"learnhub/internal/logs"
 	"learnhub/internal/resp"
 )
 
@@ -42,11 +45,8 @@ func ErrorHandler() gin.HandlerFunc {
 		appError := errs.From(ctx.Errors.Last().Err)
 		if appError.Code >= errs.SystemInternal {
 			// 只有 5xx 记错误日志，4xx 由 Logger 记 WARN 即可
-			slog.Error("request failed",
-				"method", ctx.Request.Method,
-				"path", ctx.Request.URL.Path,
-				"err", appError.Error(),
-			)
+			logs.CtxError(ctx.Request.Context(), "request failed: %s %s, err: %v",
+				ctx.Request.Method, ctx.Request.URL.Path, appError)
 		}
 		resp.Fail(ctx, appError)
 	}
@@ -61,12 +61,10 @@ func recoverPanic(ctx *gin.Context) {
 	if recovered == http.ErrAbortHandler {
 		panic(recovered) // 主动中断连接，交还给 net/http
 	}
-	slog.Error("panic recovered",
-		"method", ctx.Request.Method,
-		"path", ctx.Request.URL.Path,
-		"panic", recovered,
-		"stack", string(debug.Stack()),
-	)
+	// 堆栈很长，单独作为字段输出，不拼进 msg
+	slog.ErrorContext(ctx.Request.Context(), fmt.Sprintf("panic recovered: %s %s, panic: %v",
+		ctx.Request.Method, ctx.Request.URL.Path, recovered),
+		"stack", string(debug.Stack()))
 	if !ctx.Writer.Written() {
 		resp.Fail(ctx, errs.ErrInternal)
 	}
