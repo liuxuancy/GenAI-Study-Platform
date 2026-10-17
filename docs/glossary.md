@@ -1,0 +1,82 @@
+# LearnHub 术语表
+
+项目里出现的概念、代码中的名字和含义。新增概念时请同步更新这份文件。
+
+## 权限
+
+| 代码里的名字 | 中文 | 说明 |
+|---|---|---|
+| Permission | 权限码 | 一个字符串，代表一个功能点，格式 `使用方:资源:动作`，如 `teacher:course:create` |
+| 使用方（命名空间） | 权限码第一段 | 按使用者划分：`system`（管理员）、`teacher`（讲师）、`student`（学生）。讲师授予 `teacher:*` 不会覆盖学生侧权限 |
+| PermissionDef | 权限码定义 | 一个权限码的完整描述：Code、Name、Type、Description。各模块在代码里声明，不存数据库 |
+| PermissionType | 权限类型 | `MENU` 控制页面和菜单；`BUTTON` 控制按钮，同时守护对应接口；`API` 只守护接口，没有界面元素 |
+| Catalog | 权限码目录 | 所有模块声明的权限码汇总。只收录具体权限码，不收录通配码 |
+| Wildcard | 通配码 | 以 `*` 结尾，如 `teacher:*`，匹配该前缀下的所有权限码。只用于授权，不能声明 |
+| Match | 匹配 | 判断授予的权限码是否满足要求的权限码。规则见 `docs/permission-cases.json` |
+| Grant | 授权 | 把权限码分配给角色，存于 `sys_role_permission` 表 |
+| Role | 角色 | `ROLE_ADMIN`、`ROLE_TEACHER`、`ROLE_STUDENT` 三个固定角色。每个用户一个，创建后不可修改 |
+| ROLE_ADMIN 放行 | 管理员放行 | 持有 `ROLE_ADMIN` 时代码中直接放行所有权限，不依赖授权数据 |
+| Principal | 当前请求的身份 | 当前请求的用户 ID、角色、状态、token 版本和权限码，只用于权限判断，不含昵称等资料 |
+| Snapshot | 快照 | 某一时刻从数据库读出的数据副本。缓存里存的 Principal 就是快照 |
+| PrincipalLoader | 加载器 | 接口，缓存未命中时负责从数据库加载 Principal。正式实现查库，测试实现返回预设数据 |
+| Cache | 权限缓存 | 进程内缓存，按用户 ID 存放 Principal，避免每个请求都查库 |
+| TTL | 有效期 | Time To Live，缓存条目最多保留多久，默认 30 秒（`PERMISSION_CACHE_TTL`） |
+| Reset | 清空缓存 | 任何影响权限的写操作提交后调用，让新权限在下一个请求立即生效 |
+| version（Cache 字段） | 缓存版本 | 每次 Reset 加一，用来丢弃 Reset 之前发起、Reset 之后才返回的查询结果 |
+| Ownership | 数据归属 | 某条数据属于谁，如课程的 `owner_id`。归属检查在 service 层完成，不满足时返回 403 |
+
+## 认证
+
+| 代码里的名字 | 中文 | 说明 |
+|---|---|---|
+| JWT / token | 登录凭证 | 登录后签发，只包含 `uid` 和 `tv`（token_version），不包含权限码 |
+| token_version（用户表字段） | token 版本 | 每个用户各自的版本号。禁用用户、修改密码、重置密码时加一，该用户的旧 token 立即失效 |
+| Whitelist | 白名单 | 不需要登录就能访问的接口，只在一处集中配置（登录、健康检查） |
+| Dev secret | 开发密钥 | 未设置 `JWT_SECRET` 时使用的内置密钥，仅限本地开发，prod 环境拒绝启动 |
+
+## HTTP 与分层
+
+| 代码里的名字 | 中文 | 说明 |
+|---|---|---|
+| `http.Server` | HTTP 服务器 | Go 标准库，负责监听端口、解析 HTTP、超时和优雅退出 |
+| gin / Engine | 路由框架 | 第三方库，叠在 `net/http` 之上，负责路由、中间件、参数绑定 |
+| Middleware | 中间件 | 夹在"收到请求"和"执行 handler"之间的通用处理，按洋葱模型一层套一层 |
+| RequestID | 请求 ID | 每个请求分配一个 ID，写入响应头和日志，用来串起同一个请求的所有日志 |
+| Logger（中间件） | 请求日志 | 每个请求记一条日志，必须在 ErrorHandler 外层 |
+| ErrorHandler | 错误处理中间件 | 把请求处理中出现的错误和 panic 统一转换成 `{code, msg, data}` 响应 |
+| Handler | 接口处理函数 | 处理某一个具体接口的函数，写法统一为 `func(ctx) (any, error)` |
+| `resp.H` | handler 适配器 | 把上面的写法适配成 gin 需要的函数，成功时写响应，失败时把错误交给 ErrorHandler |
+| Service | 业务层 | 业务逻辑和归属检查，不依赖 HTTP |
+| Result | 统一响应体 | `{code, msg, data}`，code 为 0 表示成功 |
+
+## 错误
+
+| 代码里的名字 | 中文 | 说明 |
+|---|---|---|
+| `errs.Error` | 业务错误 | 包含 Code、Msg（给用户看）和 cause（只进日志） |
+| `System*` 常量 | 系统错误码 | `SystemOK`、`SystemForbidden` 等 7 个，数值同时作为 HTTP 状态码 |
+| Sentinel error | 哨兵错误 | 预先定义的错误常量，如 `errs.ErrForbidden`，用 `errors.Is` 按错误码判断 |
+| Internal | 内部错误 | 意外错误统一包装成 500，用户只看到"服务器内部错误"，真实原因写日志 |
+
+## 数据
+
+| 代码里的名字 | 中文 | 说明 |
+|---|---|---|
+| `sys_user` | 用户表 | 用户、角色、状态、token_version |
+| `sys_role_permission` | 角色权限表 | 每个角色持有的权限码，可以包含通配码 |
+| Seed | 种子数据 | 首次启动时自动写入：测试账号、默认授权。可重复执行，不覆盖管理员的修改 |
+| Fixture / 演示数据 | 演示数据 | `seed/demo/` 下的 JSON 文件，团队共享同一份展示数据，用重置命令加载 |
+| AutoMigrate | 自动建表 | GORM 根据结构体自动建表、加字段；不删字段、不改字段名 |
+| WAL | 预写日志模式 | SQLite 的一种模式，读写互不阻塞 |
+
+## 命名约定
+
+- 变量名写全，不用单字母：gin 的上下文写 `ctx`，不写 `c`。`ctx`、`cfg`、`err` 这类通用缩写可以用；测试参数 `t *testing.T` 是 Go 惯例，保留。
+- 概念统一用全称：`Permission`，不缩写成 `Perm`。
+- 不在函数里写匿名辅助函数，改为包级具名函数。
+- 字段已经属于某个类型时，不再重复类型名：`cache.version`，不写 `cache.cacheVersion`。
+- 方法名带上处理的对象，比如写 `LoadPrincipal`，不写泛泛的 `Load`，避免和标准库的同名方法混淆。
+- 文件开头写一行说明，不单独建 `doc.go`：
+  - 单文件包：`// Package xxx ……` 紧贴 `package` 行，既是包说明也是文件说明。
+  - 多文件包：每个文件第一行写自己的说明，和 `package` 行之间空一行，否则会被当成包说明拼在一起。
+  - 测试文件不写，`xxx_test.go` 测的就是 `xxx.go`。
