@@ -8,6 +8,7 @@ import (
 	"caveclass/internal/framework/access"
 	"caveclass/internal/framework/identity"
 	"caveclass/internal/modules/account"
+	"caveclass/internal/modules/system"
 	"caveclass/internal/platform/resp"
 )
 
@@ -33,7 +34,20 @@ func registerRoutes(api *gin.RouterGroup, deps Deps) {
 	accountRoutes.PUT("/profile", access.RequireLogin(), resp.ToGinHandler(accountHandler.UpdateProfile))
 	accountRoutes.PUT("/password", access.RequireLogin(), resp.ToGinHandler(accountHandler.ChangePassword))
 
-	// system 模块 /api/system/*：用户管理、角色权限（阶段 5）
+	// system 模块 /api/system/*：用户管理、角色权限，只有管理员使用
+	systemHandler := system.NewHandler(
+		system.NewUserService(deps.DB, deps.Cache, deps.UserDeletionGuards),
+		system.NewRoleService(deps.DB, deps.Cache, deps.Catalog),
+	)
+	systemRoutes := api.Group("/system")
+	systemRoutes.GET("/users", access.RequirePermission(system.PermissionUserView), resp.ToGinHandler(systemHandler.GetUserList))
+	systemRoutes.POST("/users", access.RequirePermission(system.PermissionUserCreate), resp.ToGinHandler(systemHandler.CreateUser))
+	systemRoutes.PUT("/users/:id", access.RequirePermission(system.PermissionUserUpdate), resp.ToGinHandler(systemHandler.UpdateUser))
+	systemRoutes.PUT("/users/:id/password", access.RequirePermission(system.PermissionUserResetPassword), resp.ToGinHandler(systemHandler.ResetUserPassword))
+	systemRoutes.DELETE("/users/:id", access.RequirePermission(system.PermissionUserDelete), resp.ToGinHandler(systemHandler.DeleteUser))
+	systemRoutes.GET("/roles", access.RequirePermission(system.PermissionRoleView), resp.ToGinHandler(systemHandler.GetRoleList))
+	systemRoutes.PUT("/roles/:code/permissions", access.RequirePermission(system.PermissionRoleAssign), resp.ToGinHandler(systemHandler.AssignRolePermissions))
+	systemRoutes.GET("/permissions", access.RequirePermission(system.PermissionCatalogList), resp.ToGinHandler(systemHandler.GetPermissionCatalog))
 
 	// course 模块 /api/teacher/*（讲师侧）、/api/student/*（学生侧）（阶段 9）
 }

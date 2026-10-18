@@ -16,6 +16,7 @@ import (
 	"caveclass/internal/framework/module"
 	"caveclass/internal/framework/testutil"
 	"caveclass/internal/modules/account"
+	"caveclass/internal/modules/system"
 	"caveclass/internal/platform/resp"
 )
 
@@ -27,9 +28,10 @@ type testServer struct {
 	httpHandler http.Handler
 }
 
-func newTestServer(t *testing.T) *testServer {
+// newTestServer 启用和 main.go 相同的模块；extraModules 用于在测试里额外挂上假模块。
+func newTestServer(t *testing.T, extraModules ...module.Module) *testServer {
 	t.Helper()
-	modules := []module.Module{account.Module{}}
+	modules := append([]module.Module{account.Module{}, system.Module{}}, extraModules...)
 	registry, err := module.NewRegistry(modules...)
 	if err != nil {
 		t.Fatal(err)
@@ -40,6 +42,8 @@ func newTestServer(t *testing.T) *testServer {
 		Catalog:     registry.GetCatalog(),
 		Cache:       access.NewCache(time.Minute, access.NewDBLoader(database)),
 		TokenIssuer: identity.NewTokenIssuer("test-secret", time.Hour),
+
+		UserDeletionGuards: registry.GetUserDeletionGuards(),
 	})
 	return &testServer{database: database, httpHandler: httpHandler}
 }

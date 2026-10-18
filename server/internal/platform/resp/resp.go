@@ -3,6 +3,7 @@ package resp
 
 import (
 	"net/http"
+	"strconv"
 
 	"github.com/gin-gonic/gin"
 
@@ -44,4 +45,21 @@ func BindJSON(ctx *gin.Context, target any) error {
 		return errs.BadRequest("请求参数错误: " + err.Error())
 	}
 	return nil
+}
+
+// BindQuery 解析并校验 URL 查询参数（?page=1&role=...），失败返回 400。
+func BindQuery(ctx *gin.Context, target any) error {
+	if err := ctx.ShouldBindQuery(target); err != nil {
+		return errs.BadRequest("请求参数错误: " + err.Error())
+	}
+	return nil
+}
+
+// GetInt64PathParam 取出路径参数并转成整数，例如 /users/:id 里的 id，格式不对返回 400。
+func GetInt64PathParam(ctx *gin.Context, name string) (int64, error) {
+	value, err := strconv.ParseInt(ctx.Param(name), 10, 64)
+	if err != nil || value <= 0 {
+		return 0, errs.BadRequest("路径参数 " + name + " 必须是正整数")
+	}
+	return value, nil
 }

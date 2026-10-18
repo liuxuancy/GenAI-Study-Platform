@@ -124,3 +124,14 @@ func (registry *Registry) GetModels() []any {
 	}
 	return models
 }
+
+// GetUserDeletionGuards 返回实现了 UserDeletionGuard 的模块，删除用户前逐个检查。
+func (registry *Registry) GetUserDeletionGuards() []UserDeletionGuard {
+	var guards []UserDeletionGuard
+	for _, current := range registry.modules {
+		if guard, ok := current.(UserDeletionGuard); ok {
+			guards = append(guards, guard)
+		}
+	}
+	return guards
+}

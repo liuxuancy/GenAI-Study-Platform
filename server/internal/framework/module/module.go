@@ -28,3 +28,9 @@ type Module interface {
 type DemoProvider interface {
 	LoadDemo(ctx context.Context, database *gorm.DB) error
 }
+
+// UserDeletionGuard 可选接口：模块里有数据引用了用户（如讲师名下的课程），
+// 实现它就能在删除用户之前拦下，返回 errs.Conflict 说明原因；没有引用时返回 nil。
+type UserDeletionGuard interface {
+	CheckUserDeletion(ctx context.Context, database *gorm.DB, userID int64) error
+}
