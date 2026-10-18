@@ -7,7 +7,7 @@ import (
 	"slices"
 	"strings"
 
-	"learnhub/internal/framework/access"
+	"caveclass/internal/framework/access"
 )
 
 type Registry struct {
@@ -26,10 +26,10 @@ func NewRegistry(modules ...Module) (*Registry, error) {
 	// 收集权限码，检查各权限码是否属于本模块
 	var definitions []access.PermissionDef
 	for _, current := range modules {
-		for _, definition := range current.Permissions() {
-			if !slices.Contains(current.Namespaces(), access.Namespace(definition.Code)) {
+		for _, definition := range current.GetPermissions() {
+			if !slices.Contains(current.GetNamespaces(), access.GetNamespace(definition.Code)) {
 				return nil, fmt.Errorf("module %s: permission %q is outside its namespaces %v",
-					current.Name(), definition.Code, current.Namespaces())
+					current.GetName(), definition.Code, current.GetNamespaces())
 			}
 			definitions = append(definitions, definition)
 		}
@@ -52,7 +52,7 @@ func checkNamesAndNamespaces(modules []Module) error {
 	moduleByName := make(map[string]bool)
 	ownerByNamespace := make(map[string]string)
 	for _, current := range modules {
-		name := current.Name()
+		name := current.GetName()
 		if name == "" {
 			return fmt.Errorf("module name is empty")
 		}
@@ -62,7 +62,7 @@ func checkNamesAndNamespaces(modules []Module) error {
 		}
 		moduleByName[name] = true
 
-		for _, namespace := range current.Namespaces() {
+		for _, namespace := range current.GetNamespaces() {
 			if namespace == "" || strings.ContainsAny(namespace, ":*") {
 				return fmt.Errorf("module %s: invalid namespace %q", name, namespace)
 			}
@@ -79,20 +79,20 @@ func checkNamesAndNamespaces(modules []Module) error {
 func collectDefaultGrants(modules []Module, catalog *access.Catalog) (map[string][]string, error) {
 	merged := make(map[string][]string)
 	for _, current := range modules {
-		for role, codes := range current.DefaultGrants() {
+		for role, codes := range current.GetDefaultGrants() {
 			if !access.IsValidRole(role) {
-				return nil, fmt.Errorf("module %s: unknown role %q in default grants", current.Name(), role)
+				return nil, fmt.Errorf("module %s: unknown role %q in default grants", current.GetName(), role)
 			}
 			// 管理员直接放行，不做任何校验/授权
 			if role == access.RoleAdmin {
-				return nil, fmt.Errorf("module %s: %s needs no grants", current.Name(), access.RoleAdmin)
+				return nil, fmt.Errorf("module %s: %s needs no grants", current.GetName(), access.RoleAdmin)
 			}
 			for _, code := range codes {
-				if !slices.Contains(current.Namespaces(), access.Namespace(code)) {
-					return nil, fmt.Errorf("module %s: cannot grant %q outside its namespaces", current.Name(), code)
+				if !slices.Contains(current.GetNamespaces(), access.GetNamespace(code)) {
+					return nil, fmt.Errorf("module %s: cannot grant %q outside its namespaces", current.GetName(), code)
 				}
 				if err := catalog.ValidateGrant(code); err != nil {
-					return nil, fmt.Errorf("module %s: default grant %q: %w", current.Name(), code, err)
+					return nil, fmt.Errorf("module %s: default grant %q: %w", current.GetName(), code, err)
 				}
 				if !slices.Contains(merged[role], code) {
 					merged[role] = append(merged[role], code)
@@ -103,12 +103,12 @@ func collectDefaultGrants(modules []Module, catalog *access.Catalog) (map[string
 	return merged, nil
 }
 
-func (registry *Registry) Modules() []Module { return registry.modules }
+func (registry *Registry) GetModules() []Module { return registry.modules }
 
-func (registry *Registry) Catalog() *access.Catalog { return registry.catalog }
+func (registry *Registry) GetCatalog() *access.Catalog { return registry.catalog }
 
-// DefaultGrants 返回合并后的默认授权（副本）。
-func (registry *Registry) DefaultGrants() map[string][]string {
+// GetDefaultGrants 返回合并后的默认授权（副本）。
+func (registry *Registry) GetDefaultGrants() map[string][]string {
 	copied := make(map[string][]string, len(registry.defaultGrants))
 	for role, codes := range registry.defaultGrants {
 		copied[role] = slices.Clone(codes)
@@ -116,11 +116,11 @@ func (registry *Registry) DefaultGrants() map[string][]string {
 	return copied
 }
 
-// Models 返回所有模块需要建表的结构体。
-func (registry *Registry) Models() []any {
+// GetModels 返回所有模块需要建表的结构体。
+func (registry *Registry) GetModels() []any {
 	var models []any
 	for _, current := range registry.modules {
-		models = append(models, current.Models()...)
+		models = append(models, current.GetModels()...)
 	}
 	return models
 }

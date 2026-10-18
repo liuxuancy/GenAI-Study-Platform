@@ -1,4 +1,4 @@
-# LearnHub 术语表
+# CaveClass 术语表
 
 项目里出现的概念、代码中的名字和含义。新增概念时请同步更新这份文件。
 
@@ -35,6 +35,10 @@
 | TTL | 有效期 | Time To Live，缓存条目最多保留多久，默认 30 秒（`PERMISSION_CACHE_TTL`） |
 | Reset | 清空缓存 | 任何影响权限的写操作提交后调用，让新权限在下一个请求立即生效 |
 | version（Cache 字段） | 缓存版本 | 每次 Reset 加一，用来丢弃 Reset 之前发起、Reset 之后才返回的查询结果 |
+| DBLoader | 数据库加载器 | `PrincipalLoader` 的正式实现：查 `sys_user` 和该角色在 `sys_role_permission` 里的权限码 |
+| RequirePermission | 权限中间件 | 写在路由表每一行：要求持有某个权限码，否则 403；权限码格式写错会在启动时 panic |
+| RequireLogin | 登录中间件 | 写在路由表里：只要求登录、不要求权限码的接口（如 me、改密码） |
+| GetCurrentPrincipal | 取当前用户 | handler 里调用，拿到当前请求的 Principal；没有登录时返回 401 错误 |
 | Ownership | 数据归属 | 某条数据属于谁，如课程的 `owner_id`。归属检查在 service 层完成，不满足时返回 403 |
 
 ## 认证
@@ -43,7 +47,10 @@
 |---|---|---|
 | JWT / token | 登录凭证 | 登录后签发，只包含 `uid` 和 `tv`（token_version），不包含权限码 |
 | token_version（用户表字段） | token 版本 | 每个用户各自的版本号。禁用用户、修改密码、重置密码时加一，该用户的旧 token 立即失效 |
-| Whitelist | 白名单 | 不需要登录就能访问的接口，只在一处集中配置（登录、健康检查） |
+| Whitelist / publicRoutes | 白名单 | 不需要登录就能访问的接口，只在 `identity/public.go` 一处配置（登录、健康检查） |
+| TokenIssuer | token 签发器 | 登录时签发 token，认证中间件校验 token；只接受 HS256，校验签名、签发方和过期时间 |
+| Authenticate | 认证中间件 | 挂在 `/api` 上：白名单放行；否则校验 token → 读权限缓存 → 检查是否禁用、token 版本，通过后把 Principal 写入请求 |
+| CompareWithDummyHash | 耗时对齐 | 用户不存在时也做一次密码比较，让它和"密码错误"耗时一致，避免被用来探测用户名 |
 | Dev secret | 开发密钥 | 未设置 `JWT_SECRET` 时使用的内置密钥，仅限本地开发，prod 环境拒绝启动 |
 
 ## HTTP 与分层
@@ -69,7 +76,7 @@
 | Namespaces | 模块拥有的使用方 | 一个模块可以拥有多个使用方，如课程模块拥有 `teacher` 和 `student`；两个模块不能拥有同一个使用方 |
 | DefaultGrants | 默认授权 | 模块为角色准备的初始授权，只能授予本模块的权限码，不能给 `ROLE_ADMIN` 配授权 |
 | Registry | 模块注册表 | 启动时汇总所有模块并检查冲突，任何问题都让启动失败 |
-| enabledModules | 启用的模块列表 | `cmd/server/main.go` 里的函数，新增模块时在这里加一行 |
+| getEnabledModules | 启用的模块列表 | `cmd/server/main.go` 里的函数，新增模块时在这里加一行 |
 | routes.go | 路由表 | 所有接口按模块分组列在一处：方法、路径、所需权限、handler |
 | DemoProvider | 演示数据提供者 | 可选接口，模块实现它就能在 `--reset-demo` 时写入自己的演示数据 |
 
@@ -103,9 +110,16 @@
 - 不在函数里写匿名辅助函数，改为包级具名函数。
 - 字段已经属于某个类型时，不再重复类型名：`cache.version`，不写 `cache.cacheVersion`。
 - 方法名带上处理的对象，比如写 `LoadPrincipal`，不写泛泛的 `Load`，避免和标准库的同名方法混淆。
+- 取值、查询类的函数用 `Get` 开头，如 `GetCurrentPrincipal`、`GetRoleName`、`registry.GetCatalog()`、`testutil.GetUserID`。判断类用 `Is` / `Has`，动作类用动词（`Issue`、`Parse`、`Reset`），Go、GORM、slog 规定的方法名（`Error`、`TableName`、`Handle`）保持原样。
 - 构造函数和初始化函数：
   - 有返回值、创建一个对象的，用 `New` 开头，如 `NewRegistry`；修改全局状态、没有返回值的，用 `Setup` / `Init` 开头，如 `logs.Setup`。
   - 只在启动时调用一次的，注释里写明"全局只初始化一次：启动时由 xxx 调用"；没有这句的，表示可以按需多次创建（如测试里的 `testutil.NewDB`）。
+- 数据库访问：**查询和写入一律直接写 SQL，建表交给 AutoMigrate**。
+  - 查询用 `database.Raw("SELECT ...", 参数...).Scan(&结果)`；写入用 `database.Exec("INSERT / UPDATE / DELETE ...", 参数...)`。
+  - 参数一律用 `?` 占位符，不拼接字符串，防止 SQL 注入。
+  - `Raw(...).Scan` 查不到不会报错，用 `result.RowsAffected == 0` 判断。
+  - 时间字段自己写，统一用 `time.Now().UTC()`。
+  - 测试里用 `testutil.MustExec`、`testutil.GetUserID` 少写重复代码。
 - 文件开头写一行说明，不单独建 `doc.go`：
   - 单文件包：`// Package xxx ……` 紧贴 `package` 行，既是包说明也是文件说明。
   - 多文件包：每个文件第一行写自己的说明，和 `package` 行之间空一行，否则会被当成包说明拼在一起。

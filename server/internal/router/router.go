@@ -8,16 +8,19 @@ import (
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
 
-	"learnhub/internal/framework/access"
-	"learnhub/internal/platform/errs"
-	"learnhub/internal/platform/middleware"
-	"learnhub/internal/platform/resp"
+	"caveclass/internal/framework/access"
+	"caveclass/internal/framework/identity"
+	"caveclass/internal/platform/errs"
+	"caveclass/internal/platform/middleware"
+	"caveclass/internal/platform/resp"
 )
 
 // Deps main.go 交给路由层的依赖，路由表用它们创建各模块的 handler。只放路由层真正用到的东西。
 type Deps struct {
-	DB      *gorm.DB        // 数据库连接：健康检查，以及各模块的 handler 和 service
-	Catalog *access.Catalog // 权限码目录：system 模块返回目录、校验授权时用（阶段 5）
+	DB          *gorm.DB              // 数据库连接：健康检查，以及各模块的 handler 和 service
+	Catalog     *access.Catalog       // 权限码目录：system 模块返回目录、校验授权时用（阶段 5）
+	Cache       *access.Cache         // 权限缓存：认证中间件读权限；改密码、改授权后要清空
+	TokenIssuer *identity.TokenIssuer // token 签发器：登录时签发，认证中间件校验
 }
 
 // NewHTTPHandler 全局只初始化一次，返回整个服务的 HTTP 入口（不是某个接口的业务 handler），交给 http.Server 使用。

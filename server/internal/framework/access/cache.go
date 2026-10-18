@@ -41,7 +41,7 @@ func NewCache(ttl time.Duration, loader PrincipalLoader) *Cache {
 
 // Get 返回用户的权限快照，未命中或已过期时从数据库加载。加载失败不缓存。
 func (cache *Cache) Get(ctx context.Context, userID int64) (*Principal, error) {
-	if principal, ok := cache.lookup(userID); ok {
+	if principal, ok := cache.getCachedPrincipal(userID); ok {
 		return principal, nil
 	}
 
@@ -63,7 +63,7 @@ func (cache *Cache) Reset() {
 }
 
 // 查找缓存中userID对应的权限快照
-func (cache *Cache) lookup(userID int64) (*Principal, bool) {
+func (cache *Cache) getCachedPrincipal(userID int64) (*Principal, bool) {
 	cache.mutex.Lock()
 	defer cache.mutex.Unlock()
 	entry, exists := cache.entries[userID]

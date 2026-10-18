@@ -21,7 +21,7 @@ func TestLoadDefaults(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if cfg.Env != "dev" || cfg.HTTPAddr != ":8080" || cfg.DBPath != "data/learnhub.db" {
+	if cfg.Env != "dev" || cfg.HTTPAddr != ":8080" || cfg.DBPath != "data/caveclass.db" {
 		t.Errorf("unexpected defaults: %+v", cfg)
 	}
 	if cfg.JWTTTL != 24*time.Hour || cfg.PermissionCacheTTL != 30*time.Second {

@@ -8,7 +8,7 @@ import (
 )
 
 // 未设置 JWT_SECRET 时使用的开发密钥，prod 环境下拒绝启动。
-const DevJWTSecret = "learnhub-dev-secret-do-not-use-in-prod"
+const DevJWTSecret = "caveclass-dev-secret-do-not-use-in-prod"
 
 type Config struct {
 	Env                string        // APP_ENV：dev（默认）| prod
@@ -25,7 +25,7 @@ func Load() (Config, error) {
 	cfg := Config{
 		Env:       getConfigStr("APP_ENV", "dev"),
 		HTTPAddr:  getConfigStr("HTTP_ADDR", ":8080"),
-		DBPath:    getConfigStr("DB_PATH", "data/learnhub.db"),
+		DBPath:    getConfigStr("DB_PATH", "data/caveclass.db"),
 		JWTSecret: getConfigStr("JWT_SECRET", DevJWTSecret),
 	}
 	if cfg.Env != "dev" && cfg.Env != "prod" {

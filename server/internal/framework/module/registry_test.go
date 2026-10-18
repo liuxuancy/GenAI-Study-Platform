@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	"learnhub/internal/framework/access"
+	"caveclass/internal/framework/access"
 )
 
 // fakeModule 用字段描述一个模块，方便在测试里构造各种写错的情况。
@@ -17,11 +17,11 @@ type fakeModule struct {
 	models        []any
 }
 
-func (fake *fakeModule) Name() string                        { return fake.name }
-func (fake *fakeModule) Namespaces() []string                { return fake.namespaces }
-func (fake *fakeModule) Permissions() []access.PermissionDef { return fake.permissions }
-func (fake *fakeModule) DefaultGrants() map[string][]string  { return fake.defaultGrants }
-func (fake *fakeModule) Models() []any                       { return fake.models }
+func (fake *fakeModule) GetName() string                        { return fake.name }
+func (fake *fakeModule) GetNamespaces() []string                { return fake.namespaces }
+func (fake *fakeModule) GetPermissions() []access.PermissionDef { return fake.permissions }
+func (fake *fakeModule) GetDefaultGrants() map[string][]string  { return fake.defaultGrants }
+func (fake *fakeModule) GetModels() []any                       { return fake.models }
 
 var _ Module = (*fakeModule)(nil)
 
@@ -63,7 +63,7 @@ func TestNewRegistryCollectsModules(t *testing.T) {
 	}
 
 	codes := make([]string, 0)
-	for _, definition := range registry.Catalog().All() {
+	for _, definition := range registry.GetCatalog().GetAllDefinitions() {
 		codes = append(codes, definition.Code)
 	}
 	want := []string{"system:user:view", "teacher:course:view", "teacher:course:create", "student:catalog:view"}
@@ -71,13 +71,13 @@ func TestNewRegistryCollectsModules(t *testing.T) {
 		t.Errorf("catalog = %v, want %v (in module order)", codes, want)
 	}
 
-	grants := registry.DefaultGrants()
+	grants := registry.GetDefaultGrants()
 	if !slices.Equal(grants[access.RoleTeacher], []string{"teacher:*"}) ||
 		!slices.Equal(grants[access.RoleStudent], []string{"student:catalog:view"}) {
 		t.Errorf("default grants = %v", grants)
 	}
 
-	if models := registry.Models(); !slices.Equal(models, []any{"user-table", "course-table"}) {
+	if models := registry.GetModels(); !slices.Equal(models, []any{"user-table", "course-table"}) {
 		t.Errorf("models = %v", models)
 	}
 }
@@ -87,7 +87,7 @@ func TestNewRegistryWithoutModules(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(registry.Catalog().All()) != 0 || len(registry.DefaultGrants()) != 0 {
+	if len(registry.GetCatalog().GetAllDefinitions()) != 0 || len(registry.GetDefaultGrants()) != 0 {
 		t.Error("empty registry should have no permissions or grants")
 	}
 }
@@ -97,8 +97,8 @@ func TestDefaultGrantsReturnsCopy(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	registry.DefaultGrants()[access.RoleTeacher][0] = "changed"
-	if registry.DefaultGrants()[access.RoleTeacher][0] != "teacher:*" {
+	registry.GetDefaultGrants()[access.RoleTeacher][0] = "changed"
+	if registry.GetDefaultGrants()[access.RoleTeacher][0] != "teacher:*" {
 		t.Error("DefaultGrants must return a copy")
 	}
 }

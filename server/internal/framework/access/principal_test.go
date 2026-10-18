@@ -36,8 +36,8 @@ func TestHasPermissionAnyGrantMatches(t *testing.T) {
 }
 
 func TestRoles(t *testing.T) {
-	if len(Roles()) != 3 {
-		t.Fatalf("Roles() = %+v", Roles())
+	if len(GetRoles()) != 3 {
+		t.Fatalf("GetRoles() = %+v", GetRoles())
 	}
 	for _, code := range []string{RoleAdmin, RoleTeacher, RoleStudent} {
 		if !IsValidRole(code) {
@@ -48,8 +48,8 @@ func TestRoles(t *testing.T) {
 		t.Error("unknown role accepted")
 	}
 	// 修改返回值不能影响内部列表
-	Roles()[0].Name = "changed"
-	if Roles()[0].Name == "changed" {
-		t.Error("Roles() must return a copy")
+	GetRoles()[0].Name = "changed"
+	if GetRoles()[0].Name == "changed" {
+		t.Error("GetRoles() must return a copy")
 	}
 }

@@ -5,7 +5,7 @@ package access
 import (
 	"fmt"
 
-	"learnhub/internal/platform/errs"
+	"caveclass/internal/platform/errs"
 )
 
 type PermissionType string
@@ -68,8 +68,8 @@ func checkDefinition(definition PermissionDef) error {
 	}
 }
 
-// All 按声明顺序返回全部定义（副本）。
-func (catalog *Catalog) All() []PermissionDef {
+// GetAllDefinitions 按声明顺序返回全部定义（副本）。
+func (catalog *Catalog) GetAllDefinitions() []PermissionDef {
 	return append([]PermissionDef(nil), catalog.definitions...)
 }
 

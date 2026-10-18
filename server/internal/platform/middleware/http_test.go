@@ -10,8 +10,8 @@ import (
 
 	"github.com/gin-gonic/gin"
 
-	"learnhub/internal/platform/errs"
-	"learnhub/internal/platform/resp"
+	"caveclass/internal/platform/errs"
+	"caveclass/internal/platform/resp"
 )
 
 func init() { gin.SetMode(gin.TestMode) }

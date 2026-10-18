@@ -8,13 +8,14 @@ import (
 	"maps"
 	"slices"
 	"strings"
+	"time"
 
 	"gorm.io/gorm"
 
-	"learnhub/internal/framework/access"
-	"learnhub/internal/framework/identity"
-	"learnhub/internal/framework/model"
-	"learnhub/internal/platform/logs"
+	"caveclass/internal/framework/access"
+	"caveclass/internal/framework/identity"
+	"caveclass/internal/framework/model"
+	"caveclass/internal/platform/logs"
 )
 
 // Account 一个要写入的账号。演示数据的 users.json 也是这个格式。
@@ -33,8 +34,8 @@ var testAccounts = []Account{
 	{Username: "student1", Password: "student123", Nickname: "学生一号", Role: access.RoleStudent},
 }
 
-// TestAccounts 返回测试账号（副本），测试里用来登录。
-func TestAccounts() []Account {
+// GetTestAccounts 返回测试账号（副本），测试里用来登录。
+func GetTestAccounts() []Account {
 	return slices.Clone(testAccounts)
 }
 
@@ -79,7 +80,7 @@ func ensureAccount(tx *gorm.DB, account Account) (bool, error) {
 	}
 
 	var count int64
-	if err := tx.Model(&model.User{}).Where("username = ?", username).Count(&count).Error; err != nil {
+	if err := tx.Raw("SELECT COUNT(*) FROM sys_user WHERE username = ?", username).Scan(&count).Error; err != nil {
 		return false, err
 	}
 	if count > 0 {
@@ -90,21 +91,20 @@ func ensureAccount(tx *gorm.DB, account Account) (bool, error) {
 	if err != nil {
 		return false, fmt.Errorf("account %s: %w", username, err)
 	}
-	user := model.User{
-		Username:     username,
-		PasswordHash: hash,
-		Nickname:     account.Nickname,
-		Role:         account.Role,
-		Status:       model.UserStatusActive,
-	}
-	return true, tx.Create(&user).Error
+	now := time.Now().UTC()
+	err = tx.Exec(
+		`INSERT INTO sys_user (username, password_hash, nickname, email, role, status, token_version, created_at, updated_at)
+		 VALUES (?, ?, ?, '', ?, ?, 0, ?, ?)`,
+		username, hash, account.Nickname, account.Role, model.UserStatusActive, now, now,
+	).Error
+	return true, err
 }
 
 // ensureDefaultGrants 只在授权表为空（首次启动）时写入默认授权，
 // 之后管理员的调整都保留，重启不会被覆盖。
 func ensureDefaultGrants(ctx context.Context, tx *gorm.DB, defaultGrants map[string][]string) error {
 	var count int64
-	if err := tx.Model(&model.RolePermission{}).Count(&count).Error; err != nil {
+	if err := tx.Raw("SELECT COUNT(*) FROM sys_role_permission").Scan(&count).Error; err != nil {
 		return err
 	}
 	if count > 0 {
@@ -112,18 +112,18 @@ func ensureDefaultGrants(ctx context.Context, tx *gorm.DB, defaultGrants map[str
 		return nil
 	}
 
-	var rows []model.RolePermission
+	written := 0
 	for _, role := range slices.Sorted(maps.Keys(defaultGrants)) {
 		for _, code := range defaultGrants[role] {
-			rows = append(rows, model.RolePermission{Role: role, PermissionCode: code})
+			err := tx.Exec("INSERT INTO sys_role_permission (role, permission_code) VALUES (?, ?)", role, code).Error
+			if err != nil {
+				return err
+			}
+			written++
 		}
 	}
-	if len(rows) == 0 {
-		return nil
+	if written > 0 {
+		logs.CtxInfo(ctx, "seed grants: %d default grants written", written)
 	}
-	if err := tx.Create(&rows).Error; err != nil {
-		return err
-	}
-	logs.CtxInfo(ctx, "seed grants: %d default grants written", len(rows))
 	return nil
 }
