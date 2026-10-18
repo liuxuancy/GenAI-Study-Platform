@@ -35,7 +35,7 @@ study_platform/
 │       │   └── testutil/             测试脚手架：临时数据库 + 建表 + 种子数据
 │       ├── modules/                  ③ 业务模块，每个模块一个目录（阶段 4 起）
 │       │   ├── account/              登录、退出、me、个人信息、改密码，接口 /api/account/*
-│       │   ├── system/               用户管理、角色权限，接口 /api/system/*（阶段 5）
+│       │   ├── system/               用户管理、角色权限，接口 /api/system/*
 │       │   └── course/               讲师侧 /api/teacher/*、学生侧 /api/student/*（阶段 9）
 │       └── router/                   ④ 路由层：router.go 组装中间件，routes.go 是全部接口的路由表
 └── web/                              前端（阶段 6 开始）
@@ -123,6 +123,19 @@ curl http://localhost:8080/api/account/me -H "Authorization: Bearer <token>"
 | PUT | /api/account/profile | 登录即可 | 只能改自己的昵称、邮箱 |
 | PUT | /api/account/password | 登录即可 | 原密码错误返回 400；成功后 token_version 加一，所有旧 token 失效，需要重新登录 |
 
+### system 接口（只有管理员）
+
+| 方法 | 路径 | 所需权限码 | 说明 |
+|---|---|---|---|
+| GET | /api/system/users | system:user:view | 分页（page、pageSize）；按 keyword（用户名或昵称）、role、status 筛选 |
+| POST | /api/system/users | system:user:create | 必须指定角色，之后不可修改；用户名重复返回 409 |
+| PUT | /api/system/users/:id | system:user:update | 修改昵称、邮箱、状态；不能禁用自己；禁用后该用户立即下线 |
+| PUT | /api/system/users/:id/password | system:user:reset-password | 重置密码，该用户所有旧 token 立即失效 |
+| DELETE | /api/system/users/:id | system:user:delete | 不能删除自己；其他模块还有数据引用该用户时返回 409 |
+| GET | /api/system/roles | system:role:view | 3 个角色及其授权；stalePermissions 是代码里已删掉的权限码 |
+| PUT | /api/system/roles/:code/permissions | system:role:assign-permission | 整体替换授权，立即对该角色所有用户生效；ROLE_ADMIN 不能配置 |
+| GET | /api/system/permissions | system:permission:list | 权限码目录 |
+
 首次启动会自动建表并写入测试账号。想要一份干净的、带演示数据的库：
 
 ```bash
@@ -174,7 +187,7 @@ go run ./cmd/server --reset-demo
 | 2 | 权限核心库：匹配、目录、Principal、缓存 | ✅ |
 | 3 | 模块机制、数据表、种子数据、演示数据加载 | ✅ |
 | 4 | 认证：JWT、登录、认证中间件、RequirePermission、account 模块 | ✅ |
-| 5 | 系统管理接口：用户、角色权限 | |
+| 5 | 系统管理接口：用户、角色权限 | ✅ |
 | 6 | 前端骨架与登录 | |
 | 7 | 动态菜单与路由守卫 | |
 | 8 | 管理员页面 | |

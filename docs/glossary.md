@@ -39,6 +39,8 @@
 | RequirePermission | 权限中间件 | 写在路由表每一行：要求持有某个权限码，否则 403；权限码格式写错会在启动时 panic |
 | RequireLogin | 登录中间件 | 写在路由表里：只要求登录、不要求权限码的接口（如 me、改密码） |
 | GetCurrentPrincipal | 取当前用户 | handler 里调用，拿到当前请求的 Principal；没有登录时返回 401 错误 |
+| 权限码常量 | 权限码常量 | 如 `system.PermissionUserView`，模块声明和路由表都引用同一个常量，避免两边拼写不一致 |
+| StalePermissions | 已失效授权 | 授权表里存在、但代码里已经删掉的权限码。不匹配任何接口，角色权限页标出来供管理员清理 |
 | Ownership | 数据归属 | 某条数据属于谁，如课程的 `owner_id`。归属检查在 service 层完成，不满足时返回 403 |
 
 ## 认证
@@ -66,6 +68,8 @@
 | Handler | 接口处理函数 | 处理某一个具体接口的函数，写法统一为 `func(ctx) (any, error)` |
 | `resp.ToGinHandler` | handler 转换 | 把上面的写法转成 gin 需要的函数，成功时写响应，失败时把错误交给 ErrorHandler |
 | Service | 业务层 | 业务逻辑和归属检查，不依赖 HTTP |
+| `resp.BindJSON` / `resp.BindQuery` | 参数解析 | 解析并校验请求体 / URL 查询参数，失败返回 400 |
+| `resp.GetInt64PathParam` | 路径参数 | 取出 `/users/:id` 里的 id 并转成整数，格式不对返回 400 |
 | Result | 统一响应体 | `{code, msg, data}`，code 为 0 表示成功 |
 
 ## 模块
@@ -78,6 +82,7 @@
 | Registry | 模块注册表 | 启动时汇总所有模块并检查冲突，任何问题都让启动失败 |
 | getEnabledModules | 启用的模块列表 | `cmd/server/main.go` 里的函数，新增模块时在这里加一行 |
 | routes.go | 路由表 | 所有接口按模块分组列在一处：方法、路径、所需权限、handler |
+| UserDeletionGuard | 删除用户检查 | 可选接口：模块里有数据引用用户（如讲师的课程）时实现它，删除用户前返回 409 拦下 |
 | DemoProvider | 演示数据提供者 | 可选接口，模块实现它就能在 `--reset-demo` 时写入自己的演示数据 |
 
 ## 错误
@@ -119,6 +124,7 @@
   - 参数一律用 `?` 占位符，不拼接字符串，防止 SQL 注入。
   - `Raw(...).Scan` 查不到不会报错，用 `result.RowsAffected == 0` 判断。
   - 时间字段自己写，统一用 `time.Now().UTC()`。
+  - SQL 完整写死，不在代码里拼接字符串。可选的筛选条件写成 `(? = '' OR 条件)`，没传参数时条件恒为真；没传数字类参数用 `-1` 表示。这样一眼能看到最终执行的 SQL，IDE 也能检查。
   - 测试里用 `testutil.MustExec`、`testutil.GetUserID` 少写重复代码。
 - 文件开头写一行说明，不单独建 `doc.go`：
   - 单文件包：`// Package xxx ……` 紧贴 `package` 行，既是包说明也是文件说明。

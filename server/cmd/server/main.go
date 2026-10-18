@@ -22,6 +22,7 @@ import (
 	"caveclass/internal/framework/module"
 	"caveclass/internal/framework/seed"
 	"caveclass/internal/modules/account"
+	"caveclass/internal/modules/system"
 	"caveclass/internal/platform/config"
 	"caveclass/internal/platform/db"
 	"caveclass/internal/platform/logs"
@@ -32,6 +33,7 @@ import (
 func getEnabledModules() []module.Module {
 	return []module.Module{
 		account.Module{},
+		system.Module{},
 	}
 }
 
@@ -90,10 +92,11 @@ func run() error {
 	server := &http.Server{
 		Addr: cfg.HTTPAddr,
 		Handler: router.NewHTTPHandler(router.Deps{
-			DB:          database,
-			Catalog:     registry.GetCatalog(),
-			Cache:       access.NewCache(cfg.PermissionCacheTTL, access.NewDBLoader(database)),
-			TokenIssuer: identity.NewTokenIssuer(cfg.JWTSecret, cfg.JWTTTL),
+			DB:                 database,
+			Catalog:            registry.GetCatalog(),
+			Cache:              access.NewCache(cfg.PermissionCacheTTL, access.NewDBLoader(database)),
+			TokenIssuer:        identity.NewTokenIssuer(cfg.JWTSecret, cfg.JWTTTL),
+			UserDeletionGuards: registry.GetUserDeletionGuards(),
 		}),
 		ReadHeaderTimeout: 10 * time.Second,
 	}
