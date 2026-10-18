@@ -1,11 +1,10 @@
-// Module 接口：每个业务模块向框架声明自己的权限码、默认授权、数据表和路由。
+// Module 接口：每个业务模块向框架声明自己的权限码、默认授权和数据表。路由统一写在 internal/router/routes.go。
 
 package module
 
 import (
 	"context"
 
-	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
 
 	"learnhub/internal/framework/access"
@@ -23,17 +22,9 @@ type Module interface {
 	DefaultGrants() map[string][]string
 	// Models 本模块需要建表的结构体。
 	Models() []any
-	// Register 注册本模块的路由，api 是 /api 分组。
-	Register(api *gin.RouterGroup, deps Deps)
 }
 
 // DemoProvider 可选接口：模块实现它，就能在重置演示数据时写入自己的演示数据。
 type DemoProvider interface {
 	LoadDemo(ctx context.Context, database *gorm.DB) error
-}
-
-// Deps 框架提供给模块的依赖。模块之间不互相 import，需要的能力都从这里拿。
-type Deps struct {
-	DB      *gorm.DB
-	Catalog *access.Catalog
 }

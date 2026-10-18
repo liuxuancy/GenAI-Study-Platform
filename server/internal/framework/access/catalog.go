@@ -31,7 +31,8 @@ type Catalog struct {
 	definitions []PermissionDef
 }
 
-// NewCatalog 初始化权限码目录
+// NewCatalog 初始化权限码目录。
+// 全局只初始化一次：启动时由 NewRegistry 调用。
 func NewCatalog(definitions []PermissionDef) (*Catalog, error) {
 	catalog := &Catalog{}
 	for _, definition := range definitions {

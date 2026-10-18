@@ -29,6 +29,7 @@ type cacheEntry struct {
 	expiresAt time.Time
 }
 
+// NewCache 创建权限缓存。全局只初始化一次：启动时创建，所有请求共用同一个缓存。
 func NewCache(ttl time.Duration, loader PrincipalLoader) *Cache {
 	return &Cache{
 		ttl:     ttl,

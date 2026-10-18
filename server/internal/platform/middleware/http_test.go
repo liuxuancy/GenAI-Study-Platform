@@ -19,11 +19,11 @@ func init() { gin.SetMode(gin.TestMode) }
 func newEngine() *gin.Engine {
 	engine := gin.New()
 	engine.Use(Logger(), ErrorHandler())
-	engine.GET("/ok", resp.H(okHandler))
-	engine.GET("/forbidden", resp.H(forbiddenHandler))
-	engine.GET("/plain-error", resp.H(plainErrorHandler))
-	engine.GET("/panic", resp.H(panicHandler))
-	engine.POST("/bind", resp.H(bindHandler))
+	engine.GET("/ok", resp.ToGinHandler(okHandler))
+	engine.GET("/forbidden", resp.ToGinHandler(forbiddenHandler))
+	engine.GET("/plain-error", resp.ToGinHandler(plainErrorHandler))
+	engine.GET("/panic", resp.ToGinHandler(panicHandler))
+	engine.POST("/bind", resp.ToGinHandler(bindHandler))
 	return engine
 }
 

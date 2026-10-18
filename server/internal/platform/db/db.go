@@ -21,25 +21,26 @@ const dsnParams = "" +
 	"&_txlock=immediate" // 事务开始即拿写锁；默认的 deferred 在"先读后写"时会跳过 busy_timeout 直接报错
 
 // Open 打开 path 处的 SQLite 文件，不存在则创建。
+// 全局只初始化一次：启动时由 main.go 调用，返回的连接池由所有请求共用。
 func Open(path string) (*gorm.DB, error) {
 	if dir := filepath.Dir(path); dir != "." {
 		if err := os.MkdirAll(dir, 0o755); err != nil {
 			return nil, fmt.Errorf("create db dir: %w", err)
 		}
 	}
-	gdb, err := gorm.Open(sqlite.Open(path+dsnParams), &gorm.Config{
+	database, err := gorm.Open(sqlite.Open(path+dsnParams), &gorm.Config{
 		NowFunc: func() time.Time { return time.Now().UTC() }, // 时间统一存 UTC
 		Logger:  logger.Default.LogMode(logger.Warn),
 	})
 	if err != nil {
 		return nil, fmt.Errorf("open sqlite %s: %w", path, err)
 	}
-	return gdb, nil
+	return database, nil
 }
 
 // Close 关闭底层连接池。
-func Close(gdb *gorm.DB) error {
-	sqlDB, err := gdb.DB()
+func Close(database *gorm.DB) error {
+	sqlDB, err := database.DB()
 	if err != nil {
 		return err
 	}
@@ -47,8 +48,8 @@ func Close(gdb *gorm.DB) error {
 }
 
 // Migrate 根据结构体自动建表、加字段。不会删字段或改字段名。
-func Migrate(gdb *gorm.DB, models ...any) error {
-	if err := gdb.AutoMigrate(models...); err != nil {
+func Migrate(database *gorm.DB, models ...any) error {
+	if err := database.AutoMigrate(models...); err != nil {
 		return fmt.Errorf("auto migrate: %w", err)
 	}
 	return nil

@@ -18,11 +18,11 @@ import (
 
 	"learnhub/internal/framework/model"
 	"learnhub/internal/framework/module"
-	"learnhub/internal/framework/router"
 	"learnhub/internal/framework/seed"
 	"learnhub/internal/platform/config"
 	"learnhub/internal/platform/db"
 	"learnhub/internal/platform/logs"
+	"learnhub/internal/router"
 )
 
 // enabledModules 要加载的业务模块，新增模块时在这里加一行。
@@ -67,24 +67,24 @@ func run() error {
 	}
 
 	// 建立数据库连接
-	gdb, err := db.Open(cfg.DBPath)
+	database, err := db.Open(cfg.DBPath)
 	if err != nil {
 		return err
 	}
 	defer func() {
-		if err := db.Close(gdb); err != nil {
+		if err := db.Close(database); err != nil {
 			logs.CtxError(context.Background(), "close db: %v", err)
 		}
 	}()
 
-	if err := prepareDatabase(gdb, registry, *resetDemo); err != nil {
+	if err := prepareDatabase(database, registry, *resetDemo); err != nil {
 		return err
 	}
 
 	gin.SetMode(gin.ReleaseMode) // 请求日志由我们自己的 Logger 输出
 	server := &http.Server{
 		Addr:              cfg.HTTPAddr,
-		Handler:           router.New(router.Deps{DB: gdb, Registry: registry}),
+		Handler:           router.NewHTTPHandler(router.Deps{DB: database, Catalog: registry.Catalog()}),
 		ReadHeaderTimeout: 10 * time.Second,
 	}
 	// 监听退出信号，os.Interrupt（Ctrl+C），syscall.SIGTERM（容器退出）
@@ -117,17 +117,17 @@ func run() error {
 }
 
 // prepareDatabase 建表、写种子数据；loadDemo 为 true 时再写入演示数据。
-func prepareDatabase(gdb *gorm.DB, registry *module.Registry, loadDemo bool) error {
+func prepareDatabase(database *gorm.DB, registry *module.Registry, loadDemo bool) error {
 	ctx := context.Background()
 	models := append(model.FrameworkModels(), registry.Models()...)
-	if err := db.Migrate(gdb, models...); err != nil {
+	if err := db.Migrate(database, models...); err != nil {
 		return err
 	}
-	if err := seed.Run(ctx, gdb, registry.DefaultGrants()); err != nil {
+	if err := seed.Run(ctx, database, registry.DefaultGrants()); err != nil {
 		return fmt.Errorf("seed: %w", err)
 	}
 	if loadDemo {
-		if err := seed.LoadDemo(ctx, gdb, registry.Modules()); err != nil {
+		if err := seed.LoadDemo(ctx, database, registry.Modules()); err != nil {
 			return fmt.Errorf("load demo data: %w", err)
 		}
 	}

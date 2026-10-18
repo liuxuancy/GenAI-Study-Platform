@@ -5,8 +5,6 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/gin-gonic/gin"
-
 	"learnhub/internal/framework/access"
 )
 
@@ -17,15 +15,13 @@ type fakeModule struct {
 	permissions   []access.PermissionDef
 	defaultGrants map[string][]string
 	models        []any
-	registered    bool
 }
 
-func (fake *fakeModule) Name() string                             { return fake.name }
-func (fake *fakeModule) Namespaces() []string                     { return fake.namespaces }
-func (fake *fakeModule) Permissions() []access.PermissionDef      { return fake.permissions }
-func (fake *fakeModule) DefaultGrants() map[string][]string       { return fake.defaultGrants }
-func (fake *fakeModule) Models() []any                            { return fake.models }
-func (fake *fakeModule) Register(api *gin.RouterGroup, deps Deps) { fake.registered = true }
+func (fake *fakeModule) Name() string                        { return fake.name }
+func (fake *fakeModule) Namespaces() []string                { return fake.namespaces }
+func (fake *fakeModule) Permissions() []access.PermissionDef { return fake.permissions }
+func (fake *fakeModule) DefaultGrants() map[string][]string  { return fake.defaultGrants }
+func (fake *fakeModule) Models() []any                       { return fake.models }
 
 var _ Module = (*fakeModule)(nil)
 
@@ -61,8 +57,7 @@ func systemModule() *fakeModule {
 }
 
 func TestNewRegistryCollectsModules(t *testing.T) {
-	course, system := courseModule(), systemModule()
-	registry, err := NewRegistry(system, course)
+	registry, err := NewRegistry(systemModule(), courseModule())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -84,11 +79,6 @@ func TestNewRegistryCollectsModules(t *testing.T) {
 
 	if models := registry.Models(); !slices.Equal(models, []any{"user-table", "course-table"}) {
 		t.Errorf("models = %v", models)
-	}
-
-	registry.Register(nil, Deps{})
-	if !course.registered || !system.registered {
-		t.Error("Register should call every module")
 	}
 }
 

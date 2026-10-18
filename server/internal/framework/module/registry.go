@@ -7,8 +7,6 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/gin-gonic/gin"
-
 	"learnhub/internal/framework/access"
 )
 
@@ -19,6 +17,7 @@ type Registry struct {
 }
 
 // NewRegistry 按顺序汇总模块。出错说明某个模块写错了，应在启动时暴露。
+// 全局只初始化一次：启动时由 main.go 调用（测试里每个用例各建一个）。
 func NewRegistry(modules ...Module) (*Registry, error) {
 	if err := checkNamesAndNamespaces(modules); err != nil {
 		return nil, err
@@ -124,11 +123,4 @@ func (registry *Registry) Models() []any {
 		models = append(models, current.Models()...)
 	}
 	return models
-}
-
-// Register 依次注册各模块的路由。
-func (registry *Registry) Register(api *gin.RouterGroup, deps Deps) {
-	for _, current := range registry.modules {
-		current.Register(api, deps)
-	}
 }

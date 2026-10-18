@@ -8,14 +8,14 @@ import (
 
 func TestOpenAppliesPragmasAndCreatesDir(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "nested", "dir", "test.db")
-	gdb, err := Open(path)
+	database, err := Open(path)
 	if err != nil {
 		t.Fatal(err)
 	}
-	t.Cleanup(func() { _ = Close(gdb) })
+	t.Cleanup(func() { _ = Close(database) })
 
 	var mode string
-	if err := gdb.Raw("PRAGMA journal_mode").Scan(&mode).Error; err != nil {
+	if err := database.Raw("PRAGMA journal_mode").Scan(&mode).Error; err != nil {
 		t.Fatal(err)
 	}
 	if mode != "wal" {
@@ -23,7 +23,7 @@ func TestOpenAppliesPragmasAndCreatesDir(t *testing.T) {
 	}
 
 	var timeout int
-	if err := gdb.Raw("PRAGMA busy_timeout").Scan(&timeout).Error; err != nil {
+	if err := database.Raw("PRAGMA busy_timeout").Scan(&timeout).Error; err != nil {
 		t.Fatal(err)
 	}
 	if timeout != 5000 {
