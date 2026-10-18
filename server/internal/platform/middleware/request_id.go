@@ -7,7 +7,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 
-	"learnhub/internal/platform/logs"
+	"caveclass/internal/platform/logs"
 )
 
 // RequestIDHeader 请求和响应里携带请求 ID 的头。

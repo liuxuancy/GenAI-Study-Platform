@@ -7,11 +7,11 @@ import (
 
 	"github.com/gin-gonic/gin"
 
-	"learnhub/internal/platform/logs"
+	"caveclass/internal/platform/logs"
 )
 
 func echoRequestIDHandler(ctx *gin.Context) {
-	ctx.String(http.StatusOK, logs.RequestID(ctx.Request.Context()))
+	ctx.String(http.StatusOK, logs.GetRequestID(ctx.Request.Context()))
 }
 
 func TestRequestID(t *testing.T) {

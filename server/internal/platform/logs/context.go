@@ -20,7 +20,7 @@ func WithAttrs(ctx context.Context, attrs ...slog.Attr) context.Context {
 	if len(attrs) == 0 {
 		return ctx
 	}
-	existing := attrsFrom(ctx)
+	existing := getContextAttrs(ctx)
 	// 复制一份再追加，避免和父 ctx 共享底层数组
 	merged := make([]slog.Attr, 0, len(existing)+len(attrs))
 	merged = append(merged, existing...)
@@ -34,8 +34,8 @@ func WithRequestID(ctx context.Context, requestID string) context.Context {
 	return WithAttrs(ctx, slog.String(RequestIDKey, requestID))
 }
 
-// RequestID 取出请求 ID，没有则返回空串。
-func RequestID(ctx context.Context) string {
+// GetRequestID 取出请求 ID，没有则返回空串。
+func GetRequestID(ctx context.Context) string {
 	if ctx == nil {
 		return ""
 	}
@@ -43,7 +43,7 @@ func RequestID(ctx context.Context) string {
 	return requestID
 }
 
-func attrsFrom(ctx context.Context) []slog.Attr {
+func getContextAttrs(ctx context.Context) []slog.Attr {
 	if ctx == nil {
 		return nil
 	}

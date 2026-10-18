@@ -8,12 +8,12 @@ import (
 
 	"gorm.io/gorm"
 
-	"learnhub/internal/framework/access"
-	"learnhub/internal/framework/identity"
-	"learnhub/internal/framework/model"
-	"learnhub/internal/framework/module"
-	"learnhub/internal/framework/seed"
-	"learnhub/internal/framework/testutil"
+	"caveclass/internal/framework/access"
+	"caveclass/internal/framework/identity"
+	"caveclass/internal/framework/model"
+	"caveclass/internal/framework/module"
+	"caveclass/internal/framework/seed"
+	"caveclass/internal/framework/testutil"
 )
 
 // courseModule 带默认授权和演示数据的假模块。
@@ -22,22 +22,22 @@ type courseModule struct {
 	demoErr   error
 }
 
-func (course *courseModule) Name() string         { return "course" }
-func (course *courseModule) Namespaces() []string { return []string{"teacher", "student"} }
-func (course *courseModule) Permissions() []access.PermissionDef {
+func (course *courseModule) GetName() string         { return "course" }
+func (course *courseModule) GetNamespaces() []string { return []string{"teacher", "student"} }
+func (course *courseModule) GetPermissions() []access.PermissionDef {
 	return []access.PermissionDef{
 		{Code: "teacher:course:view", Name: "查看课程", Type: access.PermissionTypeMenu},
 		{Code: "student:catalog:view", Name: "课程广场", Type: access.PermissionTypeMenu},
 		{Code: "student:my:view", Name: "我的学习", Type: access.PermissionTypeMenu},
 	}
 }
-func (course *courseModule) DefaultGrants() map[string][]string {
+func (course *courseModule) GetDefaultGrants() map[string][]string {
 	return map[string][]string{
 		access.RoleTeacher: {"teacher:*"},
 		access.RoleStudent: {"student:catalog:view", "student:my:view"},
 	}
 }
-func (course *courseModule) Models() []any { return nil }
+func (course *courseModule) GetModels() []any { return nil }
 func (course *courseModule) LoadDemo(ctx context.Context, database *gorm.DB) error {
 	course.demoCalls++
 	return course.demoErr
@@ -50,34 +50,37 @@ var (
 
 func runSeed(t *testing.T, database *gorm.DB, course *courseModule) {
 	t.Helper()
-	if err := seed.Run(context.Background(), database, course.DefaultGrants()); err != nil {
+	if err := seed.Run(context.Background(), database, course.GetDefaultGrants()); err != nil {
 		t.Fatal(err)
 	}
 }
 
-func findUser(t *testing.T, database *gorm.DB, username string) model.User {
+func getUserByUsername(t *testing.T, database *gorm.DB, username string) model.User {
 	t.Helper()
 	var user model.User
-	if err := database.Where("username = ?", username).First(&user).Error; err != nil {
-		t.Fatalf("user %s: %v", username, err)
+	result := database.Raw("SELECT * FROM sys_user WHERE username = ?", username).Scan(&user)
+	if result.Error != nil || result.RowsAffected == 0 {
+		t.Fatalf("user %s not found: %v", username, result.Error)
 	}
 	return user
 }
 
-func countRows(t *testing.T, database *gorm.DB, table any) int64 {
+// getRowCount 统计表的行数，table 只传代码里写死的表名。
+func getRowCount(t *testing.T, database *gorm.DB, table string) int64 {
 	t.Helper()
 	var count int64
-	if err := database.Model(table).Count(&count).Error; err != nil {
+	if err := database.Raw("SELECT COUNT(*) FROM " + table).Scan(&count).Error; err != nil {
 		t.Fatal(err)
 	}
 	return count
 }
 
-func grantsOf(t *testing.T, database *gorm.DB, role string) []string {
+func getGrantsOfRole(t *testing.T, database *gorm.DB, role string) []string {
 	t.Helper()
 	var codes []string
-	if err := database.Model(&model.RolePermission{}).Where("role = ?", role).
-		Order("permission_code").Pluck("permission_code", &codes).Error; err != nil {
+	err := database.Raw("SELECT permission_code FROM sys_role_permission WHERE role = ? ORDER BY permission_code", role).
+		Scan(&codes).Error
+	if err != nil {
 		t.Fatal(err)
 	}
 	return codes
@@ -86,11 +89,11 @@ func grantsOf(t *testing.T, database *gorm.DB, role string) []string {
 func TestRunCreatesAccountsAndGrants(t *testing.T) {
 	database := testutil.NewDB(t, &courseModule{})
 
-	if count := countRows(t, database, &model.User{}); count != 4 {
+	if count := getRowCount(t, database, "sys_user"); count != 4 {
 		t.Errorf("users = %d, want 4", count)
 	}
-	for _, account := range seed.TestAccounts() {
-		user := findUser(t, database, account.Username)
+	for _, account := range seed.GetTestAccounts() {
+		user := getUserByUsername(t, database, account.Username)
 		if user.Role != account.Role || user.Status != model.UserStatusActive || user.TokenVersion != 0 {
 			t.Errorf("%s: role=%s status=%d tokenVersion=%d", account.Username, user.Role, user.Status, user.TokenVersion)
 		}
@@ -99,13 +102,13 @@ func TestRunCreatesAccountsAndGrants(t *testing.T) {
 		}
 	}
 
-	if got := grantsOf(t, database, access.RoleTeacher); !slices.Equal(got, []string{"teacher:*"}) {
+	if got := getGrantsOfRole(t, database, access.RoleTeacher); !slices.Equal(got, []string{"teacher:*"}) {
 		t.Errorf("teacher grants = %v", got)
 	}
-	if got := grantsOf(t, database, access.RoleStudent); !slices.Equal(got, []string{"student:catalog:view", "student:my:view"}) {
+	if got := getGrantsOfRole(t, database, access.RoleStudent); !slices.Equal(got, []string{"student:catalog:view", "student:my:view"}) {
 		t.Errorf("student grants = %v", got)
 	}
-	if got := grantsOf(t, database, access.RoleAdmin); len(got) != 0 {
+	if got := getGrantsOfRole(t, database, access.RoleAdmin); len(got) != 0 {
 		t.Errorf("admin must have no grant rows, got %v", got)
 	}
 }
@@ -116,10 +119,10 @@ func TestRunIsRepeatable(t *testing.T) {
 	runSeed(t, database, course)
 	runSeed(t, database, course)
 
-	if count := countRows(t, database, &model.User{}); count != 4 {
+	if count := getRowCount(t, database, "sys_user"); count != 4 {
 		t.Errorf("users = %d after repeated seed, want 4", count)
 	}
-	if count := countRows(t, database, &model.RolePermission{}); count != 3 {
+	if count := getRowCount(t, database, "sys_role_permission"); count != 3 {
 		t.Errorf("grants = %d after repeated seed, want 3", count)
 	}
 }
@@ -128,14 +131,14 @@ func TestRunIsRepeatable(t *testing.T) {
 func TestRunKeepsAdminChangesToGrants(t *testing.T) {
 	course := &courseModule{}
 	database := testutil.NewDB(t, course)
-	revoke := database.Where("role = ? AND permission_code = ?", access.RoleStudent, "student:my:view").
-		Delete(&model.RolePermission{})
-	if revoke.Error != nil || revoke.RowsAffected != 1 {
-		t.Fatalf("revoke: %v, rows=%d", revoke.Error, revoke.RowsAffected)
+	revoked := testutil.MustExec(t, database, "DELETE FROM sys_role_permission WHERE role = ? AND permission_code = ?",
+		access.RoleStudent, "student:my:view")
+	if revoked != 1 {
+		t.Fatalf("revoke: rows=%d, want 1", revoked)
 	}
 
 	runSeed(t, database, course)
-	if got := grantsOf(t, database, access.RoleStudent); !slices.Equal(got, []string{"student:catalog:view"}) {
+	if got := getGrantsOfRole(t, database, access.RoleStudent); !slices.Equal(got, []string{"student:catalog:view"}) {
 		t.Errorf("revoked grant came back: %v", got)
 	}
 }
@@ -147,13 +150,10 @@ func TestRunDoesNotResetExistingPassword(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := database.Model(&model.User{}).Where("username = ?", "admin").
-		Update("password_hash", newHash).Error; err != nil {
-		t.Fatal(err)
-	}
+	testutil.MustExec(t, database, "UPDATE sys_user SET password_hash = ? WHERE username = ?", newHash, "admin")
 
 	runSeed(t, database, course)
-	if !identity.CheckPassword(findUser(t, database, "admin").PasswordHash, "changed-by-admin") {
+	if !identity.CheckPassword(getUserByUsername(t, database, "admin").PasswordHash, "changed-by-admin") {
 		t.Error("seed reset an existing user's password")
 	}
 }
@@ -168,11 +168,11 @@ func TestLoadDemo(t *testing.T) {
 		}
 	}
 	for _, username := range []string{"student2", "student3"} {
-		if user := findUser(t, database, username); user.Role != access.RoleStudent {
+		if user := getUserByUsername(t, database, username); user.Role != access.RoleStudent {
 			t.Errorf("%s role = %s", username, user.Role)
 		}
 	}
-	if count := countRows(t, database, &model.User{}); count != 6 {
+	if count := getRowCount(t, database, "sys_user"); count != 6 {
 		t.Errorf("users = %d, want 6", count)
 	}
 	if course.demoCalls != 2 {
@@ -188,7 +188,7 @@ func TestLoadDemoRollsBackOnModuleError(t *testing.T) {
 	if err := seed.LoadDemo(context.Background(), database, []module.Module{course}); err == nil {
 		t.Fatal("expected error")
 	}
-	if count := countRows(t, database, &model.User{}); count != 4 {
+	if count := getRowCount(t, database, "sys_user"); count != 4 {
 		t.Errorf("users = %d after failed demo load, want 4 (rolled back)", count)
 	}
 }

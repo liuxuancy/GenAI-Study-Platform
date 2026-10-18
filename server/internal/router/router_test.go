@@ -1,42 +1,74 @@
 package router
 
 import (
+	"bytes"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	"github.com/gin-gonic/gin"
+	"gorm.io/gorm"
 
-	"learnhub/internal/framework/module"
-	"learnhub/internal/framework/testutil"
-	"learnhub/internal/platform/resp"
+	"caveclass/internal/framework/access"
+	"caveclass/internal/framework/identity"
+	"caveclass/internal/framework/module"
+	"caveclass/internal/framework/testutil"
+	"caveclass/internal/modules/account"
+	"caveclass/internal/platform/resp"
 )
 
 func init() { gin.SetMode(gin.TestMode) }
 
-func newTestHTTPHandler(t *testing.T) http.Handler {
+// testServer 和 main.go 一样组装完整的服务，只是数据库换成临时库。
+type testServer struct {
+	database    *gorm.DB
+	httpHandler http.Handler
+}
+
+func newTestServer(t *testing.T) *testServer {
 	t.Helper()
-	registry, err := module.NewRegistry()
+	modules := []module.Module{account.Module{}}
+	registry, err := module.NewRegistry(modules...)
 	if err != nil {
 		t.Fatal(err)
 	}
-	return NewHTTPHandler(Deps{DB: testutil.NewDB(t), Catalog: registry.Catalog()})
+	database := testutil.NewDB(t, modules...)
+	httpHandler := NewHTTPHandler(Deps{
+		DB:          database,
+		Catalog:     registry.GetCatalog(),
+		Cache:       access.NewCache(time.Minute, access.NewDBLoader(database)),
+		TokenIssuer: identity.NewTokenIssuer("test-secret", time.Hour),
+	})
+	return &testServer{database: database, httpHandler: httpHandler}
 }
 
-func get(t *testing.T, handler http.Handler, path string) (int, resp.Result) {
+// call 发一个请求；token 为空表示不登录，body 为 nil 表示没有请求体。
+func (server *testServer) call(t *testing.T, method, path, token string, body any) (int, resp.Result) {
 	t.Helper()
+	var payload bytes.Buffer
+	if body != nil {
+		if err := json.NewEncoder(&payload).Encode(body); err != nil {
+			t.Fatal(err)
+		}
+	}
+	request := httptest.NewRequest(method, path, &payload)
+	request.Header.Set("Content-Type", "application/json")
+	if token != "" {
+		request.Header.Set("Authorization", "Bearer "+token)
+	}
 	recorder := httptest.NewRecorder()
-	handler.ServeHTTP(recorder, httptest.NewRequest("GET", path, nil))
+	server.httpHandler.ServeHTTP(recorder, request)
 	var result resp.Result
 	if err := json.Unmarshal(recorder.Body.Bytes(), &result); err != nil {
-		t.Fatalf("GET %s: body is not a Result: %q", path, recorder.Body.String())
+		t.Fatalf("%s %s: body is not a Result: %q", method, path, recorder.Body.String())
 	}
 	return recorder.Code, result
 }
 
 func TestHealth(t *testing.T) {
-	status, result := get(t, newTestHTTPHandler(t), "/api/health")
+	status, result := newTestServer(t).call(t, "GET", "/api/health", "", nil)
 	if status != 200 || result.Code != 0 {
 		t.Fatalf("health: status=%d result=%+v", status, result)
 	}
@@ -46,7 +78,7 @@ func TestHealth(t *testing.T) {
 }
 
 func TestUnknownRouteIsJSON404(t *testing.T) {
-	status, result := get(t, newTestHTTPHandler(t), "/api/nope")
+	status, result := newTestServer(t).call(t, "GET", "/api/nope", "", nil)
 	if status != 404 || result.Code != 404 {
 		t.Errorf("unknown route: status=%d result=%+v", status, result)
 	}

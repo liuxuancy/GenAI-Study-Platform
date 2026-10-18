@@ -10,7 +10,7 @@ import (
 
 	"gorm.io/gorm"
 
-	"learnhub/internal/framework/module"
+	"caveclass/internal/framework/module"
 )
 
 // 编译时嵌入程序，不管从哪个目录启动都能读到
@@ -44,7 +44,7 @@ func (loader *demoLoader) run(tx *gorm.DB) error {
 			continue
 		}
 		if err := provider.LoadDemo(loader.ctx, tx); err != nil {
-			return fmt.Errorf("demo data of module %s: %w", current.Name(), err)
+			return fmt.Errorf("demo data of module %s: %w", current.GetName(), err)
 		}
 	}
 	return nil

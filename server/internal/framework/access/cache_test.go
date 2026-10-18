@@ -37,7 +37,7 @@ func newCountingLoader(permissions ...string) *countingLoader {
 	return &countingLoader{permissions: permissions}
 }
 
-func (loader *countingLoader) callCount() int32 { return loader.calls.Load() }
+func (loader *countingLoader) getCallCount() int32 { return loader.calls.Load() }
 
 func (loader *countingLoader) LoadPrincipal(ctx context.Context, userID int64) (*Principal, error) {
 	loader.calls.Add(1)
@@ -69,11 +69,11 @@ func TestCacheHit(t *testing.T) {
 
 	mustGet(t, cache, 1)
 	mustGet(t, cache, 1)
-	if calls := loader.callCount(); calls != 1 {
+	if calls := loader.getCallCount(); calls != 1 {
 		t.Errorf("loader called %d times, want 1", calls)
 	}
 	mustGet(t, cache, 2) // 不同用户分别缓存
-	if calls := loader.callCount(); calls != 2 {
+	if calls := loader.getCallCount(); calls != 2 {
 		t.Errorf("loader called %d times, want 2", calls)
 	}
 }
@@ -121,7 +121,7 @@ func TestCacheDoesNotStoreErrors(t *testing.T) {
 			t.Fatal("expected error")
 		}
 	}
-	if calls := loader.callCount(); calls != 2 {
+	if calls := loader.getCallCount(); calls != 2 {
 		t.Errorf("failed load was cached: loader called %d times, want 2", calls)
 	}
 }
@@ -139,7 +139,7 @@ func (loader *resettingLoader) LoadPrincipal(ctx context.Context, userID int64) 
 	return &Principal{UserID: userID}, nil
 }
 
-func (loader *resettingLoader) callCount() int32 { return loader.calls.Load() }
+func (loader *resettingLoader) getCallCount() int32 { return loader.calls.Load() }
 
 func TestCacheDiscardsLoadThatRacedWithReset(t *testing.T) {
 	loader := &resettingLoader{}
@@ -148,11 +148,11 @@ func TestCacheDiscardsLoadThatRacedWithReset(t *testing.T) {
 
 	mustGet(t, cache, 1) // 加载期间发生了 Reset，结果不能写入缓存
 	mustGet(t, cache, 1) // 因此这次必须重新加载
-	if calls := loader.callCount(); calls != 2 {
+	if calls := loader.getCallCount(); calls != 2 {
 		t.Errorf("stale snapshot was cached: loader called %d times, want 2", calls)
 	}
 	mustGet(t, cache, 1) // 第二次加载没有被 Reset 打断，应已缓存
-	if calls := loader.callCount(); calls != 2 {
+	if calls := loader.getCallCount(); calls != 2 {
 		t.Errorf("loader called %d times, want 2", calls)
 	}
 }

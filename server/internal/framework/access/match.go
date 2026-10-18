@@ -38,8 +38,8 @@ func ValidCode(code string) bool {
 	return ok
 }
 
-// Namespace 返回权限码的第一段，即使用方，例如 teacher:course:view 返回 teacher。
-func Namespace(code string) string {
+// GetNamespace 返回权限码的第一段，即使用方，例如 teacher:course:view 返回 teacher。
+func GetNamespace(code string) string {
 	namespace, _, _ := strings.Cut(code, codeSeparator)
 	return namespace
 }

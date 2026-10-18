@@ -22,7 +22,7 @@ func (handler *ContextHandler) Enabled(ctx context.Context, level slog.Level) bo
 }
 
 func (handler *ContextHandler) Handle(ctx context.Context, record slog.Record) error {
-	if attrs := attrsFrom(ctx); len(attrs) > 0 {
+	if attrs := getContextAttrs(ctx); len(attrs) > 0 {
 		record = record.Clone() // Record 可能被多个 Handler 共享，修改前先复制
 		record.AddAttrs(attrs...)
 	}

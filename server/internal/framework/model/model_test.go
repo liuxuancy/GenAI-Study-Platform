@@ -3,9 +3,9 @@ package model_test
 import (
 	"testing"
 
-	"learnhub/internal/framework/access"
-	"learnhub/internal/framework/model"
-	"learnhub/internal/framework/testutil"
+	"caveclass/internal/framework/access"
+	"caveclass/internal/framework/model"
+	"caveclass/internal/framework/testutil"
 )
 
 // TableName 被误改名时，GORM 会悄悄改用默认表名 users、role_permissions，这里能及时发现。
@@ -18,15 +18,14 @@ func TestFrameworkTableNames(t *testing.T) {
 	}
 }
 
-// 禁用状态是 0，必须能原样存进去，而不是被当成"未赋值"换成别的值。
+// 禁用状态是 0，存进去、读出来都必须还是 0。
 func TestDisabledStatusIsStored(t *testing.T) {
 	database := testutil.NewDB(t)
-	user := model.User{Username: "disabled", PasswordHash: "x", Role: access.RoleStudent, Status: model.UserStatusDisabled}
-	if err := database.Create(&user).Error; err != nil {
-		t.Fatal(err)
-	}
+	testutil.MustExec(t, database,
+		"INSERT INTO sys_user (username, password_hash, role, status, token_version) VALUES (?, ?, ?, ?, 0)",
+		"disabled", "x", access.RoleStudent, model.UserStatusDisabled)
 	var stored model.User
-	if err := database.First(&stored, user.ID).Error; err != nil {
+	if err := database.Raw("SELECT * FROM sys_user WHERE username = ?", "disabled").Scan(&stored).Error; err != nil {
 		t.Fatal(err)
 	}
 	if stored.Status != model.UserStatusDisabled {
@@ -36,8 +35,9 @@ func TestDisabledStatusIsStored(t *testing.T) {
 
 func TestUsernameIsUnique(t *testing.T) {
 	database := testutil.NewDB(t)
-	duplicate := model.User{Username: "admin", PasswordHash: "x", Role: access.RoleStudent, Status: model.UserStatusActive}
-	if err := database.Create(&duplicate).Error; err == nil {
+	err := database.Exec("INSERT INTO sys_user (username, password_hash, role, status, token_version) VALUES (?, ?, ?, ?, 0)",
+		"admin", "x", access.RoleStudent, model.UserStatusActive).Error
+	if err == nil {
 		t.Error("expected unique constraint error for duplicate username")
 	}
 }

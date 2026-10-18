@@ -4,7 +4,7 @@ import (
 	"errors"
 	"testing"
 
-	"learnhub/internal/platform/errs"
+	"caveclass/internal/platform/errs"
 )
 
 func sampleDefinitions() []PermissionDef {
@@ -20,7 +20,7 @@ func TestNewCatalogKeepsOrder(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	all := catalog.All()
+	all := catalog.GetAllDefinitions()
 	if len(all) != 3 || all[0].Code != "teacher:course:view" || all[2].Code != "student:lesson:view" {
 		t.Errorf("All() = %+v", all)
 	}

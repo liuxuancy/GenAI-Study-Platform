@@ -6,7 +6,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 
-	"learnhub/internal/platform/errs"
+	"caveclass/internal/platform/errs"
 )
 
 // Result 是所有接口的响应体，Code 为 0 表示成功。

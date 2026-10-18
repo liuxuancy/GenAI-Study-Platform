@@ -75,10 +75,10 @@ func TestLevelFiltered(t *testing.T) {
 func TestWithAttrsDoesNotLeakToParent(t *testing.T) {
 	parent := WithAttrs(context.Background(), slog.String("a", "1"))
 	_ = WithAttrs(parent, slog.String("b", "2"))
-	if attrs := attrsFrom(parent); len(attrs) != 1 {
+	if attrs := getContextAttrs(parent); len(attrs) != 1 {
 		t.Fatalf("parent attrs changed: %v", attrs)
 	}
-	if RequestID(parent) != "" {
+	if GetRequestID(parent) != "" {
 		t.Fatal("unexpected request id")
 	}
 }

@@ -35,7 +35,7 @@ type RolePermission struct {
 // TableName 方法名是 GORM 规定的，不能改成GetTableName
 func (RolePermission) TableName() string { return "sys_role_permission" }
 
-// FrameworkModels 返回框架层需要建表的结构体。
-func FrameworkModels() []any {
+// GetFrameworkModels 返回框架层需要建表的结构体。
+func GetFrameworkModels() []any {
 	return []any{&User{}, &RolePermission{}}
 }

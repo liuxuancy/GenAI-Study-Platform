@@ -20,9 +20,19 @@ var roles = []RoleDef{
 	{Code: RoleStudent, Name: "学生"},
 }
 
-// Roles 返回全部角色（副本）。
-func Roles() []RoleDef {
+// GetRoles 返回全部角色（副本）。
+func GetRoles() []RoleDef {
 	return append([]RoleDef(nil), roles...)
+}
+
+// GetRoleName 返回角色的显示名，未知角色返回角色码本身。
+func GetRoleName(code string) string {
+	for _, role := range roles {
+		if role.Code == code {
+			return role.Name
+		}
+	}
+	return code
 }
 
 func IsValidRole(code string) bool {

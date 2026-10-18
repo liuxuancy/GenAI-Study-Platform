@@ -1,4 +1,4 @@
-// LearnHub API 服务入口。
+// CaveClass API 服务入口。
 package main
 
 import (
@@ -16,18 +16,23 @@ import (
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
 
-	"learnhub/internal/framework/model"
-	"learnhub/internal/framework/module"
-	"learnhub/internal/framework/seed"
-	"learnhub/internal/platform/config"
-	"learnhub/internal/platform/db"
-	"learnhub/internal/platform/logs"
-	"learnhub/internal/router"
+	"caveclass/internal/framework/access"
+	"caveclass/internal/framework/identity"
+	"caveclass/internal/framework/model"
+	"caveclass/internal/framework/module"
+	"caveclass/internal/framework/seed"
+	"caveclass/internal/modules/account"
+	"caveclass/internal/platform/config"
+	"caveclass/internal/platform/db"
+	"caveclass/internal/platform/logs"
+	"caveclass/internal/router"
 )
 
-// enabledModules 要加载的业务模块，新增模块时在这里加一行。
-func enabledModules() []module.Module {
-	return []module.Module{}
+// getEnabledModules 返回要加载的业务模块，新增模块时在这里加一行。
+func getEnabledModules() []module.Module {
+	return []module.Module{
+		account.Module{},
+	}
 }
 
 func main() {
@@ -51,7 +56,7 @@ func run() error {
 	}
 
 	// 汇总模块：权限码、默认授权、数据表有任何冲突都在这里失败
-	registry, err := module.NewRegistry(enabledModules()...)
+	registry, err := module.NewRegistry(getEnabledModules()...)
 	if err != nil {
 		return fmt.Errorf("register modules: %w", err)
 	}
@@ -83,8 +88,13 @@ func run() error {
 
 	gin.SetMode(gin.ReleaseMode) // 请求日志由我们自己的 Logger 输出
 	server := &http.Server{
-		Addr:              cfg.HTTPAddr,
-		Handler:           router.NewHTTPHandler(router.Deps{DB: database, Catalog: registry.Catalog()}),
+		Addr: cfg.HTTPAddr,
+		Handler: router.NewHTTPHandler(router.Deps{
+			DB:          database,
+			Catalog:     registry.GetCatalog(),
+			Cache:       access.NewCache(cfg.PermissionCacheTTL, access.NewDBLoader(database)),
+			TokenIssuer: identity.NewTokenIssuer(cfg.JWTSecret, cfg.JWTTTL),
+		}),
 		ReadHeaderTimeout: 10 * time.Second,
 	}
 	// 监听退出信号，os.Interrupt（Ctrl+C），syscall.SIGTERM（容器退出）
@@ -119,15 +129,15 @@ func run() error {
 // prepareDatabase 建表、写种子数据；loadDemo 为 true 时再写入演示数据。
 func prepareDatabase(database *gorm.DB, registry *module.Registry, loadDemo bool) error {
 	ctx := context.Background()
-	models := append(model.FrameworkModels(), registry.Models()...)
+	models := append(model.GetFrameworkModels(), registry.GetModels()...)
 	if err := db.Migrate(database, models...); err != nil {
 		return err
 	}
-	if err := seed.Run(ctx, database, registry.DefaultGrants()); err != nil {
+	if err := seed.Run(ctx, database, registry.GetDefaultGrants()); err != nil {
 		return fmt.Errorf("seed: %w", err)
 	}
 	if loadDemo {
-		if err := seed.LoadDemo(ctx, database, registry.Modules()); err != nil {
+		if err := seed.LoadDemo(ctx, database, registry.GetModules()); err != nil {
 			return fmt.Errorf("load demo data: %w", err)
 		}
 	}
