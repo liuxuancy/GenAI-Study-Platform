@@ -61,13 +61,14 @@ func recoverPanic(ctx *gin.Context) {
 	if recovered == http.ErrAbortHandler {
 		panic(recovered) // 主动中断连接，交还给 net/http
 	}
-	// 堆栈很长，单独作为字段输出，不拼进 msg
+	// 记录错误日志，堆栈很长，单独作为字段输出，不拼进 msg
 	slog.ErrorContext(ctx.Request.Context(), fmt.Sprintf("panic recovered: %s %s, panic: %v",
 		ctx.Request.Method, ctx.Request.URL.Path, recovered),
 		"stack", string(debug.Stack()))
 	if !ctx.Writer.Written() {
 		resp.Fail(ctx, errs.ErrInternal)
 	}
+	// 停止该请求后续handler处理
 	ctx.Abort()
 }
 
