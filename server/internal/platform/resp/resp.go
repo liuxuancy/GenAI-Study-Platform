@@ -19,8 +19,9 @@ type Result struct {
 // HandlerFunc 是 handler 的统一写法：返回数据或错误，不直接写响应。
 type HandlerFunc func(ctx *gin.Context) (any, error)
 
-// H 把 HandlerFunc 适配成 gin handler，错误交给错误中间件渲染。
-func H(handler HandlerFunc) gin.HandlerFunc {
+// ToGinHandler 把我们的 HandlerFunc 转成 gin 要求的 handler：
+// 成功时写出 {code: 0, msg, data}；失败时把错误交给 ErrorHandler 中间件统一渲染。
+func ToGinHandler(handler HandlerFunc) gin.HandlerFunc {
 	return func(ctx *gin.Context) {
 		data, err := handler(ctx)
 		if err != nil {

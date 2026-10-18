@@ -20,6 +20,7 @@ type Config struct {
 }
 
 // Load 从环境变量读取配置。
+// 全局只初始化一次：启动时由 main.go 调用。
 func Load() (Config, error) {
 	cfg := Config{
 		Env:       getConfigStr("APP_ENV", "dev"),

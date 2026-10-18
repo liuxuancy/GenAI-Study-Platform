@@ -24,20 +24,20 @@ study_platform/
 │       │   ├── db/                   打开 SQLite（WAL、busy_timeout、IMMEDIATE 事务，时间存 UTC）、建表、删除库文件
 │       │   ├── logs/                 slog 封装：从 ctx 自动带出 request_id 等字段
 │       │   ├── errs/                 业务错误类型和 7 个错误码
-│       │   ├── resp/                 统一响应体 {code, msg, data} 和 handler 适配器 resp.H
+│       │   ├── resp/                 统一响应体 {code, msg, data} 和 handler 转换函数 resp.ToGinHandler
 │       │   └── middleware/           全局中间件：RequestID、Logger、ErrorHandler
 │       ├── framework/                ② 权限框架：登录 + 权限，所有业务模块都依赖它
 │       │   ├── identity/             你是谁：密码哈希；JWT、认证中间件、白名单（阶段 4）
 │       │   ├── access/               你能做什么：权限码匹配、权限码目录、Principal、权限缓存；RequirePermission（阶段 4）
 │       │   ├── model/                框架层的两张表：sys_user、sys_role_permission
-│       │   ├── module/               Module 接口和 Registry：启动时汇总各模块的权限码、默认授权、表、路由
+│       │   ├── module/               Module 接口和 Registry：启动时汇总各模块的权限码、默认授权、数据表
 │       │   ├── seed/                 种子数据（测试账号、默认授权）和演示数据（demo/*.json）
-│       │   ├── router/               组装中间件和所有模块的路由
 │       │   └── testutil/             测试脚手架：临时数据库 + 建表 + 种子数据
-│       └── modules/                  ③ 业务模块，每个模块一个目录（阶段 4 起）
-│           ├── account/              登录、退出、me、个人信息、改密码，接口 /api/account/*（阶段 4）
-│           ├── system/               用户管理、角色权限，接口 /api/system/*（阶段 5）
-│           └── course/               讲师侧 /api/teacher/*、学生侧 /api/student/*（阶段 9）
+│       ├── modules/                  ③ 业务模块，每个模块一个目录（阶段 4 起）
+│       │   ├── account/              登录、退出、me、个人信息、改密码，接口 /api/account/*（阶段 4）
+│       │   ├── system/               用户管理、角色权限，接口 /api/system/*（阶段 5）
+│       │   └── course/               讲师侧 /api/teacher/*、学生侧 /api/student/*（阶段 9）
+│       └── router/                   ④ 路由层：router.go 组装中间件，routes.go 是全部接口的路由表
 └── web/                              前端（阶段 6 开始）
     └── src/
         ├── core/                     框架：请求封装、登录状态、权限判断、路由与菜单、布局
@@ -51,18 +51,19 @@ study_platform/
 | `platform/` | 通用基础设施 | 换一个完全不同的项目，这个包能原样拿过去用 |
 | `framework/` | 权限框架 | 和"登录 + 权限"相关，所有业务模块都依赖它 |
 | `modules/` | 具体业务 | 实现 `module.Module` 接口，在 `enabledModules()` 里登记 |
+| `router/` | 路由 | 所有接口集中在 `routes.go` 一张表里，按模块分组 |
 
 ## 分层与依赖方向
 
 ```
-modules ──► framework ──► platform
+router ──► modules ──► framework ──► platform
 ```
 
 规则：
 
-1. **只能从左往右依赖**。`platform` 不依赖 `framework` 和 `modules`；`framework` 不依赖 `modules`。
+1. **只能从左往右依赖**。`platform` 不依赖其他三层；`framework` 不依赖 `modules`；只有 `router` 会 import 所有模块。
 2. **`errs` 不依赖 HTTP**。service 层用它返回业务错误，单元测试不需要 gin。
-3. **业务模块之间不互相 import**，需要跨模块的能力由框架通过 `module.Deps` 提供。
+3. **业务模块之间不互相 import**，需要的依赖（数据库、权限缓存等）由路由层创建 handler 时通过构造函数传入。
 4. **handler 不直接写错误响应**，只返回 `error`，由 `ErrorHandler` 统一转换。
 
 ## 一个请求的处理流程
@@ -136,7 +137,8 @@ go run ./cmd/server --reset-demo
 
 - **数据库文件不进 git**。表结构和种子数据写在代码里，每人本地自动生成；想要干净的库就删掉 `server/data/` 后重启。
 - **共享的演示数据**写成 JSON 放进 git（框架部分在 `server/internal/framework/seed/demo/`，各模块的放在模块自己的目录，通过 `DemoProvider` 写入），用 `--reset-demo` 加载，不要互相发送 `.db` 文件。演示数据之间用用户名、课程标题这类业务字段关联，不用数据库 id。
-- **新增一个模块**：实现 `module.Module` 接口，再在 `cmd/server/main.go` 的 `enabledModules()` 里加一行。
+- **新增一个模块**：实现 `module.Module` 接口（权限码、默认授权、数据表），在 `cmd/server/main.go` 的 `enabledModules()` 里加一行，再把它的接口登记到 `internal/router/routes.go`。
+- **新增一个接口**：只在 `internal/router/routes.go` 对应模块的分组里加一行，写明路径、所需权限和 handler。
 - **需要共同数据时**部署一个服务器实例，大家访问它的接口；本地开发环境不要直接连接服务器上的数据库。
 - **测试文件要提交**。`go test ./...` 是验收标准之一。
 - 命名约定见 [docs/glossary.md](docs/glossary.md#命名约定)。

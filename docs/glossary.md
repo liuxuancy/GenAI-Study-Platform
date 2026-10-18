@@ -7,8 +7,9 @@
 | 代码里的名字 | 中文 | 说明 |
 |---|---|---|
 | `platform/` | 基础设施 | 和权限、业务都无关的通用包：config、db、logs、errs、resp、middleware |
-| `framework/` | 权限框架 | 登录 + 权限：identity、access、model、module、seed、router、testutil |
+| `framework/` | 权限框架 | 登录 + 权限：identity、access、model、module、seed、testutil |
 | `modules/` | 业务模块 | account、system、course，每个模块一个目录，互不 import |
+| `router/` | 路由层 | `router.go` 组装 gin 和全局中间件；`routes.go` 是全部接口的路由表，唯一会 import 所有模块的地方 |
 | `identity` | 身份认证 | 回答"你是谁"：密码哈希、JWT、校验 token 的中间件、白名单 |
 | `access` | 访问控制 | 回答"你能做什么"：权限码、目录、Principal、缓存、RequirePermission |
 | `account` | 账号模块 | 账号相关的接口：登录、退出、me、个人信息、改密码，地址 `/api/account/*` |
@@ -56,7 +57,7 @@
 | Logger（中间件） | 请求日志 | 每个请求记一条日志，必须在 ErrorHandler 外层 |
 | ErrorHandler | 错误处理中间件 | 把请求处理中出现的错误和 panic 统一转换成 `{code, msg, data}` 响应 |
 | Handler | 接口处理函数 | 处理某一个具体接口的函数，写法统一为 `func(ctx) (any, error)` |
-| `resp.H` | handler 适配器 | 把上面的写法适配成 gin 需要的函数，成功时写响应，失败时把错误交给 ErrorHandler |
+| `resp.ToGinHandler` | handler 转换 | 把上面的写法转成 gin 需要的函数，成功时写响应，失败时把错误交给 ErrorHandler |
 | Service | 业务层 | 业务逻辑和归属检查，不依赖 HTTP |
 | Result | 统一响应体 | `{code, msg, data}`，code 为 0 表示成功 |
 
@@ -64,12 +65,12 @@
 
 | 代码里的名字 | 中文 | 说明 |
 |---|---|---|
-| Module | 业务模块 | 实现 `module.Module` 接口，向框架声明自己的使用方、权限码、默认授权、数据表和路由 |
+| Module | 业务模块 | 实现 `module.Module` 接口，向框架声明自己的使用方、权限码、默认授权和数据表。路由不在模块里，统一写在 `routes.go` |
 | Namespaces | 模块拥有的使用方 | 一个模块可以拥有多个使用方，如课程模块拥有 `teacher` 和 `student`；两个模块不能拥有同一个使用方 |
 | DefaultGrants | 默认授权 | 模块为角色准备的初始授权，只能授予本模块的权限码，不能给 `ROLE_ADMIN` 配授权 |
 | Registry | 模块注册表 | 启动时汇总所有模块并检查冲突，任何问题都让启动失败 |
 | enabledModules | 启用的模块列表 | `cmd/server/main.go` 里的函数，新增模块时在这里加一行 |
-| Deps | 模块依赖 | 框架提供给模块的东西（数据库、权限码目录等），模块之间不互相 import |
+| routes.go | 路由表 | 所有接口按模块分组列在一处：方法、路径、所需权限、handler |
 | DemoProvider | 演示数据提供者 | 可选接口，模块实现它就能在 `--reset-demo` 时写入自己的演示数据 |
 
 ## 错误
@@ -96,11 +97,15 @@
 
 ## 命名约定
 
+- **核心规则：名字要让人一看就知道是做什么的。** 名字长一点不影响性能，可读性提高了，后期维护的价值远大于少打几个字。例如 handler 转换函数叫 `resp.ToGinHandler`，不叫 `resp.H`。
 - 变量名写全，不用单字母：gin 的上下文写 `ctx`，不写 `c`。`ctx`、`cfg`、`err` 这类通用缩写可以用；测试参数 `t *testing.T` 是 Go 惯例，保留。
 - 概念统一用全称：`Permission`，不缩写成 `Perm`。
 - 不在函数里写匿名辅助函数，改为包级具名函数。
 - 字段已经属于某个类型时，不再重复类型名：`cache.version`，不写 `cache.cacheVersion`。
 - 方法名带上处理的对象，比如写 `LoadPrincipal`，不写泛泛的 `Load`，避免和标准库的同名方法混淆。
+- 构造函数和初始化函数：
+  - 有返回值、创建一个对象的，用 `New` 开头，如 `NewRegistry`；修改全局状态、没有返回值的，用 `Setup` / `Init` 开头，如 `logs.Setup`。
+  - 只在启动时调用一次的，注释里写明"全局只初始化一次：启动时由 xxx 调用"；没有这句的，表示可以按需多次创建（如测试里的 `testutil.NewDB`）。
 - 文件开头写一行说明，不单独建 `doc.go`：
   - 单文件包：`// Package xxx ……` 紧贴 `package` 行，既是包说明也是文件说明。
   - 多文件包：每个文件第一行写自己的说明，和 `package` 行之间空一行，否则会被当成包说明拼在一起。

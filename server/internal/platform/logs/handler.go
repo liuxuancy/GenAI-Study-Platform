@@ -12,6 +12,7 @@ type ContextHandler struct {
 	inner slog.Handler
 }
 
+// NewContextHandler 包装 inner。全局只初始化一次：由 Setup 调用。
 func NewContextHandler(inner slog.Handler) *ContextHandler {
 	return &ContextHandler{inner: inner}
 }

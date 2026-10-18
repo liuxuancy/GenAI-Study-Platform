@@ -6,7 +6,6 @@ import (
 	"slices"
 	"testing"
 
-	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
 
 	"learnhub/internal/framework/access"
@@ -38,8 +37,7 @@ func (course *courseModule) DefaultGrants() map[string][]string {
 		access.RoleStudent: {"student:catalog:view", "student:my:view"},
 	}
 }
-func (course *courseModule) Models() []any                                   { return nil }
-func (course *courseModule) Register(api *gin.RouterGroup, deps module.Deps) {}
+func (course *courseModule) Models() []any { return nil }
 func (course *courseModule) LoadDemo(ctx context.Context, database *gorm.DB) error {
 	course.demoCalls++
 	return course.demoErr

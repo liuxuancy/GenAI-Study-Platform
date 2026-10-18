@@ -15,6 +15,7 @@ import (
 
 // Setup 用 ContextHandler 包装 inner 并设为全局默认 logger。
 // 之后直接调用 slog.InfoContext(ctx, ...) 也会带上 ctx 字段。
+// 全局只初始化一次：启动时由 main.go 调用。
 func Setup(inner slog.Handler) {
 	slog.SetDefault(slog.New(NewContextHandler(inner)))
 }
