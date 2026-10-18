@@ -3,15 +3,15 @@
 .vscode/
 .venv/
 
-# server
-server/data/
-server/*.exe
-server/tmp/
+# backend
+backend/data/
+backend/*.exe
+backend/tmp/
 
-# web
-web/node_modules/
-web/dist/
-web/coverage/
+# frontend
+frontend/node_modules/
+frontend/dist/
+frontend/coverage/
 
 # misc
 .DS_Store

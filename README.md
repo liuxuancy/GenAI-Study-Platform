@@ -15,7 +15,7 @@ study_platform/
 ├── docs/
 │   ├── glossary.md                   术语表和命名约定
 │   └── permission-cases.json         权限匹配用例，前后端测试共用
-├── server/                           Go 后端
+├── backend/                          Go 后端
 │   ├── cmd/server/main.go            启动入口：配置 → 日志 → 汇总模块 → 数据库 → 建表 → 种子数据 → 路由 → 监听 → 优雅退出
 │   ├── data/                         本地 SQLite 文件（自动生成，不进 git）
 │   └── internal/
@@ -38,7 +38,7 @@ study_platform/
 │       │   ├── system/               用户管理、角色权限，接口 /api/system/*
 │       │   └── course/               讲师侧 /api/teacher/*、学生侧 /api/student/*（阶段 9）
 │       └── router/                   ④ 路由层：router.go 组装中间件，routes.go 是全部接口的路由表
-└── web/                              前端（阶段 6 开始）
+└── frontend/                         前端（阶段 6 开始）
     └── src/
         ├── core/                     框架：请求封装、登录状态、权限判断、路由与菜单、布局
         └── modules/                  业务页面：system、course
@@ -90,7 +90,7 @@ http.Server（监听端口、请求头 10 秒超时）
 ## 快速开始
 
 ```bash
-cd server
+cd backend
 go test ./...
 go run ./cmd/server
 ```
@@ -139,7 +139,7 @@ curl http://localhost:8080/api/account/me -H "Authorization: Bearer <token>"
 首次启动会自动建表并写入测试账号。想要一份干净的、带演示数据的库：
 
 ```bash
-cd server
+cd backend
 go run ./cmd/server --reset-demo
 ```
 
@@ -170,8 +170,8 @@ go run ./cmd/server --reset-demo
 
 ## 团队协作约定
 
-- **数据库文件不进 git**。表结构和种子数据写在代码里，每人本地自动生成；想要干净的库就删掉 `server/data/` 后重启。
-- **共享的演示数据**写成 JSON 放进 git（框架部分在 `server/internal/framework/seed/demo/`，各模块的放在模块自己的目录，通过 `DemoProvider` 写入），用 `--reset-demo` 加载，不要互相发送 `.db` 文件。演示数据之间用用户名、课程标题这类业务字段关联，不用数据库 id。
+- **数据库文件不进 git**。表结构和种子数据写在代码里，每人本地自动生成；想要干净的库就删掉 `backend/data/` 后重启。
+- **共享的演示数据**写成 JSON 放进 git（框架部分在 `backend/internal/framework/seed/demo/`，各模块的放在模块自己的目录，通过 `DemoProvider` 写入），用 `--reset-demo` 加载，不要互相发送 `.db` 文件。演示数据之间用用户名、课程标题这类业务字段关联，不用数据库 id。
 - **新增一个模块**：实现 `module.Module` 接口（权限码、默认授权、数据表），在 `cmd/server/main.go` 的 `getEnabledModules()` 里加一行，再把它的接口登记到 `internal/router/routes.go`。
 - **新增一个接口**：只在 `internal/router/routes.go` 对应模块的分组里加一行，写明路径、所需权限和 handler。
 - **需要共同数据时**部署一个服务器实例，大家访问它的接口；本地开发环境不要直接连接服务器上的数据库。
