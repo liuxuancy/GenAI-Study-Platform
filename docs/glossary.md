@@ -107,6 +107,22 @@
 | AutoMigrate | 自动建表 | GORM 根据结构体自动建表、加字段；不删字段、不改字段名 |
 | WAL | 预写日志模式 | SQLite 的一种模式，读写互不阻塞 |
 
+## 前端
+
+| 代码里的名字 | 中文 | 说明 |
+|---|---|---|
+| `core/` | 前端框架层 | 请求封装、登录状态、权限判断、路由、布局，和 `backend/internal/framework` 对应 |
+| `modules/` | 前端业务页面 | system、course 等业务页面（阶段 7 起） |
+| `http` / `request` | 请求封装 | 自动带 token，解开 `{code, msg, data}`，失败抛出 `ApiError` |
+| `ApiError` | 接口错误 | 带后端错误码的异常；`code` 为 0 表示网络不通 |
+| `setupHttpAuth` | 请求封装初始化 | 告诉请求封装去哪取 token、401 时做什么；启动时由 `main.tsx` 调用一次 |
+| `useAuthStore` | 登录状态 | Zustand store，存 token 和 currentUser，提供 login、logout、loadCurrentUser、clearSession |
+| currentUser | 当前用户 | `/api/account/me` 的返回值：资料、角色、`isAdmin`、权限码。刷新页面后重新请求 |
+| Remember me | 记住我 | 勾选时 token 存 localStorage（关浏览器仍登录），否则存 sessionStorage（关标签页即退出） |
+| `RequireAuth` | 登录守卫 | 路由组件：没有 token 跳登录页；有 token 时先拿到 currentUser 再显示页面 |
+| `matchPermission` / `hasPermission` | 前端权限判断 | 和后端 `Match` / `HasPermission` 规则一致，共用 `docs/permission-cases.json`；只决定显示什么，拦截在后端 |
+| `AppLayout` | 页面框架 | 登录后的顶栏 + 左侧菜单 + 内容区 |
+
 ## 命名约定
 
 - **核心规则：名字要让人一看就知道是做什么的。** 名字长一点不影响性能，可读性提高了，后期维护的价值远大于少打几个字。例如 handler 转换函数叫 `resp.ToGinHandler`，不叫 `resp.H`。
@@ -130,3 +146,5 @@
   - 单文件包：`// Package xxx ……` 紧贴 `package` 行，既是包说明也是文件说明。
   - 多文件包：每个文件第一行写自己的说明，和 `package` 行之间空一行，否则会被当成包说明拼在一起。
   - 测试文件不写，`xxx_test.go` 测的就是 `xxx.go`。
+- 语言：接口返回给用户的错误提示和界面文案用英文；代码注释用中文。
+- 前端（TypeScript）沿用同样的规则：名字写全、`get` / `is` / `has` 前缀、`setup` 开头的函数只在启动时调用一次、注释用中文写在代码旁边、文件第一行写一句说明（测试文件除外）。
