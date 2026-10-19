@@ -43,7 +43,7 @@ func NewHTTPHandler(deps Deps) http.Handler {
 }
 
 func notFoundHandler(*gin.Context) (any, error) {
-	return nil, errs.NotFound("接口不存在")
+	return nil, errs.NotFound("API not found")
 }
 
 // healthHandler 顺带检查数据库是否可用。

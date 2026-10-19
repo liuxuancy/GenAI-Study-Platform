@@ -44,7 +44,7 @@ func RequirePermission(required string) gin.HandlerFunc {
 			return
 		}
 		if !principal.HasPermission(required) {
-			abortWithError(ctx, errs.Forbidden(fmt.Sprintf("缺少权限：%s", required)))
+			abortWithError(ctx, errs.Forbidden(fmt.Sprintf("missing permission: %s", required)))
 			return
 		}
 		ctx.Next()

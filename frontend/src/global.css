@@ -1,0 +1,44 @@
+/* 全局样式：设计令牌（颜色、字体）和页面基础样式，登录页和布局共用。 */
+:root {
+  --bg: #ffffff;
+  --surface: #fafafb;
+  --ink: #111114;
+  --ink-2: #55555e;
+  --ink-3: #8c8c96;
+  --ink-4: #b6b6be;
+  --line: #e8e8ec;
+  --accent: #c0442c;
+
+  --font-display: 'Fraunces', Georgia, 'Times New Roman', serif;
+  --font-text: 'Source Serif 4', Georgia, 'Times New Roman', serif;
+
+  --gutter: clamp(20px, 4vw, 56px);
+  --ease: cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html {
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--ink);
+  font-family: var(--font-text);
+  font-size: 16.5px;
+  line-height: 1.6;
+  font-optical-sizing: auto;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+::selection {
+  background: var(--ink);
+  color: #fff;
+}

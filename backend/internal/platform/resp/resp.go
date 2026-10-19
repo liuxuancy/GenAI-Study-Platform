@@ -42,7 +42,7 @@ func Fail(ctx *gin.Context, appError *errs.Error) {
 // BindJSON 解析并校验请求体，失败返回 400。
 func BindJSON(ctx *gin.Context, target any) error {
 	if err := ctx.ShouldBindJSON(target); err != nil {
-		return errs.BadRequest("请求参数错误: " + err.Error())
+		return errs.BadRequest("invalid request: " + err.Error())
 	}
 	return nil
 }
@@ -50,7 +50,7 @@ func BindJSON(ctx *gin.Context, target any) error {
 // BindQuery 解析并校验 URL 查询参数（?page=1&role=...），失败返回 400。
 func BindQuery(ctx *gin.Context, target any) error {
 	if err := ctx.ShouldBindQuery(target); err != nil {
-		return errs.BadRequest("请求参数错误: " + err.Error())
+		return errs.BadRequest("invalid request: " + err.Error())
 	}
 	return nil
 }
@@ -59,7 +59,7 @@ func BindQuery(ctx *gin.Context, target any) error {
 func GetInt64PathParam(ctx *gin.Context, name string) (int64, error) {
 	value, err := strconv.ParseInt(ctx.Param(name), 10, 64)
 	if err != nil || value <= 0 {
-		return 0, errs.BadRequest("路径参数 " + name + " 必须是正整数")
+		return 0, errs.BadRequest("path parameter " + name + " must be a positive integer")
 	}
 	return value, nil
 }

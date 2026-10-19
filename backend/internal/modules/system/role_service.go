@@ -83,10 +83,10 @@ type AssignPermissionsInput struct {
 // AssignRolePermissions 用提交的权限码整体替换角色的授权，提交后立即对该角色的所有用户生效。
 func (service *RoleService) AssignRolePermissions(ctx context.Context, roleCode string, input AssignPermissionsInput) ([]string, error) {
 	if !access.IsValidRole(roleCode) {
-		return nil, errs.NotFound(fmt.Sprintf("角色不存在：%s", roleCode))
+		return nil, errs.NotFound(fmt.Sprintf("role not found: %s", roleCode))
 	}
 	if roleCode == access.RoleAdmin {
-		return nil, errs.BadRequest("管理员在代码里直接放行，不能配置权限")
+		return nil, errs.BadRequest("the admin role has all permissions and cannot be configured")
 	}
 
 	codes := []string{}

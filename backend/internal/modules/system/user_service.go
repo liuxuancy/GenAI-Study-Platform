@@ -118,10 +118,10 @@ type CreateUserInput struct {
 func (service *UserService) CreateUser(ctx context.Context, input CreateUserInput) (*UserItem, error) {
 	username := strings.ToLower(strings.TrimSpace(input.Username))
 	if !usernamePattern.MatchString(username) {
-		return nil, errs.BadRequest("用户名只能是 3 到 64 位小写字母、数字或下划线")
+		return nil, errs.BadRequest("username must be 3-64 characters of lowercase letters, digits or underscores")
 	}
 	if !access.IsValidRole(input.Role) {
-		return nil, errs.BadRequest(fmt.Sprintf("未知角色：%s", input.Role))
+		return nil, errs.BadRequest(fmt.Sprintf("unknown role: %s", input.Role))
 	}
 
 	var count int64
@@ -129,7 +129,7 @@ func (service *UserService) CreateUser(ctx context.Context, input CreateUserInpu
 		return nil, err
 	}
 	if count > 0 {
-		return nil, errs.Conflict(fmt.Sprintf("用户名 %s 已存在", username))
+		return nil, errs.Conflict(fmt.Sprintf("username %s already exists", username))
 	}
 
 	hash, err := identity.HashPassword(input.Password)
@@ -164,7 +164,7 @@ func (service *UserService) UpdateUser(ctx context.Context, operator *access.Pri
 	}
 	newStatus := *input.Status
 	if userID == operator.UserID && newStatus == model.UserStatusDisabled {
-		return errs.BadRequest("不能禁用自己")
+		return errs.BadRequest("you cannot disable your own account")
 	}
 
 	tokenVersionIncrement := 0
@@ -214,7 +214,7 @@ func (service *UserService) ResetUserPassword(ctx context.Context, userID int64,
 // DeleteUser 不能删除自己；先让各模块检查是否还有数据引用这个用户，有就返回 409。
 func (service *UserService) DeleteUser(ctx context.Context, operator *access.Principal, userID int64) error {
 	if userID == operator.UserID {
-		return errs.BadRequest("不能删除自己")
+		return errs.BadRequest("you cannot delete your own account")
 	}
 	if _, err := service.getUserByID(ctx, userID); err != nil {
 		return err
@@ -239,7 +239,7 @@ func (service *UserService) getUserByID(ctx context.Context, userID int64) (*mod
 		return nil, result.Error
 	}
 	if result.RowsAffected == 0 {
-		return nil, errs.NotFound("用户不存在")
+		return nil, errs.NotFound("user not found")
 	}
 	return &user, nil
 }

@@ -254,7 +254,7 @@ func (guard ownedCourseGuard) CheckUserDeletion(ctx context.Context, database *g
 		return err
 	}
 	if username == guard.ownerUsername {
-		return errs.Conflict("该讲师名下还有课程，不能删除")
+		return errs.Conflict("teacher still owns courses and cannot be deleted")
 	}
 	return nil
 }
@@ -264,7 +264,7 @@ func TestDeleteUserBlockedByOtherModule(t *testing.T) {
 	token := server.adminToken(t)
 
 	teacherPath := fmt.Sprintf("/api/system/users/%d", testutil.GetUserID(t, server.database, "teacher1"))
-	if status, result := server.call(t, "DELETE", teacherPath, token, nil); status != 409 || result.Msg != "该讲师名下还有课程，不能删除" {
+	if status, result := server.call(t, "DELETE", teacherPath, token, nil); status != 409 || result.Msg != "teacher still owns courses and cannot be deleted" {
 		t.Errorf("guarded delete: status=%d msg=%q, want 409", status, result.Msg)
 	}
 	otherPath := fmt.Sprintf("/api/system/users/%d", testutil.GetUserID(t, server.database, "teacher2"))

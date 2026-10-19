@@ -33,7 +33,7 @@ func (appError *Error) Error() string {
 func (appError *Error) Unwrap() error { return appError.cause }
 
 // Is 按 Code 比较，消息不同也能匹配：
-// errors.Is(errs.Forbidden("不是你的课程"), errs.ErrForbidden) == true
+// errors.Is(errs.Forbidden("not your course"), errs.ErrForbidden) == true
 func (appError *Error) Is(target error) bool {
 	targetError, ok := target.(*Error)
 	return ok && targetError.Code == appError.Code
@@ -41,12 +41,12 @@ func (appError *Error) Is(target error) bool {
 
 // 哨兵错误：用于 errors.Is 判断，或直接返回默认消息
 var (
-	ErrBadRequest   = &Error{Code: SystemBadRequest, Msg: "请求参数错误"}
-	ErrUnauthorized = &Error{Code: SystemUnauthorized, Msg: "未登录或登录已失效"}
-	ErrForbidden    = &Error{Code: SystemForbidden, Msg: "没有权限"}
-	ErrNotFound     = &Error{Code: SystemNotFound, Msg: "资源不存在"}
-	ErrConflict     = &Error{Code: SystemConflict, Msg: "操作冲突"}
-	ErrInternal     = &Error{Code: SystemInternal, Msg: "服务器内部错误"}
+	ErrBadRequest   = &Error{Code: SystemBadRequest, Msg: "invalid request"}
+	ErrUnauthorized = &Error{Code: SystemUnauthorized, Msg: "not signed in or session expired"}
+	ErrForbidden    = &Error{Code: SystemForbidden, Msg: "permission denied"}
+	ErrNotFound     = &Error{Code: SystemNotFound, Msg: "resource not found"}
+	ErrConflict     = &Error{Code: SystemConflict, Msg: "conflict"}
+	ErrInternal     = &Error{Code: SystemInternal, Msg: "internal server error"}
 )
 
 func BadRequest(msg string) *Error   { return &Error{Code: SystemBadRequest, Msg: msg} }

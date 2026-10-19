@@ -87,14 +87,14 @@ func (catalog *Catalog) Has(code string) bool {
 // 具体码必须在目录中；通配码必须覆盖至少一个目录中的码；不允许授予全局 '*'。
 func (catalog *Catalog) ValidateGrant(code string) error {
 	if !ValidCode(code) {
-		return errs.BadRequest(fmt.Sprintf("权限码格式非法：%s", code))
+		return errs.BadRequest(fmt.Sprintf("invalid permission code: %s", code))
 	}
 	if code == wildcard {
-		return errs.BadRequest("不允许授予全局通配 *")
+		return errs.BadRequest("granting the global wildcard * is not allowed")
 	}
 	if !IsWildcard(code) {
 		if !catalog.Has(code) {
-			return errs.BadRequest(fmt.Sprintf("权限码不存在：%s", code))
+			return errs.BadRequest(fmt.Sprintf("unknown permission code: %s", code))
 		}
 		return nil
 	}
@@ -103,5 +103,5 @@ func (catalog *Catalog) ValidateGrant(code string) error {
 			return nil
 		}
 	}
-	return errs.BadRequest(fmt.Sprintf("通配码没有覆盖任何权限码：%s", code))
+	return errs.BadRequest(fmt.Sprintf("wildcard does not cover any permission code: %s", code))
 }

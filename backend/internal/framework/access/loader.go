@@ -31,7 +31,7 @@ func (loader *DBLoader) LoadPrincipal(ctx context.Context, userID int64) (*Princ
 		return nil, result.Error
 	}
 	if result.RowsAffected == 0 {
-		return nil, errs.Unauthorized("用户不存在或已被删除")
+		return nil, errs.Unauthorized("user does not exist or has been deleted")
 	}
 
 	permissions := []string{}

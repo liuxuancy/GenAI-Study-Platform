@@ -137,7 +137,7 @@ func TestRejectsDisabledUser(t *testing.T) {
 	}
 	testutil.MustExec(t, fixture.database, "UPDATE sys_user SET status = ? WHERE username = ?", model.UserStatusDisabled, "student1")
 	fixture.cache.Reset()
-	if status, result := fixture.get(t, "/api/private", token); status != 401 || result.Msg != "账号已被禁用" {
+	if status, result := fixture.get(t, "/api/private", token); status != 401 || result.Msg != "account is disabled" {
 		t.Errorf("after disable: status=%d msg=%q", status, result.Msg)
 	}
 }

@@ -38,7 +38,7 @@ type LoginResult struct {
 }
 
 // errWrongCredentials 用户不存在和密码错误返回同一句话，不让人借此探测用户名是否存在。
-var errWrongCredentials = errs.Unauthorized("用户名或密码错误")
+var errWrongCredentials = errs.Unauthorized("incorrect username or password")
 
 // Login 校验用户名密码，签发 token。
 func (service *Service) Login(ctx context.Context, input LoginInput) (*LoginResult, error) {
@@ -56,7 +56,7 @@ func (service *Service) Login(ctx context.Context, input LoginInput) (*LoginResu
 		return nil, errWrongCredentials
 	}
 	if user.Status != model.UserStatusActive {
-		return nil, errs.Unauthorized("账号已被禁用")
+		return nil, errs.Unauthorized("account is disabled")
 	}
 
 	token, expiresAt, err := service.tokenIssuer.Issue(user.ID, user.TokenVersion)
@@ -128,10 +128,10 @@ func (service *Service) ChangePassword(ctx context.Context, principal *access.Pr
 		return err
 	}
 	if !identity.CheckPassword(user.PasswordHash, input.OldPassword) {
-		return errs.BadRequest("原密码错误")
+		return errs.BadRequest("current password is incorrect")
 	}
 	if input.NewPassword == input.OldPassword {
-		return errs.BadRequest("新密码不能与原密码相同")
+		return errs.BadRequest("new password must be different from the current password")
 	}
 	hash, err := identity.HashPassword(input.NewPassword)
 	if err != nil {
@@ -156,7 +156,7 @@ func (service *Service) getUserByID(ctx context.Context, userID int64) (*model.U
 		return nil, result.Error
 	}
 	if result.RowsAffected == 0 {
-		return nil, errs.Unauthorized("用户不存在或已被删除")
+		return nil, errs.Unauthorized("user does not exist or has been deleted")
 	}
 	return &user, nil
 }

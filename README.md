@@ -3,7 +3,7 @@
 简易学习平台的基础骨架，重点是 **登录 + 权限系统**。业务部分（课程、选课、学习进度）只做最小闭环，用来验证权限框架。
 
 - 后端：Go 1.26+、Gin、GORM、SQLite、slog
-- 前端（计划中）：React 18、TypeScript、Vite、Ant Design v5、Zustand、React Router v6
+- 前端：React 18、TypeScript、Vite、Ant Design v5、Zustand、React Router v6、Vitest
 
 > 名词对不上时先查 [docs/glossary.md](docs/glossary.md)。
 
@@ -38,10 +38,23 @@ study_platform/
 │       │   ├── system/               用户管理、角色权限，接口 /api/system/*
 │       │   └── course/               讲师侧 /api/teacher/*、学生侧 /api/student/*（阶段 9）
 │       └── router/                   ④ 路由层：router.go 组装中间件，routes.go 是全部接口的路由表
-└── frontend/                         前端（阶段 6 开始）
+└── frontend/                         React 前端
+    ├── vite.config.ts                开发时把 /api 转发到后端 :8080
     └── src/
-        ├── core/                     框架：请求封装、登录状态、权限判断、路由与菜单、布局
-        └── modules/                  业务页面：system、course
+        ├── main.tsx                  入口：初始化请求封装，挂载 App
+        ├── App.tsx                   套上 Ant Design 主题，挂载路由
+        ├── global.css                设计令牌（颜色、字体）和页面基础样式
+        ├── core/                     框架：和 backend/internal/framework 对应
+        │   ├── http.ts               请求封装：带 token、解包 {code, msg, data}、401 时退出登录
+        │   ├── api/account.ts        account 接口和 CurrentUser 类型
+        │   ├── auth/store.ts         登录状态（token、currentUser），"记住我"决定存哪
+        │   ├── auth/RequireAuth.tsx  登录守卫
+        │   ├── permission.ts         权限码匹配，和后端共用 docs/permission-cases.json
+        │   ├── router.tsx            路由表
+        │   ├── theme.ts              Ant Design 主题
+        │   ├── layout/               登录后的顶栏 + 菜单 + 内容区
+        │   └── pages/                登录页、首页、404
+        └── modules/                  业务页面：system、course（阶段 7 起）
 ```
 
 分组规则：
@@ -89,13 +102,25 @@ http.Server（监听端口、请求头 10 秒超时）
 
 ## 快速开始
 
+后端：
+
 ```bash
 cd backend
 go test ./...
 go run ./cmd/server
 ```
 
-服务默认监听 `:8080`，检查是否启动成功：
+前端（另开一个终端，需要 Node 20+ 和 pnpm）：
+
+```bash
+cd frontend
+pnpm install
+pnpm dev
+```
+
+浏览器打开 http://localhost:5173 ，用下面的测试账号登录。前端测试和构建：`pnpm test`、`pnpm build`。
+
+后端默认监听 `:8080`，检查是否启动成功：
 
 ```bash
 curl http://localhost:8080/api/health
@@ -188,7 +213,7 @@ go run ./cmd/server --reset-demo
 | 3 | 模块机制、数据表、种子数据、演示数据加载 | ✅ |
 | 4 | 认证：JWT、登录、认证中间件、RequirePermission、account 模块 | ✅ |
 | 5 | 系统管理接口：用户、角色权限 | ✅ |
-| 6 | 前端骨架与登录 | |
+| 6 | 前端骨架与登录 | ✅ |
 | 7 | 动态菜单与路由守卫 | |
 | 8 | 管理员页面 | |
 | 9 | 课程模块后端（归属检查） | |

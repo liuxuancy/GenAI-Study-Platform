@@ -53,7 +53,7 @@ func TestDisabledUserCannotLogin(t *testing.T) {
 	testutil.MustExec(t, server.database, "UPDATE sys_user SET status = ? WHERE username = ?", model.UserStatusDisabled, "student1")
 	status, result := server.call(t, "POST", "/api/account/login", "",
 		map[string]string{"username": "student1", "password": "student123"})
-	if status != 401 || result.Msg != "账号已被禁用" {
+	if status != 401 || result.Msg != "account is disabled" {
 		t.Errorf("status=%d msg=%q", status, result.Msg)
 	}
 }

@@ -32,7 +32,7 @@ func okHandler(*gin.Context) (any, error) {
 }
 
 func forbiddenHandler(*gin.Context) (any, error) {
-	return nil, errs.Forbidden("不是你的课程")
+	return nil, errs.Forbidden("not your course")
 }
 
 func plainErrorHandler(*gin.Context) (any, error) {
@@ -74,7 +74,7 @@ func TestErrorHandler(t *testing.T) {
 		msg                      string
 	}{
 		{"success", "GET", "/ok", "", 200, 0, "ok"},
-		{"business error", "GET", "/forbidden", "", 403, 403, "不是你的课程"},
+		{"business error", "GET", "/forbidden", "", 403, 403, "not your course"},
 		{"unknown error hides details", "GET", "/plain-error", "", 500, 500, errs.ErrInternal.Msg},
 		{"panic", "GET", "/panic", "", 500, 500, errs.ErrInternal.Msg},
 		{"bind failure", "POST", "/bind", `{}`, 400, 400, ""},

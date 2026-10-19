@@ -8,7 +8,7 @@ import (
 )
 
 func TestIsMatchesByCode(t *testing.T) {
-	err := Forbidden("不是你的课程")
+	err := Forbidden("not your course")
 	if !errors.Is(err, ErrForbidden) {
 		t.Error("custom-message Forbidden should match ErrForbidden")
 	}
@@ -22,7 +22,7 @@ func TestIsMatchesByCode(t *testing.T) {
 }
 
 func TestFrom(t *testing.T) {
-	if got := From(fmt.Errorf("ctx: %w", NotFound("课程不存在"))); got.Code != SystemNotFound || got.Msg != "课程不存在" {
+	if got := From(fmt.Errorf("ctx: %w", NotFound("course not found"))); got.Code != SystemNotFound || got.Msg != "course not found" {
 		t.Errorf("From kept wrong error: %+v", got)
 	}
 

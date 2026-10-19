@@ -40,11 +40,11 @@ func Authenticate(issuer *TokenIssuer, cache *access.Cache) gin.HandlerFunc {
 func authenticateRequest(ctx *gin.Context, issuer *TokenIssuer, cache *access.Cache) (*access.Principal, error) {
 	token, found := strings.CutPrefix(ctx.GetHeader("Authorization"), bearerPrefix)
 	if !found || token == "" {
-		return nil, errs.Unauthorized("未登录")
+		return nil, errs.Unauthorized("not signed in")
 	}
 	claims, err := issuer.Parse(token)
 	if err != nil {
-		return nil, errs.Unauthorized("登录已过期或无效，请重新登录")
+		return nil, errs.Unauthorized("session expired or invalid, please sign in again")
 	}
 	// 根据token查询用户
 	principal, err := cache.Get(ctx.Request.Context(), claims.UserID)
@@ -52,10 +52,10 @@ func authenticateRequest(ctx *gin.Context, issuer *TokenIssuer, cache *access.Ca
 		return nil, err // 用户不存在时 loader 已经返回 401
 	}
 	if !principal.Active {
-		return nil, errs.Unauthorized("账号已被禁用")
+		return nil, errs.Unauthorized("account is disabled")
 	}
 	if principal.TokenVersion != claims.TokenVersion {
-		return nil, errs.Unauthorized("登录已失效，请重新登录") // 改过密码、被重置密码或被禁用过
+		return nil, errs.Unauthorized("session is no longer valid, please sign in again") // 改过密码、被重置密码或被禁用过
 	}
 	return principal, nil
 }
