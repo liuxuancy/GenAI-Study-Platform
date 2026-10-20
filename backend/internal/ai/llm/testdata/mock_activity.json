@@ -1,0 +1,10 @@
+{
+  "key": "act-1-1",
+  "type": "rich_text",
+  "title": "Read: Git Basics",
+  "order": 1,
+  "payload": {
+    "markdown": "## Git 是什么\n\nGit 是分布式版本控制系统……",
+    "highlights": ["版本控制", "分布式"]
+  }
+}

@@ -88,6 +88,62 @@ func NormalizeCourse(input CourseInput, maxTopicLen int) (CourseInput, error) {
 	return input, nil
 }
 
+// ChapterInput 是单章生成的入参。
+type ChapterInput struct {
+	CourseInput
+	TargetChapterKey string
+}
+
+// ActivityInput 是单 activity 生成的入参。
+type ActivityInput struct {
+	ChapterInput
+	TargetActivityKey string
+}
+
+// NormalizeChapter 校验整课公共字段，并要求 targetChapterKey。
+func NormalizeChapter(input ChapterInput, maxTopicLen int) (ChapterInput, error) {
+	checked, err := NormalizeCourse(input.CourseInput, maxTopicLen)
+	if err != nil {
+		return ChapterInput{}, err
+	}
+	input.CourseInput = checked
+	key, err := normalizeKey("targetChapterKey", input.TargetChapterKey)
+	if err != nil {
+		return ChapterInput{}, err
+	}
+	input.TargetChapterKey = key
+	return input, nil
+}
+
+// NormalizeActivity 在章节入参之外再要求 targetActivityKey。
+func NormalizeActivity(input ActivityInput, maxTopicLen int) (ActivityInput, error) {
+	checked, err := NormalizeChapter(input.ChapterInput, maxTopicLen)
+	if err != nil {
+		return ActivityInput{}, err
+	}
+	input.ChapterInput = checked
+	key, err := normalizeKey("targetActivityKey", input.TargetActivityKey)
+	if err != nil {
+		return ActivityInput{}, err
+	}
+	input.TargetActivityKey = key
+	return input, nil
+}
+
+func normalizeKey(field, key string) (string, error) {
+	key = strings.TrimSpace(key)
+	if key == "" {
+		return "", aierr.InvalidInput(nil, field)
+	}
+	if utf8.RuneCountInString(key) > course.MaxKeyRunes {
+		return "", aierr.InvalidInput(nil, field)
+	}
+	if suspectInjection(key) {
+		return "", aierr.PromptInjectionSuspect(nil, field)
+	}
+	return key, nil
+}
+
 func suspectInjection(text string) bool {
 	if text == "" {
 		return false

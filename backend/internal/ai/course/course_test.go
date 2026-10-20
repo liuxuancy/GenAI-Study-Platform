@@ -353,3 +353,41 @@ func TestNormalizeDropsChapterThatBecomesEmptyThenValidateFails(t *testing.T) {
 	}
 	requireProblem(t, loaded.Validate(), "chapters", "at least one chapter")
 }
+
+func TestChapterFragmentNormalizeAndValidate(t *testing.T) {
+	chapter := course.Chapter{
+		Key: "ch-1", Title: "Intro", Order: 4,
+		Activities: []course.Activity{
+			{Key: "b", Type: course.ActivityTypeRichText, Title: "Second", Order: 2, Payload: []byte(`{"markdown":"b"}`)},
+			{Key: "bad", Type: "video", Title: "Nope", Order: 1, Payload: []byte(`{}`)},
+			{Key: "a", Type: course.ActivityTypeRichText, Title: "First", Order: 2, Payload: []byte(`{"markdown":"a"}`)},
+		},
+	}
+	report := chapter.Normalize()
+	if len(report.DroppedActivities) != 1 || report.DroppedActivities[0].Path != "activities[1]" {
+		t.Fatalf("dropped = %+v", report.DroppedActivities)
+	}
+	if chapter.Order != 1 || chapter.Activities[0].Key != "b" || chapter.Activities[0].Order != 1 || chapter.Activities[1].Key != "a" {
+		t.Fatalf("chapter = %+v", chapter)
+	}
+	if err := chapter.Validate(); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestChapterValidateUsesFragmentPaths(t *testing.T) {
+	err := (&course.Chapter{Title: "No key"}).Validate()
+	validationError, ok := errors.AsType[*course.ValidationError](err)
+	if !ok {
+		t.Fatalf("got %v", err)
+	}
+	fields := map[string]bool{}
+	for _, problem := range validationError.Problems {
+		fields[problem.Field] = true
+	}
+	if !fields["key"] || !fields["activities"] || fields["chapters[0].key"] {
+		t.Fatalf("problems = %+v", validationError.Problems)
+	}
+	activityErr := (&course.Activity{Key: "a", Title: "t", Type: "video", Payload: []byte(`{}`)}).Validate()
+	requireProblem(t, activityErr, "type", "must be one of")
+}

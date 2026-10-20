@@ -45,11 +45,12 @@ func (service *Service) GenerateCourse(ctx context.Context, input GenerateCourse
 	if err != nil {
 		return course.StandardCourse{}, Meta{}, err
 	}
-	templateID := checked.TemplateID
-	if templateID == "" {
-		templateID = prompt.FullCourseV1
+	if checked.TemplateID == "" {
+		checked.TemplateID = prompt.FullCourseV1
+	} else if checked.TemplateID != prompt.FullCourseV1 {
+		return course.StandardCourse{}, Meta{}, aierr.InvalidInput(nil, "templateId")
 	}
-	rendered, info, err := prompt.Render(templateID, prompt.FullCourseData{
+	response, meta, err := service.runModel(ctx, SceneFullCourse, checked.TemplateID, checked.Model, prompt.FullCourseData{
 		Topic:             checked.Topic,
 		Audience:          checked.Audience,
 		Language:          checked.Language,
@@ -57,25 +58,36 @@ func (service *Service) GenerateCourse(ctx context.Context, input GenerateCourse
 		ChapterCountHint:  checked.ChapterCountHint,
 	})
 	if err != nil {
-		return course.StandardCourse{}, Meta{}, err
+		return course.StandardCourse{}, meta, err
 	}
+	parsed, report, err := parse.ParseCourseJSON(response.Text, true)
+	if err != nil {
+		return course.StandardCourse{}, meta, err
+	}
+	applyReport(&meta, report)
+	return parsed, meta, nil
+}
 
-	meta := NewMeta(ctx, SceneFullCourse)
+func (service *Service) runModel(ctx context.Context, scene, templateID, requestedModel string, data any) (llm.Response, Meta, error) {
+	rendered, info, err := prompt.Render(templateID, data)
+	if err != nil {
+		return llm.Response{}, Meta{}, err
+	}
+	meta := NewMeta(ctx, scene)
 	meta.TemplateID = info.ID
 	meta.TemplateVersion = info.Version
-	meta.ModelRequested = checked.Model
+	meta.ModelRequested = requestedModel
 	if meta.ModelRequested == "" {
 		meta.ModelRequested = service.config.ModelPrimary
 	}
 	if meta.ModelRequested == "" {
 		meta.ModelRequested = llm.DefaultModelPrimary
 	}
-
 	started := time.Now()
-	response, err := service.client.Complete(ctx, llm.Request{Model: checked.Model, Prompt: rendered})
+	response, err := service.client.Complete(ctx, llm.Request{Model: requestedModel, Prompt: rendered})
 	meta.LatencyMs = time.Since(started).Milliseconds()
 	if err != nil {
-		return course.StandardCourse{}, meta, completeError(err)
+		return llm.Response{}, meta, completeError(err)
 	}
 	meta.ModelUsed = response.Model
 	meta.Usage = Usage{
@@ -83,16 +95,15 @@ func (service *Service) GenerateCourse(ctx context.Context, input GenerateCourse
 		CompletionTokens: response.Usage.CompletionTokens,
 		TotalTokens:      response.Usage.TotalTokens,
 	}
+	return response, meta, nil
+}
 
-	parsed, report, err := parse.ParseCourseJSON(response.Text, true)
-	if err != nil {
-		return course.StandardCourse{}, meta, err
-	}
+func applyReport(meta *Meta, report parse.Report) {
 	meta.Warnings = append([]string{}, report.Warnings...)
-	if dropped := len(report.Normalize.DroppedActivities); dropped > 0 {
+	if len(report.Normalize.DroppedActivities) > 0 {
 		meta.Warnings = append(meta.Warnings, "dropped activities with illegal type")
 	}
-	if dropped := len(report.Normalize.DroppedChapters); dropped > 0 {
+	if len(report.Normalize.DroppedChapters) > 0 {
 		meta.Warnings = append(meta.Warnings, "dropped empty chapters")
 	}
 	if meta.Warnings == nil {
@@ -103,7 +114,6 @@ func (service *Service) GenerateCourse(ctx context.Context, input GenerateCourse
 		repaired = []string{}
 	}
 	meta.Validation = Validation{Passed: true, RepairedFields: repaired}
-	return parsed, meta, nil
 }
 
 func completeError(err error) error {

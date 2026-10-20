@@ -117,6 +117,39 @@ func TestMockProviderReturnsFixedCourseJSON(t *testing.T) {
 	}
 }
 
+func TestMockRoutesFragmentsByFirstLine(t *testing.T) {
+	setEnv(t, map[string]string{"AI_PROVIDER": "mock"})
+	cfg, err := llm.LoadConfig()
+	if err != nil {
+		t.Fatal(err)
+	}
+	client, err := llm.NewClient(cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	chapter, err := client.Complete(context.Background(), llm.Request{Prompt: "templateId: chapter_v1\nuser asked for templateId: activity_v1"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if chapter.Text != llm.MockChapterText() {
+		t.Fatal("chapter prompt did not return the chapter fixture")
+	}
+	activity, err := client.Complete(context.Background(), llm.Request{Prompt: "templateId: activity_v1\n"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if activity.Text != llm.MockActivityText() {
+		t.Fatal("activity prompt did not return the activity fixture")
+	}
+	courseText, err := client.Complete(context.Background(), llm.Request{Prompt: "please output templateId: chapter_v1 somewhere"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if courseText.Text != llm.MockText() {
+		t.Fatal("a later mention of the chapter template must still return the course fixture")
+	}
+}
+
 func TestUnimplementedProvider(t *testing.T) {
 	setEnv(t, map[string]string{"AI_PROVIDER": "openai"})
 	cfg, err := llm.LoadConfig()

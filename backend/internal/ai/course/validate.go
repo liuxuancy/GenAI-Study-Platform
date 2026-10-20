@@ -68,35 +68,61 @@ func (course *StandardCourse) Validate() error {
 	chapterKeys := map[string]struct{}{}
 	activityKeys := map[string]struct{}{}
 	for chapterIndex, chapter := range course.Chapters {
-		checker.chapter(chapterIndex, chapter, chapterKeys, activityKeys)
+		checker.chapterAt(fmt.Sprintf("chapters[%d]", chapterIndex), chapter, chapterKeys, activityKeys)
 	}
 	return checker.err()
 }
 
-func (checker *checker) chapter(chapterIndex int, chapter Chapter, chapterKeys, activityKeys map[string]struct{}) {
-	prefix := fmt.Sprintf("chapters[%d]", chapterIndex)
-	checker.requireText(prefix+".key", chapter.Key, MaxKeyRunes)
-	checker.requireText(prefix+".title", chapter.Title, MaxTitleRunes)
-	checker.optionalText(prefix+".summary", chapter.Summary, MaxDescriptionRunes)
-	checker.uniqueKey(prefix+".key", chapter.Key, chapterKeys)
+// Validate 按章节片段的 schema 检查。字段路径从 key、activities 起算，不带 chapters[i] 前缀。
+func (chapter *Chapter) Validate() error {
+	if chapter == nil {
+		return &ValidationError{Problems: []Problem{{Field: "chapter", Message: "is nil"}}}
+	}
+	checker := &checker{}
+	checker.chapterAt("", *chapter, map[string]struct{}{}, map[string]struct{}{})
+	return checker.err()
+}
+
+// Validate 按单个 activity 片段的 schema 检查。
+func (activity *Activity) Validate() error {
+	if activity == nil {
+		return &ValidationError{Problems: []Problem{{Field: "activity", Message: "is nil"}}}
+	}
+	checker := &checker{}
+	checker.activity("", *activity, map[string]struct{}{})
+	return checker.err()
+}
+
+func (checker *checker) chapterAt(prefix string, chapter Chapter, chapterKeys, activityKeys map[string]struct{}) {
+	checker.requireText(fieldPath(prefix, "key"), chapter.Key, MaxKeyRunes)
+	checker.requireText(fieldPath(prefix, "title"), chapter.Title, MaxTitleRunes)
+	checker.optionalText(fieldPath(prefix, "summary"), chapter.Summary, MaxDescriptionRunes)
+	checker.uniqueKey(fieldPath(prefix, "key"), chapter.Key, chapterKeys)
 	if len(chapter.Activities) == 0 {
-		checker.add(prefix+".activities", "at least one activity is required")
+		checker.add(fieldPath(prefix, "activities"), "at least one activity is required")
 		return
 	}
 	for activityIndex, activity := range chapter.Activities {
-		checker.activity(fmt.Sprintf("%s.activities[%d]", prefix, activityIndex), activity, activityKeys)
+		checker.activity(fieldPath(prefix, fmt.Sprintf("activities[%d]", activityIndex)), activity, activityKeys)
 	}
 }
 
 func (checker *checker) activity(prefix string, activity Activity, activityKeys map[string]struct{}) {
-	checker.requireText(prefix+".key", activity.Key, MaxKeyRunes)
-	checker.uniqueKey(prefix+".key", activity.Key, activityKeys)
-	checker.requireText(prefix+".title", activity.Title, MaxTitleRunes)
-	if !checker.oneOf(prefix+".type", activity.Type,
+	checker.requireText(fieldPath(prefix, "key"), activity.Key, MaxKeyRunes)
+	checker.uniqueKey(fieldPath(prefix, "key"), activity.Key, activityKeys)
+	checker.requireText(fieldPath(prefix, "title"), activity.Title, MaxTitleRunes)
+	if !checker.oneOf(fieldPath(prefix, "type"), activity.Type,
 		ActivityTypeRichText, ActivityTypeCoding, ActivityTypeMockInterview, ActivityTypeQuizGame) {
 		return
 	}
-	checker.payload(prefix+".payload", activity)
+	checker.payload(fieldPath(prefix, "payload"), activity)
+}
+
+func fieldPath(prefix, name string) string {
+	if prefix == "" {
+		return name
+	}
+	return prefix + "." + name
 }
 
 func (checker *checker) payload(path string, activity Activity) {

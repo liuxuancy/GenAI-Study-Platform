@@ -40,8 +40,35 @@ func TestRenderFullCourseWrapsUserData(t *testing.T) {
 	}
 }
 
+func TestRenderChapterAndActivityTemplates(t *testing.T) {
+	chapter, info, err := prompt.Render(prompt.ChapterV1, prompt.ChapterData{
+		Topic: "分支", Audience: "CS", Language: "zh-CN", TargetChapterKey: "ch-9",
+		ContextJSON: `{"title":"Existing"}`,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if info.ID != prompt.ChapterV1 || info.Version != prompt.Version1 || !strings.HasPrefix(chapter, "templateId: chapter_v1\n") {
+		t.Fatalf("chapter prompt = %s info = %+v", chapter, info)
+	}
+	if !strings.Contains(chapter, "ch-9") || !strings.Contains(chapter, `"title":"Existing"`) {
+		t.Fatalf("chapter prompt = %s", chapter)
+	}
+
+	activity, info, err := prompt.Render(prompt.ActivityV1, prompt.ActivityData{
+		Topic: "命令", Audience: "GENERAL", Language: "en-US",
+		TargetChapterKey: "ch-1", TargetActivityKey: "act-1-1",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if info.ID != prompt.ActivityV1 || !strings.HasPrefix(activity, "templateId: activity_v1\n") || !strings.Contains(activity, "act-1-1") {
+		t.Fatalf("activity prompt = %s info = %+v", activity, info)
+	}
+}
+
 func TestRenderUnknownTemplate(t *testing.T) {
-	_, _, err := prompt.Render("chapter_v1", prompt.FullCourseData{})
+	_, _, err := prompt.Render("missing_v1", prompt.FullCourseData{})
 	if !errors.Is(err, aierr.ErrInvalidInput) {
 		t.Fatalf("err = %v", err)
 	}

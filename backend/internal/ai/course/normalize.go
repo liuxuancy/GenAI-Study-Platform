@@ -38,18 +38,8 @@ func (course *StandardCourse) Normalize() NormalizeReport {
 	report := NormalizeReport{}
 	keptChapters := make([]Chapter, 0, len(course.Chapters))
 	for chapterIndex, chapter := range course.Chapters {
-		keptActivities := make([]Activity, 0, len(chapter.Activities))
-		for activityIndex, activity := range chapter.Activities {
-			if validActivityType(activity.Type) {
-				keptActivities = append(keptActivities, activity)
-				continue
-			}
-			report.DroppedActivities = append(report.DroppedActivities, DroppedItem{
-				Path:   fmt.Sprintf("chapters[%d].activities[%d]", chapterIndex, activityIndex),
-				Key:    activity.Key,
-				Reason: DropReasonIllegalActivityType,
-			})
-		}
+		keptActivities, droppedActivities := normalizeActivities(chapter.Activities, fmt.Sprintf("chapters[%d]", chapterIndex))
+		report.DroppedActivities = append(report.DroppedActivities, droppedActivities...)
 		if len(keptActivities) == 0 {
 			report.DroppedChapters = append(report.DroppedChapters, DroppedItem{
 				Path:   fmt.Sprintf("chapters[%d]", chapterIndex),
@@ -67,15 +57,46 @@ func (course *StandardCourse) Normalize() NormalizeReport {
 	})
 	for chapterIndex := range keptChapters {
 		keptChapters[chapterIndex].Order = chapterIndex + 1
-		activities := keptChapters[chapterIndex].Activities
-		sort.SliceStable(activities, func(i, j int) bool {
-			return activities[i].Order < activities[j].Order
-		})
-		for activityIndex := range activities {
-			activities[activityIndex].Order = activityIndex + 1
-		}
-		keptChapters[chapterIndex].Activities = activities
 	}
 	course.Chapters = keptChapters
 	return report
+}
+
+// Normalize 整理单个章节片段：丢掉非法 activity，并把本章和 activity 的 order 重写成从 1 开始。
+// 章节本身不会因为变空而被删掉，留给 Validate 拒绝。
+func (chapter *Chapter) Normalize() NormalizeReport {
+	if chapter == nil {
+		return NormalizeReport{}
+	}
+	keptActivities, droppedActivities := normalizeActivities(chapter.Activities, "")
+	chapter.Activities = keptActivities
+	chapter.Order = 1
+	return NormalizeReport{DroppedActivities: droppedActivities}
+}
+
+func normalizeActivities(activities []Activity, pathPrefix string) ([]Activity, []DroppedItem) {
+	kept := make([]Activity, 0, len(activities))
+	var dropped []DroppedItem
+	for activityIndex, activity := range activities {
+		if validActivityType(activity.Type) {
+			kept = append(kept, activity)
+			continue
+		}
+		path := fmt.Sprintf("activities[%d]", activityIndex)
+		if pathPrefix != "" {
+			path = pathPrefix + "." + path
+		}
+		dropped = append(dropped, DroppedItem{
+			Path:   path,
+			Key:    activity.Key,
+			Reason: DropReasonIllegalActivityType,
+		})
+	}
+	sort.SliceStable(kept, func(i, j int) bool {
+		return kept[i].Order < kept[j].Order
+	})
+	for activityIndex := range kept {
+		kept[activityIndex].Order = activityIndex + 1
+	}
+	return kept, dropped
 }

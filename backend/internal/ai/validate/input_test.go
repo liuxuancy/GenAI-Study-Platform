@@ -60,6 +60,25 @@ func TestNormalizeCourseRejectsBadInput(t *testing.T) {
 	}
 }
 
+func TestNormalizeChapterRequiresKey(t *testing.T) {
+	_, err := validate.NormalizeChapter(validate.ChapterInput{
+		CourseInput: validInput(),
+	}, 0)
+	if !errors.Is(err, aierr.ErrInvalidInput) {
+		t.Fatalf("err = %v", err)
+	}
+	got, err := validate.NormalizeActivity(validate.ActivityInput{
+		ChapterInput:      validate.ChapterInput{CourseInput: validInput(), TargetChapterKey: " ch-1 "},
+		TargetActivityKey: "act-1",
+	}, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.TargetChapterKey != "ch-1" || got.TargetActivityKey != "act-1" || got.Language != course.LanguageZhCN {
+		t.Fatalf("got = %+v", got)
+	}
+}
+
 func TestNormalizeCourseAllowsOrdinaryIgnoreWording(t *testing.T) {
 	input := validInput()
 	input.Topic = "how to ignore errors in Git"
