@@ -9,7 +9,7 @@ import (
 )
 
 // Report 是 ParseCourseJSON 的附带结果。
-// 本阶段还没有 Service 和 meta，补过的字段放在 RepairedFields。
+// 补过的字段放在 RepairedFields，由调用方写入 meta.validation。
 type Report struct {
 	RepairedFields []string
 	Warnings       []string

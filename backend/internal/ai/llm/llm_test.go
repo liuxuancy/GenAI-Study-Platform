@@ -1,0 +1,151 @@
+package llm_test
+
+import (
+	"context"
+	"encoding/json"
+	"errors"
+	"strings"
+	"testing"
+
+	"caveclass/internal/ai/aierr"
+	"caveclass/internal/ai/course"
+	"caveclass/internal/ai/llm"
+)
+
+var configKeys = []string{
+	"AI_PROVIDER", "AI_API_KEY", "AI_MODEL_PRIMARY", "AI_MODEL_FALLBACK",
+	"AI_TIMEOUT", "AI_MAX_RETRIES", "AI_MAX_TOPIC_LEN",
+}
+
+func setEnv(t *testing.T, values map[string]string) {
+	t.Helper()
+	for _, key := range configKeys {
+		t.Setenv(key, values[key])
+	}
+}
+
+func TestLoadConfigDefaultsToMock(t *testing.T) {
+	setEnv(t, nil)
+	cfg, err := llm.LoadConfig()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.Provider != llm.ProviderMock || cfg.ModelPrimary != llm.DefaultModelPrimary {
+		t.Fatalf("cfg = %+v", cfg)
+	}
+	if cfg.Timeout != llm.DefaultTimeout || cfg.MaxRetries != llm.DefaultMaxRetries || cfg.MaxTopicLen != llm.DefaultMaxTopicLen {
+		t.Fatalf("numeric defaults = %+v", cfg)
+	}
+	if cfg.APIKey != "" || cfg.ModelFallback != "" {
+		t.Fatalf("empty env should stay empty: %+v", cfg)
+	}
+}
+
+func TestLoadConfigOverrides(t *testing.T) {
+	setEnv(t, map[string]string{
+		"AI_PROVIDER":       "azure",
+		"AI_API_KEY":        "secret-key",
+		"AI_MODEL_PRIMARY":  "gpt-4o",
+		"AI_MODEL_FALLBACK": "gpt-4o-mini",
+		"AI_TIMEOUT":        "30s",
+		"AI_MAX_RETRIES":    "0",
+		"AI_MAX_TOPIC_LEN":  "120",
+	})
+	cfg, err := llm.LoadConfig()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.Provider != llm.ProviderAzure || cfg.APIKey != "secret-key" || cfg.ModelPrimary != "gpt-4o" || cfg.ModelFallback != "gpt-4o-mini" {
+		t.Fatalf("cfg = %+v", cfg)
+	}
+	if cfg.Timeout.String() != "30s" || cfg.MaxRetries != 0 || cfg.MaxTopicLen != 120 {
+		t.Fatalf("numeric overrides = %+v", cfg)
+	}
+}
+
+func TestLoadConfigRejectsInvalidValues(t *testing.T) {
+	tests := []map[string]string{
+		{"AI_PROVIDER": "claude"},
+		{"AI_TIMEOUT": "soon"},
+		{"AI_MAX_RETRIES": "-1"},
+		{"AI_MAX_TOPIC_LEN": "0"},
+	}
+	for _, values := range tests {
+		t.Run(values["AI_PROVIDER"]+values["AI_TIMEOUT"]+values["AI_MAX_RETRIES"]+values["AI_MAX_TOPIC_LEN"], func(t *testing.T) {
+			setEnv(t, values)
+			if _, err := llm.LoadConfig(); err == nil {
+				t.Fatal("expected config error")
+			}
+		})
+	}
+}
+
+func TestMockProviderReturnsFixedCourseJSON(t *testing.T) {
+	setEnv(t, map[string]string{"AI_PROVIDER": "mock", "AI_API_KEY": "do-not-leak"})
+	cfg, err := llm.LoadConfig()
+	if err != nil {
+		t.Fatal(err)
+	}
+	client, err := llm.NewClient(cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	response, err := client.Complete(context.Background(), llm.Request{Prompt: "generate a course"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if response.Text != llm.MockText() || strings.Contains(response.Text, "do-not-leak") {
+		t.Fatalf("unexpected mock text, model=%s", response.Model)
+	}
+	if response.Model != llm.DefaultModelPrimary {
+		t.Fatalf("model = %q", response.Model)
+	}
+	var parsed course.StandardCourse
+	if err := json.Unmarshal([]byte(response.Text), &parsed); err != nil {
+		t.Fatal(err)
+	}
+	if err := parsed.Validate(); err != nil {
+		t.Fatal(err)
+	}
+
+	chosen, err := client.Complete(context.Background(), llm.Request{Model: "mock-small", Prompt: "again"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if chosen.Model != "mock-small" || chosen.Text != response.Text {
+		t.Fatalf("chosen = %+v", chosen)
+	}
+}
+
+func TestUnimplementedProvider(t *testing.T) {
+	setEnv(t, map[string]string{"AI_PROVIDER": "openai"})
+	cfg, err := llm.LoadConfig()
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = llm.NewClient(cfg)
+	if !errors.Is(err, aierr.ErrModelUnavailable) {
+		t.Fatalf("err = %v", err)
+	}
+	if !strings.Contains(err.Error(), aierr.CodeModelUnavailable) {
+		t.Fatalf("error = %q", err.Error())
+	}
+}
+
+func TestMockCancelledContext(t *testing.T) {
+	setEnv(t, map[string]string{"AI_PROVIDER": "mock"})
+	cfg, err := llm.LoadConfig()
+	if err != nil {
+		t.Fatal(err)
+	}
+	client, err := llm.NewClient(cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	_, err = client.Complete(ctx, llm.Request{})
+	if !errors.Is(err, context.Canceled) {
+		t.Fatalf("err = %v", err)
+	}
+}
