@@ -1,0 +1,219 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light">
+<title>CaveClass · Sign in</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,300..700&family=Source+Serif+4:opsz,wght@8..60,300..700&display=swap">
+<link rel="stylesheet" href="assets/app.css">
+</head>
+
+<body>
+
+<div class="page">
+
+  <header class="page-topbar">
+    <a class="brand" href="login.html" aria-label="CaveClass home">
+      <span class="mark" aria-hidden="true">C</span>
+      <span class="brand-text">
+        <strong>CaveClass</strong>
+        <small>Courses, explained by AI</small>
+      </span>
+    </a>
+    <p class="top-note">AI course companion · Beta</p>
+  </header>
+
+  <main class="stage">
+
+    <!-- ---------------- left: the pitch ---------------- -->
+    <section class="intro">
+      <p class="eyebrow">How a course reads</p>
+      <h1>Every lecture, explained in order.</h1>
+      <p class="lede">
+        CaveClass rewrites each course as a short walkthrough — in the order you
+        actually need it.
+      </p>
+
+      <ol class="points">
+        <li>
+          <span class="num">01</span>
+          <div>
+            <h3>Read it once, in order</h3>
+            <p>Each lecture becomes a written walkthrough — no slide deck, no skipping.</p>
+          </div>
+        </li>
+        <li>
+          <span class="num">02</span>
+          <div>
+            <h3>Ask on the line you are stuck on</h3>
+            <p>Highlight any sentence and ask. The answer stays attached to that line.</p>
+          </div>
+        </li>
+        <li>
+          <span class="num">03</span>
+          <div>
+            <h3>Keep your place</h3>
+            <p>Your progress is marked chapter by chapter, so you always know the next step.</p>
+          </div>
+        </li>
+      </ol>
+
+      <ul class="specs">
+        <li>12-week courses</li>
+        <li>One chapter a week</li>
+        <li>AI-guided</li>
+      </ul>
+    </section>
+
+    <!-- ---------------- right: sign in ---------------- -->
+    <section class="panel-wrap">
+      <form class="panel" id="loginForm" novalidate>
+        <p class="eyebrow">Account</p>
+        <h2>Sign in</h2>
+        <p class="panel-sub">Use your university email or a CaveClass account.</p>
+
+        <div class="seg seg--3" role="tablist" aria-label="Choose your role">
+          <button class="is-on" type="button" role="tab" aria-selected="true" data-role="student">Student</button>
+          <button type="button" role="tab" aria-selected="false" data-role="teacher">Teacher</button>
+          <button type="button" role="tab" aria-selected="false" data-role="admin">Admin</button>
+        </div>
+        <p class="role-note" id="roleNote">
+          Student view — your courses and your reading progress.
+        </p>
+
+        <label class="field">
+          <span class="lab">Email or username</span>
+          <input type="text" name="who" placeholder="name@university.edu" autocomplete="username">
+        </label>
+
+        <label class="field">
+          <span class="lab">Password</span>
+          <input type="password" name="secret" id="secret" placeholder="At least 8 characters" autocomplete="current-password">
+          <button class="field-aside" type="button" id="peek" aria-label="Show password">Show</button>
+        </label>
+
+        <div class="row">
+          <label class="check">
+            <input type="checkbox" name="remember" checked>
+            <span class="box">
+              <svg viewBox="0 0 12 12" aria-hidden="true"><path d="M2 6.4 L 4.6 9 L 10 3"/></svg>
+            </span>
+            <span>Remember me</span>
+          </label>
+          <a class="tlink" href="#" onclick="return false">Forgot password?</a>
+        </div>
+
+        <button class="cta" type="submit" id="cta">Sign in</button>
+
+        <hr class="panel-rule">
+        <p class="panel-foot" id="panelFoot">
+          New to CaveClass? <a class="tlink" href="#" onclick="return false">Create an account</a>
+        </p>
+      </form>
+
+      <p class="legal">
+        By signing in you agree to the <a href="#" onclick="return false">terms of use</a>
+        and the <a href="#" onclick="return false">privacy policy</a>.
+      </p>
+    </section>
+  </main>
+
+  <footer class="foot">
+    <span>© 2026 CaveClass · A GenAI course learning platform</span>
+    <span class="foot-links">
+      <a href="#" onclick="return false">Status</a>
+      <a href="#" onclick="return false">Help</a>
+      <a href="#" onclick="return false">Contact</a>
+    </span>
+  </footer>
+</div>
+
+<div class="toast" id="toast" role="status" aria-live="polite">
+  Demo shell — authentication is not connected yet. Any credentials open the door.
+</div>
+
+<script>
+/* ==================================================================
+   Sign in — role copy, password visibility, demo submit.
+   Next step: the prototype has no backend, so a successful "sign in"
+   routes straight into the workspace for the chosen role.
+   ================================================================== */
+(function () {
+  'use strict';
+
+  /* The only script on the site. These three helpers used to live in a shared
+     file, which was worth it when four pages needed them; with one page using
+     JavaScript they belong here. */
+  function $(sel, root) { return (root || document).querySelector(sel); }
+  function $$(sel, root) {
+    return Array.prototype.slice.call((root || document).querySelectorAll(sel));
+  }
+  var toastEl = document.getElementById('toast');
+  var toastTimer;
+  function toast(message, ms) {
+    toastEl.textContent = message;
+    toastEl.classList.add('is-on');
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(function () { toastEl.classList.remove('is-on'); }, ms || 3200);
+  }
+
+  /* one entry per role: what the workspace is for, and where signing in
+     lands. The three home pages are frameworks only — the wording here
+     describes the role, not anything that is already on the page. */
+  var notes = {
+    student: 'Student view — your courses and your reading progress.',
+    teacher: 'Teacher view — the courses you teach and how your students are doing.',
+    admin: 'Administrator view — accounts, course operations and system status.'
+  };
+  var next = {
+    student: 'student-home.html',
+    teacher: 'teacher-home.html',
+    admin: 'admin-home.html'
+  };
+  var foot = {
+    student: 'New to CaveClass? <a class="tlink" href="#" onclick="return false">Create an account</a>',
+    teacher: 'Teacher accounts are issued by your department. <a class="tlink" href="#" onclick="return false">Request access</a>',
+    admin: 'Administrator accounts are issued by IT services. <a class="tlink" href="#" onclick="return false">Request access</a>'
+  };
+
+  var segs = $$('.seg button');
+  var role = 'student';
+  segs.forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      segs.forEach(function (b) {
+        var on = b === btn;
+        b.classList.toggle('is-on', on);
+        b.setAttribute('aria-selected', on ? 'true' : 'false');
+      });
+      role = btn.getAttribute('data-role');
+      $('#roleNote').textContent = notes[role];
+      $('#panelFoot').innerHTML = foot[role];
+    });
+  });
+
+  /* show / hide password */
+  var peek = $('#peek');
+  var secret = $('#secret');
+  peek.addEventListener('click', function () {
+    var shown = secret.type === 'text';
+    secret.type = shown ? 'password' : 'text';
+    peek.textContent = shown ? 'Show' : 'Hide';
+    peek.setAttribute('aria-label', shown ? 'Show password' : 'Hide password');
+  });
+
+  /* demo submit — the prototype skips authentication and opens the workspace */
+  var cta = $('#cta');
+  $('#loginForm').addEventListener('submit', function (e) {
+    e.preventDefault();
+    cta.setAttribute('aria-busy', 'true');
+    cta.textContent = 'Signing in…';
+    toast('Demo shell — authentication is not connected yet. Opening the ' + role + ' workspace.');
+    setTimeout(function () { location.href = next[role]; }, 700);
+  });
+})();
+</script>
+</body>
+</html>
