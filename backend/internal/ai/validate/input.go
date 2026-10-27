@@ -16,6 +16,7 @@ const (
 	MaxExtraRequirementsRunes = 2000
 	MaxChapterCountHint       = 30
 	MaxModelRunes             = 100
+	MaxRubricRunes            = 2000
 )
 
 // CourseInput 是整课生成的入参。空 language 会在校验时补成 zh-CN。
@@ -36,6 +37,7 @@ var injectionPatterns = []*regexp.Regexp{
 	regexp.MustCompile(`(?i)<\|\s*(im_start|system)\s*\|>`),
 	regexp.MustCompile(`</?\s*user_topic\b`),
 	regexp.MustCompile(`</?\s*extra_requirements\b`),
+	regexp.MustCompile(`</?\s*rubric\b`),
 	regexp.MustCompile(`忽略(之前|以上|前面)(的)?(所有)?(指令|提示|提示词|规则)`),
 	regexp.MustCompile(`忘记(你的|之前的)?(指令|设定|角色|规则)`),
 	regexp.MustCompile(`你现在扮演`),
@@ -128,6 +130,18 @@ func NormalizeActivity(input ActivityInput, maxTopicLen int) (ActivityInput, err
 	}
 	input.TargetActivityKey = key
 	return input, nil
+}
+
+// NormalizeRubric 检查可选的评分要求。空字符串表示使用模板里的默认维度。
+func NormalizeRubric(rubric string) (string, error) {
+	rubric = strings.TrimSpace(rubric)
+	if utf8.RuneCountInString(rubric) > MaxRubricRunes {
+		return "", aierr.InputTooLong(nil, fmt.Sprintf("rubric exceeds %d characters", MaxRubricRunes))
+	}
+	if suspectInjection(rubric) {
+		return "", aierr.PromptInjectionSuspect(nil, "rubric")
+	}
+	return rubric, nil
 }
 
 func normalizeKey(field, key string) (string, error) {

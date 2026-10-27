@@ -11,10 +11,11 @@ import (
 )
 
 const (
-	FullCourseV1 = "full_course_v1"
-	ChapterV1    = "chapter_v1"
-	ActivityV1   = "activity_v1"
-	Version1     = "1"
+	FullCourseV1     = "full_course_v1"
+	ChapterV1        = "chapter_v1"
+	ActivityV1       = "activity_v1"
+	ContentQualityV1 = "content_quality_v1"
+	Version1         = "1"
 )
 
 //go:embed templates/*.tmpl
@@ -24,6 +25,7 @@ var (
 	fullCourseTemplate = template.Must(template.ParseFS(templateFiles, "templates/full_course_v1.tmpl"))
 	chapterTemplate    = template.Must(template.ParseFS(templateFiles, "templates/chapter_v1.tmpl"))
 	activityTemplate   = template.Must(template.ParseFS(templateFiles, "templates/activity_v1.tmpl"))
+	qualityTemplate    = template.Must(template.ParseFS(templateFiles, "templates/content_quality_v1.tmpl"))
 )
 
 // Info 写入 meta.templateId 和 meta.templateVersion。
@@ -62,6 +64,12 @@ type ActivityData struct {
 	ContextJSON       string
 }
 
+// QualityData 是质量评估模板的数据。Rubric 为空表示调用方没有附加评分要求。
+type QualityData struct {
+	Rubric     string
+	CourseJSON string
+}
+
 // Render 渲染指定模板。未知 templateId 返回 AI_INVALID_INPUT。
 func Render(templateID string, data any) (string, Info, error) {
 	var parsed *template.Template
@@ -76,6 +84,9 @@ func Render(templateID string, data any) (string, Info, error) {
 	case ActivityV1:
 		parsed = activityTemplate
 		info.ID = ActivityV1
+	case ContentQualityV1:
+		parsed = qualityTemplate
+		info.ID = ContentQualityV1
 	default:
 		return "", Info{}, aierr.InvalidInput(fmt.Errorf("unknown template %q", templateID), "templateId")
 	}

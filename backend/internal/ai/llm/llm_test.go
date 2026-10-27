@@ -1,11 +1,14 @@
 package llm_test
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
+	"log/slog"
 	"strings"
 	"testing"
+	"time"
 
 	"caveclass/internal/ai/aierr"
 	"caveclass/internal/ai/course"
@@ -141,6 +144,13 @@ func TestMockRoutesFragmentsByFirstLine(t *testing.T) {
 	if activity.Text != llm.MockActivityText() {
 		t.Fatal("activity prompt did not return the activity fixture")
 	}
+	qualityText, err := client.Complete(context.Background(), llm.Request{Prompt: "templateId: content_quality_v1\n"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if qualityText.Text != llm.MockQualityText() {
+		t.Fatal("quality prompt did not return the quality fixture")
+	}
 	courseText, err := client.Complete(context.Background(), llm.Request{Prompt: "please output templateId: chapter_v1 somewhere"})
 	if err != nil {
 		t.Fatal(err)
@@ -163,6 +173,146 @@ func TestUnimplementedProvider(t *testing.T) {
 	if !strings.Contains(err.Error(), aierr.CodeModelUnavailable) {
 		t.Fatalf("error = %q", err.Error())
 	}
+}
+
+func TestCallFallsBackAfterPrimaryFailure(t *testing.T) {
+	client := &scriptClient{fail: map[string]error{
+		"primary": aierr.ModelUnavailable(nil, "primary down"),
+	}}
+	var logs bytes.Buffer
+	ctx := llm.WithLogger(context.Background(), slog.New(slog.NewJSONHandler(&logs, nil)))
+	response, err := llm.Call(ctx, client, llm.Config{
+		ModelPrimary:  "primary",
+		ModelFallback: "backup",
+		MaxRetries:    1,
+	}, llm.Request{Prompt: "secret-prompt-do-not-log"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !response.FallbackUsed || response.Model != "backup" {
+		t.Fatalf("response = %+v", response)
+	}
+	if strings.Join(client.models, ",") != "primary,primary,backup" {
+		t.Fatalf("models = %#v", client.models)
+	}
+	if strings.Contains(logs.String(), "secret-prompt-do-not-log") {
+		t.Fatalf("prompt leaked into logs: %s", logs.String())
+	}
+	if !strings.Contains(logs.String(), `"msg":"ai model fallback"`) || !strings.Contains(logs.String(), `"modelFallback":"backup"`) {
+		t.Fatalf("logs = %s", logs.String())
+	}
+}
+
+func TestCallRetriesSameModelThenSucceeds(t *testing.T) {
+	client := &flakyClient{failuresLeft: 1, usage: llm.Usage{PromptTokens: 2, CompletionTokens: 3, TotalTokens: 5}}
+	var logs bytes.Buffer
+	ctx := llm.WithLogger(context.Background(), slog.New(slog.NewJSONHandler(&logs, nil)))
+	response, err := llm.Call(ctx, client, llm.Config{ModelPrimary: "primary", ModelFallback: "backup", MaxRetries: 1}, llm.Request{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if response.FallbackUsed || response.Model != "primary" || client.calls != 2 {
+		t.Fatalf("response = %+v calls = %d", response, client.calls)
+	}
+	if !strings.Contains(logs.String(), `"promptTokens":2`) || !strings.Contains(logs.String(), `"totalTokens":5`) {
+		t.Fatalf("logs = %s", logs.String())
+	}
+	if strings.Contains(logs.String(), "ai model fallback") {
+		t.Fatal("same-model retry must not log a fallback")
+	}
+}
+
+func TestCallStopsWhenCallerCancels(t *testing.T) {
+	client := &blockingClient{}
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	_, err := llm.Call(ctx, client, llm.Config{ModelFallback: "backup", MaxRetries: 3}, llm.Request{Model: "primary"})
+	if !errors.Is(err, context.Canceled) {
+		t.Fatalf("err = %v", err)
+	}
+	if client.calls != 0 {
+		t.Fatalf("calls = %d", client.calls)
+	}
+}
+
+func TestCallTimesOutEachAttempt(t *testing.T) {
+	client := &blockingClient{}
+	started := time.Now()
+	_, err := llm.Call(context.Background(), client, llm.Config{
+		ModelPrimary: "primary",
+		Timeout:      20 * time.Millisecond,
+		MaxRetries:   1,
+	}, llm.Request{})
+	if !errors.Is(err, context.DeadlineExceeded) {
+		t.Fatalf("err = %v", err)
+	}
+	if client.calls != 2 {
+		t.Fatalf("calls = %d", client.calls)
+	}
+	if time.Since(started) > 2*time.Second {
+		t.Fatal("timeout did not stop the attempts")
+	}
+}
+
+func TestCallDoesNotFallbackOnInvalidInput(t *testing.T) {
+	client := &scriptClient{fail: map[string]error{
+		"primary": aierr.InvalidInput(nil, "prompt"),
+	}}
+	_, err := llm.Call(context.Background(), client, llm.Config{
+		ModelPrimary:  "primary",
+		ModelFallback: "backup",
+		MaxRetries:    2,
+	}, llm.Request{})
+	if !errors.Is(err, aierr.ErrInvalidInput) {
+		t.Fatalf("err = %v", err)
+	}
+	if strings.Join(client.models, ",") != "primary" {
+		t.Fatalf("models = %#v", client.models)
+	}
+}
+
+type scriptClient struct {
+	fail   map[string]error
+	models []string
+}
+
+func (client *scriptClient) Complete(ctx context.Context, request llm.Request) (llm.Response, error) {
+	if err := ctx.Err(); err != nil {
+		return llm.Response{}, err
+	}
+	client.models = append(client.models, request.Model)
+	if err := client.fail[request.Model]; err != nil {
+		return llm.Response{}, err
+	}
+	return llm.Response{Text: "ok", Model: request.Model}, nil
+}
+
+type flakyClient struct {
+	failuresLeft int
+	calls        int
+	usage        llm.Usage
+}
+
+func (client *flakyClient) Complete(ctx context.Context, request llm.Request) (llm.Response, error) {
+	if err := ctx.Err(); err != nil {
+		return llm.Response{}, err
+	}
+	client.calls++
+	if client.failuresLeft > 0 {
+		client.failuresLeft--
+		return llm.Response{}, aierr.ModelUnavailable(nil, "temporary")
+	}
+	return llm.Response{Text: "ok", Model: request.Model, Usage: client.usage}, nil
+}
+
+type blockingClient struct {
+	calls int
+}
+
+func (client *blockingClient) Complete(ctx context.Context, request llm.Request) (llm.Response, error) {
+	client.calls++
+	<-ctx.Done()
+	return llm.Response{}, ctx.Err()
 }
 
 func TestMockCancelledContext(t *testing.T) {

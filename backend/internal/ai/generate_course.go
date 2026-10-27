@@ -84,11 +84,12 @@ func (service *Service) runModel(ctx context.Context, scene, templateID, request
 		meta.ModelRequested = llm.DefaultModelPrimary
 	}
 	started := time.Now()
-	response, err := service.client.Complete(ctx, llm.Request{Model: requestedModel, Prompt: rendered})
+	response, err := llm.Call(ctx, service.client, service.config, llm.Request{Model: requestedModel, Prompt: rendered})
 	meta.LatencyMs = time.Since(started).Milliseconds()
 	if err != nil {
 		return llm.Response{}, meta, completeError(err)
 	}
+	meta.FallbackUsed = response.FallbackUsed
 	meta.ModelUsed = response.Model
 	meta.Usage = Usage{
 		PromptTokens:     response.Usage.PromptTokens,

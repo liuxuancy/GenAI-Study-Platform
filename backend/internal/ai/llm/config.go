@@ -14,8 +14,9 @@ const (
 
 	DefaultModelPrimary = "gpt-4o-mini"
 	DefaultTimeout      = 60 * time.Second
-	DefaultMaxRetries   = 1
-	DefaultMaxTopicLen  = 500
+	// DefaultMaxRetries 是每个模型首次失败后的额外尝试次数。0 表示不重试。
+	DefaultMaxRetries  = 1
+	DefaultMaxTopicLen = 500
 )
 
 // Config 是 AI 子系统的环境变量配置。尚未接入进程启动配置，调用方自行 LoadConfig。

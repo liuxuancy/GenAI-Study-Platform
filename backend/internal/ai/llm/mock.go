@@ -15,6 +15,9 @@ var mockChapterJSON []byte
 //go:embed testdata/mock_activity.json
 var mockActivityJSON []byte
 
+//go:embed testdata/mock_quality.json
+var mockQualityJSON []byte
+
 // MockText 是 mock 客户端固定返回的课程 JSON，内容与模块说明 §12 样例一致。
 func MockText() string {
 	return strings.TrimSpace(string(mockCourseJSON))
@@ -28,6 +31,11 @@ func MockChapterText() string {
 // MockActivityText 是单 activity 生成时 mock 返回的 JSON。
 func MockActivityText() string {
 	return strings.TrimSpace(string(mockActivityJSON))
+}
+
+// MockQualityText 是质量评估时 mock 返回的报告 JSON。
+func MockQualityText() string {
+	return strings.TrimSpace(string(mockQualityJSON))
 }
 
 type mockClient struct {
@@ -54,6 +62,8 @@ func mockTextForPrompt(promptText, courseText string) string {
 		return MockChapterText()
 	case "templateId: activity_v1":
 		return MockActivityText()
+	case "templateId: content_quality_v1":
+		return MockQualityText()
 	default:
 		return courseText
 	}

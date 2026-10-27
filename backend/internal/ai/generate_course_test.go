@@ -72,7 +72,7 @@ func TestGenerateCourseFromMockProvider(t *testing.T) {
 		t.Fatalf("validation = %+v warnings = %#v", meta.Validation, meta.Warnings)
 	}
 	if meta.FallbackUsed {
-		t.Fatal("fallback is not used in this phase")
+		t.Fatal("primary success must not set fallbackUsed")
 	}
 }
 
@@ -152,6 +152,58 @@ func TestGenerateCourseUnknownTemplate(t *testing.T) {
 	if stub.calls != 0 || meta.TemplateID != "" {
 		t.Fatalf("calls=%d meta=%+v", stub.calls, meta)
 	}
+}
+
+func TestGenerateCourseUsesFallbackModel(t *testing.T) {
+	client := &modelGate{
+		failModel: "primary-model",
+		text:      llm.MockText(),
+		usage:     llm.Usage{PromptTokens: 2, CompletionTokens: 3, TotalTokens: 5},
+	}
+	service, err := ai.New(llm.Config{
+		ModelPrimary:  "primary-model",
+		ModelFallback: "fallback-model",
+	}, client)
+	if err != nil {
+		t.Fatal(err)
+	}
+	parsed, meta, err := service.GenerateCourse(context.Background(), ai.GenerateCourseInput{
+		Topic:    "Git",
+		Audience: course.AudienceCS,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := parsed.Validate(); err != nil {
+		t.Fatal(err)
+	}
+	if !meta.FallbackUsed || meta.ModelUsed != "fallback-model" || meta.ModelRequested != "primary-model" {
+		t.Fatalf("meta = %+v", meta)
+	}
+	if meta.Usage.TotalTokens != 5 || meta.TemplateID != prompt.FullCourseV1 {
+		t.Fatalf("meta = %+v", meta)
+	}
+	if len(client.models) != 2 || client.models[0] != "primary-model" || client.models[1] != "fallback-model" {
+		t.Fatalf("models = %#v", client.models)
+	}
+}
+
+type modelGate struct {
+	failModel string
+	text      string
+	usage     llm.Usage
+	models    []string
+}
+
+func (client *modelGate) Complete(ctx context.Context, request llm.Request) (llm.Response, error) {
+	if err := ctx.Err(); err != nil {
+		return llm.Response{}, err
+	}
+	client.models = append(client.models, request.Model)
+	if request.Model == client.failModel {
+		return llm.Response{}, aierr.ModelUnavailable(nil, "primary down")
+	}
+	return llm.Response{Text: client.text, Model: request.Model, Usage: client.usage}, nil
 }
 
 func TestGenerateCourseTimeout(t *testing.T) {

@@ -65,6 +65,19 @@ func TestRenderChapterAndActivityTemplates(t *testing.T) {
 	if info.ID != prompt.ActivityV1 || !strings.HasPrefix(activity, "templateId: activity_v1\n") || !strings.Contains(activity, "act-1-1") {
 		t.Fatalf("activity prompt = %s info = %+v", activity, info)
 	}
+
+	qualityText, info, err := prompt.Render(prompt.ContentQualityV1, prompt.QualityData{
+		Rubric: "强调练习", CourseJSON: `{"title":"Git"}`,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if info.ID != prompt.ContentQualityV1 || !strings.HasPrefix(qualityText, "templateId: content_quality_v1\n") {
+		t.Fatalf("quality prompt = %s info = %+v", qualityText, info)
+	}
+	if !strings.Contains(qualityText, "强调练习") || !strings.Contains(qualityText, `"title":"Git"`) {
+		t.Fatalf("quality prompt = %s", qualityText)
+	}
 }
 
 func TestRenderUnknownTemplate(t *testing.T) {

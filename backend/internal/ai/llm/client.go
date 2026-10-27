@@ -20,11 +20,12 @@ type Request struct {
 	Prompt string
 }
 
-// Response 是模型原文，尚未解析成课程。
+// Response 是模型原文，尚未解析成课程。FallbackUsed 表示这次成功来自备用模型。
 type Response struct {
-	Text  string
-	Model string
-	Usage Usage
+	Text         string
+	Model        string
+	Usage        Usage
+	FallbackUsed bool
 }
 
 // Client 调用大模型。mock 返回固定文本；真实厂商在后续阶段接入。
