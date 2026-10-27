@@ -12,14 +12,22 @@ var codeFence = regexp.MustCompile("(?is)```(?:json\\b)?[ \\t]*\\r?\\n?(.*?)```"
 
 // ExtractJSON 从模型原文取出一个 JSON 对象。
 // 支持纯 JSON，也支持前后有说明文字的 ```json 代码块。
+// 正文以 { 开头时，字符串里的 markdown 代码块不会被当成外层围栏。
 func ExtractJSON(rawText string) (string, error) {
 	text := strings.TrimSpace(rawText)
 	if text == "" {
 		return "", aierr.OutputParseFailed(nil, "empty input")
 	}
+	if strings.HasPrefix(text, "{") {
+		return objectAt(text)
+	}
 	if fenced, ok := firstCodeFence(text); ok {
 		text = strings.TrimSpace(fenced)
 	}
+	return objectAt(text)
+}
+
+func objectAt(text string) (string, error) {
 	start := strings.Index(text, "{")
 	if start < 0 {
 		return "", aierr.OutputParseFailed(nil, "no JSON object")

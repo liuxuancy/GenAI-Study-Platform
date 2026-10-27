@@ -8,12 +8,18 @@ import (
 )
 
 const (
-	ProviderMock   = "mock"
-	ProviderOpenAI = "openai"
-	ProviderAzure  = "azure"
+	ProviderMock     = "mock"
+	ProviderOpenAI   = "openai"
+	ProviderAzure    = "azure"
+	ProviderDeepSeek = "deepseek"
+	ProviderTeamily  = "teamily"
 
-	DefaultModelPrimary = "gpt-4o-mini"
-	DefaultTimeout      = 60 * time.Second
+	DefaultModelPrimary  = "gpt-4o-mini"
+	DefaultModelDeepSeek = "deepseek-chat"
+	DefaultModelTeamily  = "teamily"
+	DeepSeekEndpoint     = "https://api.deepseek.com/chat/completions"
+	TeamilyEndpoint      = "https://teamily.ai/v1/agents/1bcba824-49b0-4518-9434-99a40d418f22/responses"
+	DefaultTimeout       = 60 * time.Second
 	// DefaultMaxRetries 是每个模型首次失败后的额外尝试次数。0 表示不重试。
 	DefaultMaxRetries  = 1
 	DefaultMaxTopicLen = 500
@@ -23,6 +29,7 @@ const (
 type Config struct {
 	Provider      string
 	APIKey        string
+	BaseURL       string
 	ModelPrimary  string
 	ModelFallback string
 	Timeout       time.Duration
@@ -35,6 +42,7 @@ func LoadConfig() (Config, error) {
 	cfg := Config{
 		Provider:      getenv("AI_PROVIDER", ProviderMock),
 		APIKey:        os.Getenv("AI_API_KEY"),
+		BaseURL:       os.Getenv("AI_BASE_URL"),
 		ModelPrimary:  getenv("AI_MODEL_PRIMARY", DefaultModelPrimary),
 		ModelFallback: os.Getenv("AI_MODEL_FALLBACK"),
 		Timeout:       DefaultTimeout,
@@ -42,9 +50,17 @@ func LoadConfig() (Config, error) {
 		MaxTopicLen:   DefaultMaxTopicLen,
 	}
 	switch cfg.Provider {
-	case ProviderMock, ProviderOpenAI, ProviderAzure:
+	case ProviderMock, ProviderOpenAI, ProviderAzure, ProviderDeepSeek, ProviderTeamily:
 	default:
-		return Config{}, fmt.Errorf("AI_PROVIDER: must be mock, openai, or azure, got %q", cfg.Provider)
+		return Config{}, fmt.Errorf("AI_PROVIDER: must be mock, openai, azure, deepseek, or teamily, got %q", cfg.Provider)
+	}
+	if os.Getenv("AI_MODEL_PRIMARY") == "" {
+		switch cfg.Provider {
+		case ProviderDeepSeek:
+			cfg.ModelPrimary = DefaultModelDeepSeek
+		case ProviderTeamily:
+			cfg.ModelPrimary = DefaultModelTeamily
+		}
 	}
 	if value := os.Getenv("AI_TIMEOUT"); value != "" {
 		duration, err := time.ParseDuration(value)

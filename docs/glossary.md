@@ -13,6 +13,10 @@
 | `identity` | 身份认证 | 回答"你是谁"：密码哈希、JWT、校验 token 的中间件、白名单 |
 | `access` | 访问控制 | 回答"你能做什么"：权限码、目录、Principal、缓存、RequirePermission |
 | `account` | 账号模块 | 账号相关的接口：登录、退出、me、个人信息、改密码，地址 `/api/account/*` |
+| `internal/ai` | AI 子系统 | B 的内部 Go 包：生成课程、章节、activity 和质量评估。不访问数据库，不注册 `/api/ai/*`。说明见 `backend/internal/ai/README.md` |
+| `StandardCourse` | 标准课程 JSON | AI 输出的课程结构，camelCase，`schemaVersion` 为 `1.0`。类型在 `internal/ai/course` |
+| `Meta` | AI 调用元数据 | 放在业务响应的 `data.meta`。含模板、模型、`fallbackUsed`、用量、`warnings` 和 `requestId` |
+| `aiCode` | AI 错误码 | 如 `AI_INVALID_INPUT`、`AI_TIMEOUT`。只进日志，默认不返回给前端 |
 
 ## 权限
 

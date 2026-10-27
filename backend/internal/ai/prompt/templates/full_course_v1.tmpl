@@ -12,6 +12,11 @@ rich_text payload: markdown, highlights.
 coding payload: language (python, javascript, java, go, or other), promptMarkdown, starterCode, solutionHint, testCases.
 mock_interview payload: role, scenarioMarkdown, questions, evaluationRubricMarkdown.
 quiz_game payload: instructionsMarkdown, questions with options, correctIndex, and explanation.
+Use these payload shapes exactly. questions and testCases are arrays of objects, never a string.
+rich_text: {"markdown":"string","highlights":["string"]}
+coding: {"language":"python|javascript|java|go|other","promptMarkdown":"string","starterCode":"string","solutionHint":"string","testCases":[{"input":"string","expectedOutput":"string","isHidden":false}]}
+mock_interview: {"role":"string","scenarioMarkdown":"string","questions":[{"question":"string","followUpHints":["string"]}],"evaluationRubricMarkdown":"string"}
+quiz_game: {"instructionsMarkdown":"string","questions":[{"question":"string","options":["string"],"correctIndex":0,"explanation":"string"}]}
 {{if gt .ChapterCountHint 0}}Aim for about {{.ChapterCountHint}} chapters.
 {{end}}
 Write the course content in {{.Language}}.

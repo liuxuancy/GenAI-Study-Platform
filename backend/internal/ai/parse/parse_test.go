@@ -68,6 +68,21 @@ func TestParsePureJSONAndCodeFence(t *testing.T) {
 	}
 }
 
+func TestExtractJSONIgnoresFenceInsideObject(t *testing.T) {
+	raw := "{\"markdown\":\"运行\\n```\\ngit status\\n```\\n\"}"
+	got, err := parse.ExtractJSON(raw)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var fields map[string]any
+	if err := json.Unmarshal([]byte(got), &fields); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(fields["markdown"].(string), "git status") {
+		t.Fatalf("markdown = %#v", fields["markdown"])
+	}
+}
+
 func TestExtractJSONKeepsBracesInsideStrings(t *testing.T) {
 	raw := "```JSON\n" + `{"title":"use {git}","ok":true}` + "\n```"
 	got, err := parse.ExtractJSON(raw)

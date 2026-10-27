@@ -34,7 +34,7 @@ type Client interface {
 }
 
 // NewClient 按配置创建客户端。
-// mock 返回固定课程 JSON。openai / azure 本阶段只占位，返回 AI_MODEL_UNAVAILABLE。
+// mock 返回固定 JSON。deepseek 走 OpenAI 兼容的 chat completions。teamily 走 agent responses。openai / azure 仍返回 AI_MODEL_UNAVAILABLE。
 func NewClient(cfg Config) (Client, error) {
 	switch cfg.Provider {
 	case "", ProviderMock:
@@ -43,6 +43,32 @@ func NewClient(cfg Config) (Client, error) {
 			model = DefaultModelPrimary
 		}
 		return &mockClient{model: model, text: MockText()}, nil
+	case ProviderDeepSeek:
+		if cfg.APIKey == "" {
+			return nil, aierr.InvalidInput(fmt.Errorf("missing API key"), "AI_API_KEY")
+		}
+		endpoint := cfg.BaseURL
+		if endpoint == "" {
+			endpoint = DeepSeekEndpoint
+		}
+		model := cfg.ModelPrimary
+		if model == "" || model == DefaultModelPrimary {
+			model = DefaultModelDeepSeek
+		}
+		return NewCompatibleClient(endpoint, cfg.APIKey, model), nil
+	case ProviderTeamily:
+		if cfg.APIKey == "" {
+			return nil, aierr.InvalidInput(fmt.Errorf("missing API key"), "AI_API_KEY")
+		}
+		endpoint := cfg.BaseURL
+		if endpoint == "" {
+			endpoint = TeamilyEndpoint
+		}
+		model := cfg.ModelPrimary
+		if model == "" || model == DefaultModelPrimary {
+			model = DefaultModelTeamily
+		}
+		return NewTeamilyClient(endpoint, cfg.APIKey, model), nil
 	case ProviderOpenAI, ProviderAzure:
 		return nil, aierr.ModelUnavailable(fmt.Errorf("%s client is not implemented", cfg.Provider), "provider="+cfg.Provider)
 	default:
