@@ -1,0 +1,67 @@
+{
+  "schemaVersion": "1.0",
+  "title": "Introduction to Git for Beginners",
+  "description": "Learn basic Git commands and workflow.",
+  "audience": "NON_CS",
+  "language": "zh-CN",
+  "estimatedMinutes": 45,
+  "chapters": [
+    {
+      "key": "ch-1",
+      "title": "What is Version Control",
+      "summary": "Concepts of VC and Git.",
+      "order": 1,
+      "activities": [
+        {
+          "key": "act-1-1",
+          "type": "rich_text",
+          "title": "Read: Git Basics",
+          "order": 1,
+          "payload": {
+            "markdown": "## Git 是什么\n\nGit 是分布式版本控制系统……",
+            "highlights": ["版本控制", "分布式"]
+          }
+        },
+        {
+          "key": "act-1-2",
+          "type": "quiz_game",
+          "title": "Quick Check",
+          "order": 2,
+          "payload": {
+            "instructionsMarkdown": "选择正确答案。",
+            "questions": [
+              {
+                "question": "Git 是？",
+                "options": ["版本控制系统", "数据库", "浏览器", "操作系统"],
+                "correctIndex": 0,
+                "explanation": "Git 用于管理代码版本。"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "key": "ch-2",
+      "title": "First Commands",
+      "summary": "init, add, commit.",
+      "order": 2,
+      "activities": [
+        {
+          "key": "act-2-1",
+          "type": "coding",
+          "title": "Practice: git status",
+          "order": 1,
+          "payload": {
+            "language": "other",
+            "promptMarkdown": "在终端中写出查看仓库状态的命令。",
+            "starterCode": "# write your command\n",
+            "testCases": [
+              { "input": "", "expectedOutput": "git status", "isHidden": false }
+            ]
+          }
+        }
+      ]
+    }
+  ]
+}

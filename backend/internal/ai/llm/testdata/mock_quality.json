@@ -1,0 +1,27 @@
+{
+  "overallScore": 86,
+  "summaryMarkdown": "课程结构清楚，练习覆盖基本 Git 命令。",
+  "dimensions": [
+    {
+      "name": "coverage",
+      "score": 84,
+      "comment": "覆盖版本控制概念和常用命令。"
+    },
+    {
+      "name": "clarity",
+      "score": 90,
+      "comment": "说明短且易懂。"
+    },
+    {
+      "name": "practice",
+      "score": 80,
+      "comment": "有测验和编码练习。"
+    },
+    {
+      "name": "audience_fit",
+      "score": 88,
+      "comment": "适合非计算机专业入门。"
+    }
+  ],
+  "suggestions": ["给分支一章补一个合并冲突的例子。"]
+}
