@@ -17,6 +17,9 @@ const (
 	PermissionClassView         = "system:class:view"
 	PermissionClassCreate       = "system:class:create"
 	PermissionClassUpdate       = "system:class:update"
+	PermissionCourseView        = "system:course:view"
+	PermissionCourseUpdate      = "system:course:update"
+	PermissionUsageView         = "system:usage:view"
 )
 
 // Module 实现 module.Module。
@@ -40,5 +43,8 @@ func (Module) GetPermissions() []access.PermissionDef {
 		{Code: PermissionClassView, Name: "班级管理", Type: access.PermissionTypeMenu, Description: "班级列表"},
 		{Code: PermissionClassCreate, Name: "新建班级", Type: access.PermissionTypeButton},
 		{Code: PermissionClassUpdate, Name: "编辑班级", Type: access.PermissionTypeButton, Description: "改班名、分配教师和学生"},
+		{Code: PermissionCourseView, Name: "课程管理", Type: access.PermissionTypeMenu, Description: "全部课程和发布状态"},
+		{Code: PermissionCourseUpdate, Name: "下架课程", Type: access.PermissionTypeButton, Description: "对学生隐藏或恢复，不删除课程"},
+		{Code: PermissionUsageView, Name: "模型用量", Type: access.PermissionTypeMenu, Description: "账号数、全站 token，以及每位师生的调用明细"},
 	}
 }

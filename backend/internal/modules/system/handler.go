@@ -10,13 +10,14 @@ import (
 )
 
 type Handler struct {
-	userService *UserService
-	roleService *RoleService
+	userService  *UserService
+	roleService  *RoleService
+	usageService *UsageService
 }
 
 // NewHandler 全局只初始化一次：启动时在路由表里创建。
-func NewHandler(userService *UserService, roleService *RoleService) *Handler {
-	return &Handler{userService: userService, roleService: roleService}
+func NewHandler(userService *UserService, roleService *RoleService, usageService *UsageService) *Handler {
+	return &Handler{userService: userService, roleService: roleService, usageService: usageService}
 }
 
 // GetUserList GET /api/system/users?keyword=&role=&status=&page=&pageSize=
@@ -97,4 +98,9 @@ func (handler *Handler) AssignRolePermissions(ctx *gin.Context) (any, error) {
 // GetPermissionCatalog GET /api/system/permissions
 func (handler *Handler) GetPermissionCatalog(*gin.Context) (any, error) {
 	return handler.roleService.GetPermissionCatalog(), nil
+}
+
+// GetUsageReport GET /api/system/usage
+func (handler *Handler) GetUsageReport(ctx *gin.Context) (any, error) {
+	return handler.usageService.GetUsageReport(ctx.Request.Context())
 }

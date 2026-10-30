@@ -322,6 +322,24 @@ func (handler *Handler) RenameClass(ctx *gin.Context) (any, error) {
 	return handler.service.RenameClass(ctx.Request.Context(), classID, input.Name)
 }
 
+// GetAdminCourseList GET /api/system/courses
+func (handler *Handler) GetAdminCourseList(ctx *gin.Context) (any, error) {
+	return handler.service.GetAdminCourseList(ctx.Request.Context())
+}
+
+// SetAdminCoursePublished PUT /api/system/courses/:id/publish
+func (handler *Handler) SetAdminCoursePublished(ctx *gin.Context) (any, error) {
+	courseID, err := resp.GetInt64PathParam(ctx, "id")
+	if err != nil {
+		return nil, err
+	}
+	var input SetPublishInput
+	if err := resp.BindJSON(ctx, &input); err != nil {
+		return nil, err
+	}
+	return handler.service.SetAdminCoursePublished(ctx.Request.Context(), courseID, *input.Published)
+}
+
 // SetClassMembers PUT /api/system/classes/:id/members
 func (handler *Handler) SetClassMembers(ctx *gin.Context) (any, error) {
 	classID, err := resp.GetInt64PathParam(ctx, "id")

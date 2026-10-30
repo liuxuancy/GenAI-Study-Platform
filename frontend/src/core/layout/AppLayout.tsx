@@ -12,6 +12,8 @@ function menuFor(role?: string) {
     return [
       { key: '/admin', label: 'Users' },
       { key: '/admin/classes', label: 'Classes' },
+      { key: '/admin/courses', label: 'Courses' },
+      { key: '/admin/system', label: 'System' },
       { key: '/account', label: 'Account' },
     ]
   }

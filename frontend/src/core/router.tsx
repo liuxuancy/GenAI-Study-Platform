@@ -8,6 +8,8 @@ import { LoginPage } from '@/core/pages/LoginPage'
 import { NotFoundPage } from '@/core/pages/NotFoundPage'
 import { AccountPage } from '@/modules/account/AccountPage'
 import { AdminClassesPage } from '@/modules/admin/AdminClassesPage'
+import { AdminCoursesPage } from '@/modules/admin/AdminCoursesPage'
+import { AdminSystemPage } from '@/modules/admin/AdminSystemPage'
 import { AdminUsersPage } from '@/modules/admin/AdminUsersPage'
 import { CourseBubblePage } from '@/modules/student/CourseBubblePage'
 import { QuestionDetailPage } from '@/modules/student/QuestionDetailPage'
@@ -53,6 +55,8 @@ export const appRouter = createBrowserRouter([
       { path: 'account', element: <AccountPage /> },
       { path: 'admin', element: <AdminUsersPage /> },
       { path: 'admin/classes', element: <AdminClassesPage /> },
+      { path: 'admin/courses', element: <AdminCoursesPage /> },
+      { path: 'admin/system', element: <AdminSystemPage /> },
       { path: '*', element: <NotFoundPage /> },
     ],
   },

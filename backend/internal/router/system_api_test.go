@@ -55,6 +55,9 @@ func TestSystemRoutesRejectNonAdmins(t *testing.T) {
 		{"POST", "/api/system/classes"},
 		{"PUT", "/api/system/classes/1"},
 		{"PUT", "/api/system/classes/1/members"},
+		{"GET", "/api/system/courses"},
+		{"PUT", "/api/system/courses/1/publish"},
+		{"GET", "/api/system/usage"},
 	}
 	teacherToken := server.login(t, "teacher1", "teacher123")
 	studentToken := server.login(t, "student1", "student123")
@@ -355,7 +358,7 @@ func TestGetPermissionCatalog(t *testing.T) {
 	for _, definition := range dataAsList(result.Data) {
 		codes = append(codes, dataAsMap(definition)["code"].(string))
 	}
-	if len(codes) != 11 || codes[0] != "system:user:view" || !slices.Contains(codes, "system:class:view") {
+	if len(codes) != 14 || codes[0] != "system:user:view" || !slices.Contains(codes, "system:class:view") || !slices.Contains(codes, "system:usage:view") {
 		t.Errorf("catalog codes = %v", codes)
 	}
 }

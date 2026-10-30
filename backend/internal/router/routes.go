@@ -44,6 +44,7 @@ func registerRoutes(api *gin.RouterGroup, deps Deps) {
 	systemHandler := system.NewHandler(
 		system.NewUserService(deps.DB, deps.Cache, deps.UserDeletionGuards),
 		system.NewRoleService(deps.DB, deps.Cache, deps.Catalog),
+		system.NewUsageService(deps.DB),
 	)
 	systemRoutes := api.Group("/system")
 	systemRoutes.GET("/users", access.RequirePermission(system.PermissionUserView), resp.ToGinHandler(systemHandler.GetUserList))
@@ -58,6 +59,9 @@ func registerRoutes(api *gin.RouterGroup, deps Deps) {
 	systemRoutes.POST("/classes", access.RequirePermission(system.PermissionClassCreate), resp.ToGinHandler(courseHandler.CreateClass))
 	systemRoutes.PUT("/classes/:id", access.RequirePermission(system.PermissionClassUpdate), resp.ToGinHandler(courseHandler.RenameClass))
 	systemRoutes.PUT("/classes/:id/members", access.RequirePermission(system.PermissionClassUpdate), resp.ToGinHandler(courseHandler.SetClassMembers))
+	systemRoutes.GET("/courses", access.RequirePermission(system.PermissionCourseView), resp.ToGinHandler(courseHandler.GetAdminCourseList))
+	systemRoutes.PUT("/courses/:id/publish", access.RequirePermission(system.PermissionCourseUpdate), resp.ToGinHandler(courseHandler.SetAdminCoursePublished))
+	systemRoutes.GET("/usage", access.RequirePermission(system.PermissionUsageView), resp.ToGinHandler(systemHandler.GetUsageReport))
 
 	// course 模块 /api/student/*：学生可见的课程和套题
 	studentRoutes := api.Group("/student")
