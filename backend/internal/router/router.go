@@ -8,6 +8,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
 
+	"caveclass/internal/ai"
 	"caveclass/internal/framework/access"
 	"caveclass/internal/framework/identity"
 	"caveclass/internal/framework/module"
@@ -24,6 +25,7 @@ type Deps struct {
 	TokenIssuer *identity.TokenIssuer // token 签发器：登录时签发，认证中间件校验
 
 	UserDeletionGuards []module.UserDeletionGuard // 删除用户前，由其他模块检查是否还有数据引用该用户
+	AI                 *ai.Service                // 整课生成。未配置时生成接口返回错误，其余接口不受影响
 }
 
 // NewHTTPHandler 全局只初始化一次，返回整个服务的 HTTP 入口（不是某个接口的业务 handler），交给 http.Server 使用。

@@ -103,6 +103,42 @@ func (handler *Handler) AnswerQuestion(ctx *gin.Context) (any, error) {
 	return handler.service.AnswerQuestion(ctx.Request.Context(), principal, questionID, contentID, input.Option, input.Submit)
 }
 
+// GenerateStudentCourse POST /api/student/courses/:id/generate
+func (handler *Handler) GenerateStudentCourse(ctx *gin.Context) (any, error) {
+	principal, err := access.GetCurrentPrincipal(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if principal.Role != access.RoleStudent {
+		return nil, errs.Forbidden("only students can generate courses")
+	}
+	return handler.generateCourse(ctx, principal)
+}
+
+// GenerateTeacherCourse POST /api/teacher/courses/:id/generate
+func (handler *Handler) GenerateTeacherCourse(ctx *gin.Context) (any, error) {
+	principal, err := access.GetCurrentPrincipal(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if principal.Role != access.RoleTeacher {
+		return nil, errs.Forbidden("only teachers can generate courses")
+	}
+	return handler.generateCourse(ctx, principal)
+}
+
+func (handler *Handler) generateCourse(ctx *gin.Context, principal *access.Principal) (any, error) {
+	courseID, err := resp.GetInt64PathParam(ctx, "id")
+	if err != nil {
+		return nil, err
+	}
+	var input GenerateCourseInput
+	if err := resp.BindJSON(ctx, &input); err != nil {
+		return nil, err
+	}
+	return handler.service.GenerateOwnedCourse(ctx.Request.Context(), principal, courseID, input)
+}
+
 // CreateStudentCourse POST /api/student/courses
 func (handler *Handler) CreateStudentCourse(ctx *gin.Context) (any, error) {
 	principal, err := access.GetCurrentPrincipal(ctx)

@@ -3,7 +3,7 @@ import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { Link, Navigate, useParams } from 'react-router-dom'
 
 import { useAuthStore } from '@/core/auth/store'
-import { getStudentCourse, setStudentCourseSharing, updateStudentCourseProgress, type StudentCourseDetail } from '@/modules/student/api'
+import { generateStudentCourse, getStudentCourse, setStudentCourseSharing, updateStudentCourseProgress, type StudentCourseDetail } from '@/modules/student/api'
 import { bubbleLevelName, type BubbleNode } from '@/modules/student/bubbleTree'
 import {
   ancestorIds,
@@ -26,6 +26,8 @@ export function CourseBubblePage() {
   const [errorMessage, setErrorMessage] = useState('')
   const [shareError, setShareError] = useState('')
   const [sharing, setSharing] = useState(false)
+  const [generating, setGenerating] = useState(false)
+  const [generateError, setGenerateError] = useState('')
 
   useEffect(() => {
     if (currentUser?.role !== 'ROLE_STUDENT' || !courseId || courseId === 'new') {
@@ -81,9 +83,30 @@ export function CourseBubblePage() {
             {course.shared ? '改为仅自己' : '对同班公开'}
           </button>
         ) : null}
+        {course?.owned ? (
+          <button
+            className={styles.share}
+            type="button"
+            disabled={generating}
+            onClick={() => {
+              if (!course || generating) {
+                return
+              }
+              setGenerating(true)
+              setGenerateError('')
+              generateStudentCourse(course.id)
+                .then((result) => setCourse(result.course))
+                .catch((error: Error) => setGenerateError(error.message))
+                .finally(() => setGenerating(false))
+            }}
+          >
+            {generating ? '生成中…' : '生成章节'}
+          </button>
+        ) : null}
       </div>
       {errorMessage ? <p className={styles.error}>{errorMessage}</p> : null}
       {shareError ? <p className={styles.shareError}>{shareError}</p> : null}
+      {generateError ? <p className={styles.shareError}>{generateError}</p> : null}
       {course?.owned && course.shared && course.classmateCount === 0 ? (
         <p className={styles.shareNote}>这门课已对同班同学公开，但你还没有同班同学，所以暂时没有其他人能看到。</p>
       ) : null}

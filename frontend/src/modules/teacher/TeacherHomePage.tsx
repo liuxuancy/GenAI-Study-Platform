@@ -9,6 +9,7 @@ import { ApiError } from '@/core/http'
 import {
   createTeacherCourse,
   getTeacherClasses,
+  generateTeacherCourse,
   getTeacherCourseProgress,
   getTeacherCourses,
   publishTeacherCourse,
@@ -34,6 +35,8 @@ export function TeacherHomePage() {
   const [progressError, setProgressError] = useState('')
   const [progressLoading, setProgressLoading] = useState(false)
   const [form] = Form.useForm<{ title: string; description?: string }>()
+  const [generatingId, setGeneratingId] = useState<number | null>(null)
+  const [generateError, setGenerateError] = useState('')
 
   useEffect(() => {
     if (currentUser?.role !== 'ROLE_TEACHER') {
@@ -153,6 +156,7 @@ export function TeacherHomePage() {
         </Button>
       </Space>
       {loadError ? <Alert type="error" showIcon message={loadError} style={{ marginBottom: 16 }} /> : null}
+      {generateError ? <Alert type="error" showIcon message={generateError} style={{ marginBottom: 16 }} /> : null}
       <Table<TeacherCourse>
         rowKey="id"
         loading={courses === null && !loadError}
@@ -183,9 +187,23 @@ export function TeacherHomePage() {
           {
             title: '',
             key: 'actions',
-            width: 220,
+            width: 300,
             render: (_, course) => (
               <Space>
+                <Button
+                  type="link"
+                  disabled={generatingId === course.id}
+                  onClick={() => {
+                    setGeneratingId(course.id)
+                    setGenerateError('')
+                    generateTeacherCourse(course.id)
+                      .then(() => reloadCourses())
+                      .catch((error: Error) => setGenerateError(error.message))
+                      .finally(() => setGeneratingId(null))
+                  }}
+                >
+                  {generatingId === course.id ? 'Generating…' : 'Generate'}
+                </Button>
                 <Button type="link" onClick={() => openPublish(course)}>
                   Publish
                 </Button>

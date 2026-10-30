@@ -49,6 +49,10 @@ export function setStudentCourseSharing(courseId: number, shared: boolean) {
   return http.put<{ shared: boolean; classmateCount: number }>(`/student/courses/${courseId}/sharing`, { shared })
 }
 
+export function generateStudentCourse(courseId: number) {
+  return http.post<{ course: StudentCourseDetail; meta: { templateId: string } }>(`/student/courses/${courseId}/generate`, {})
+}
+
 export interface StudentQuestionContent {
   id: number
   content: string

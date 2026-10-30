@@ -40,6 +40,10 @@ export function publishTeacherCourse(courseId: number, classIds: number[]) {
   return http.put<TeacherCourse>(`/teacher/courses/${courseId}/classes`, { classIds })
 }
 
+export function generateTeacherCourse(courseId: number) {
+  return http.post<{ course: TeacherCourse; meta: { templateId: string } }>(`/teacher/courses/${courseId}/generate`, {})
+}
+
 export function getTeacherCourseProgress(courseId: number) {
   return http.get<{ students: ClassStudentProgress[] }>(`/teacher/courses/${courseId}/progress`)
 }
