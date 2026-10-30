@@ -100,6 +100,13 @@ func TestRunCreatesAccountsAndGrants(t *testing.T) {
 		if !identity.CheckPassword(user.PasswordHash, account.Password) {
 			t.Errorf("%s: stored hash does not match password", account.Username)
 		}
+		wantMajor := ""
+		if account.Username == "student1" {
+			wantMajor = "Computer Science"
+		}
+		if user.Major != wantMajor {
+			t.Errorf("%s major = %q, want %q", account.Username, user.Major, wantMajor)
+		}
 	}
 
 	if got := getGrantsOfRole(t, database, access.RoleTeacher); !slices.Equal(got, []string{"teacher:*"}) {
@@ -140,6 +147,26 @@ func TestRunKeepsAdminChangesToGrants(t *testing.T) {
 	runSeed(t, database, course)
 	if got := getGrantsOfRole(t, database, access.RoleStudent); !slices.Equal(got, []string{"student:catalog:view"}) {
 		t.Errorf("revoked grant came back: %v", got)
+	}
+}
+
+func TestRunFillsEmptyMajorWithoutOverwrite(t *testing.T) {
+	course := &courseModule{}
+	database := testutil.NewDB(t, course)
+	testutil.MustExec(t, database, "UPDATE sys_user SET major = ? WHERE username = ?", "Mathematics", "student1")
+
+	runSeed(t, database, course)
+	if got := getUserByUsername(t, database, "student1").Major; got != "Mathematics" {
+		t.Errorf("major = %q, want the existing value", got)
+	}
+	if !identity.CheckPassword(getUserByUsername(t, database, "student1").PasswordHash, "student123") {
+		t.Error("filling major reset the password")
+	}
+
+	testutil.MustExec(t, database, "UPDATE sys_user SET major = '' WHERE username = ?", "student1")
+	runSeed(t, database, course)
+	if got := getUserByUsername(t, database, "student1").Major; got != "Computer Science" {
+		t.Errorf("empty major = %q, want Computer Science", got)
 	}
 }
 

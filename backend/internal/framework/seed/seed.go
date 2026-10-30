@@ -54,7 +54,20 @@ func (seeder *seeder) run(tx *gorm.DB) error {
 	if err := ensureAccounts(seeder.ctx, tx, "test accounts", testAccounts); err != nil {
 		return err
 	}
+	if err := ensureStudentMajor(tx); err != nil {
+		return err
+	}
 	return ensureDefaultGrants(seeder.ctx, tx, seeder.defaultGrants)
+}
+
+// student1Major 只在 student1 的专业为空时补上，已有值不覆盖，也不改密码。
+const student1Major = "Computer Science"
+
+func ensureStudentMajor(tx *gorm.DB) error {
+	return tx.Exec(
+		"UPDATE sys_user SET major = ? WHERE username = ? AND (major IS NULL OR major = '')",
+		student1Major, "student1",
+	).Error
 }
 
 // ensureAccounts 逐个创建不存在的账号。已存在的账号保持原样，不会重置密码。

@@ -1,12 +1,17 @@
-// 首页：显示当前用户的角色和权限码，方便核对三个测试账号拿到的权限是否不同。
+// 首页：显示当前用户的角色和权限码，方便核对三个测试账号拿到的权限是否不同。学生改去学生首页。
 import { Card, Descriptions, Tag, Typography } from 'antd'
+import { Navigate } from 'react-router-dom'
 
+import { homePathFor } from '@/core/auth/homePath'
 import { useAuthStore } from '@/core/auth/store'
 
 export function HomePage() {
   const currentUser = useAuthStore((state) => state.currentUser)
   if (!currentUser) {
     return null
+  }
+  if (currentUser.role === 'ROLE_STUDENT') {
+    return <Navigate to={homePathFor(currentUser.role)} replace />
   }
 
   const permissionTags = currentUser.isAdmin ? (

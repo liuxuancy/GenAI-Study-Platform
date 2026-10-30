@@ -1,0 +1,312 @@
+.page {
+  position: fixed;
+  inset: 0;
+  overflow: hidden;
+  background: var(--bg);
+  color: var(--ink);
+}
+
+.back {
+  position: absolute;
+  z-index: 2;
+  top: 18px;
+  left: 22px;
+  display: flex;
+  gap: 12px;
+  align-items: baseline;
+  max-width: calc(100% - 180px);
+}
+
+.back a {
+  color: var(--ink-3);
+  font-size: 14px;
+  text-decoration: none;
+}
+
+.courseName {
+  overflow: hidden;
+  font-family: var(--font-display);
+  font-size: 18px;
+  font-weight: 500;
+  letter-spacing: -0.01em;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.map {
+  position: absolute;
+  inset: 0;
+}
+
+.map[data-leaf='true'] {
+  right: 500px;
+}
+
+.detail {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  width: 500px;
+  background: var(--bg);
+  border-left: 1px solid var(--line);
+}
+
+.detailBody {
+  flex: 1;
+  padding: 72px 28px 24px;
+  overflow: auto;
+}
+
+.level {
+  margin: 0;
+  font-size: 13px;
+  color: var(--ink-3);
+}
+
+.detailTitle {
+  margin: 10px 0 0;
+  font-family: var(--font-display);
+  font-size: 28px;
+  font-weight: 500;
+  letter-spacing: -0.02em;
+}
+
+.detailNote {
+  margin: 16px 0 0;
+  font-size: 16px;
+  line-height: 1.5;
+}
+
+.chat {
+  display: flex;
+  flex: 0 0 auto;
+  flex-direction: column;
+  width: calc(100% + 1px);
+  margin-left: -1px;
+  max-height: 280px;
+  padding: 12px;
+  background: var(--bg);
+  border-top: 1px solid var(--line);
+  border-left: 1px solid var(--line);
+}
+
+.chatLog {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 8px;
+  min-height: 72px;
+  margin: 0 0 10px;
+  overflow: auto;
+}
+
+.chatUser,
+.chatReply {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.4;
+}
+
+.chatReply {
+  color: var(--ink-3);
+}
+
+.chatForm {
+  display: flex;
+  gap: 8px;
+}
+
+.chatForm input {
+  flex: 1;
+  min-width: 0;
+  padding: 8px 10px;
+  font: inherit;
+  color: var(--ink);
+  background: var(--bg);
+  border: 1px solid var(--line);
+}
+
+.chatForm button {
+  padding: 8px 12px;
+  font: inherit;
+  color: var(--bg);
+  cursor: pointer;
+  background: var(--ink);
+  border: 0;
+}
+
+.done {
+  position: absolute;
+  top: 16px;
+  left: 16px;
+  height: 28px;
+  padding: 0 8px;
+  font: inherit;
+  font-size: 13px;
+  line-height: 26px;
+  color: var(--ink);
+  cursor: pointer;
+  background: var(--bg);
+  border: 1px solid var(--line);
+}
+
+.done[aria-pressed='true'] {
+  color: var(--ink-3);
+  background: var(--line);
+  border-color: var(--ink-4);
+}
+
+.done:disabled {
+  cursor: default;
+}
+
+.doneError {
+  margin: 12px 0 0;
+  color: var(--accent);
+  font-size: 14px;
+}
+
+.close {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  font-size: 18px;
+  line-height: 1;
+  color: var(--ink-3);
+  cursor: pointer;
+  background: transparent;
+  border: 0;
+}
+
+.collapse {
+  position: absolute;
+  z-index: 2;
+  top: 16px;
+  right: 22px;
+  padding: 6px 12px;
+  font: inherit;
+  font-size: 13px;
+  color: var(--ink);
+  cursor: pointer;
+  background: var(--bg);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+}
+
+.stage {
+  width: 100%;
+  height: 100%;
+  cursor: grab;
+  touch-action: none;
+}
+
+.canvas {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+}
+
+.link {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  height: 1px;
+  pointer-events: none;
+  background: var(--line);
+  transform-origin: 0 50%;
+}
+
+.bubble {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 12px;
+  color: var(--ink);
+  cursor: pointer;
+  background: var(--bg);
+  border: 1px solid var(--line);
+  border-radius: 50%;
+}
+
+.bubble[data-open='true'] {
+  border-color: var(--ink);
+}
+
+.bubble[data-done='true'] {
+  color: var(--ink-3);
+  background: var(--line);
+  border-color: var(--ink-4);
+}
+
+.bubble[data-depth='0'] {
+  border-width: 1.5px;
+}
+
+.code {
+  margin-bottom: 4px;
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  color: var(--ink-3);
+}
+
+.label {
+  display: -webkit-box;
+  overflow: hidden;
+  font-family: var(--font-display);
+  font-weight: 500;
+  line-height: 1.15;
+  letter-spacing: -0.01em;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 4;
+}
+
+.note {
+  position: absolute;
+  z-index: 2;
+  bottom: 22px;
+  left: 22px;
+  max-width: min(440px, calc(100% - 44px));
+  pointer-events: none;
+}
+
+.note p {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.45;
+}
+
+.crumb {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 6px !important;
+  pointer-events: auto;
+}
+
+.crumb button {
+  padding: 0;
+  font: inherit;
+  font-size: 13px;
+  color: var(--ink-3);
+  cursor: pointer;
+  background: none;
+  border: 0;
+}
+
+.error {
+  position: absolute;
+  top: 64px;
+  left: 22px;
+  color: var(--accent);
+}

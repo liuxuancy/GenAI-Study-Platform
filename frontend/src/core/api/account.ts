@@ -19,6 +19,7 @@ export interface CurrentUser {
   username: string
   nickname: string
   email: string
+  major: string
   role: RoleCode
   roleName: string
   isAdmin: boolean

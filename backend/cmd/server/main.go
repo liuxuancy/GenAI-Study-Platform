@@ -22,6 +22,7 @@ import (
 	"caveclass/internal/framework/module"
 	"caveclass/internal/framework/seed"
 	"caveclass/internal/modules/account"
+	"caveclass/internal/modules/course"
 	"caveclass/internal/modules/system"
 	"caveclass/internal/platform/config"
 	"caveclass/internal/platform/db"
@@ -34,6 +35,7 @@ func getEnabledModules() []module.Module {
 	return []module.Module{
 		account.Module{},
 		system.Module{},
+		course.Module{},
 	}
 }
 
@@ -138,6 +140,9 @@ func prepareDatabase(database *gorm.DB, registry *module.Registry, loadDemo bool
 	}
 	if err := seed.Run(ctx, database, registry.GetDefaultGrants()); err != nil {
 		return fmt.Errorf("seed: %w", err)
+	}
+	if err := course.Seed(ctx, database); err != nil {
+		return fmt.Errorf("seed courses: %w", err)
 	}
 	if loadDemo {
 		if err := seed.LoadDemo(ctx, database, registry.GetModules()); err != nil {

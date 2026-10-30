@@ -8,6 +8,7 @@ import (
 	"caveclass/internal/framework/access"
 	"caveclass/internal/framework/identity"
 	"caveclass/internal/modules/account"
+	"caveclass/internal/modules/course"
 	"caveclass/internal/modules/system"
 	"caveclass/internal/platform/resp"
 )
@@ -49,5 +50,14 @@ func registerRoutes(api *gin.RouterGroup, deps Deps) {
 	systemRoutes.PUT("/roles/:code/permissions", access.RequirePermission(system.PermissionRoleAssign), resp.ToGinHandler(systemHandler.AssignRolePermissions))
 	systemRoutes.GET("/permissions", access.RequirePermission(system.PermissionCatalogList), resp.ToGinHandler(systemHandler.GetPermissionCatalog))
 
-	// course 模块 /api/teacher/*（讲师侧）、/api/student/*（学生侧）（阶段 9）
+	// course 模块 /api/student/*：学生可见的课程和套题，含列表与详情
+	courseHandler := course.NewHandler(course.NewService(deps.DB))
+	studentRoutes := api.Group("/student")
+	studentRoutes.GET("/courses", access.RequireLogin(), resp.ToGinHandler(courseHandler.GetCourseList))
+	studentRoutes.GET("/courses/:id", access.RequireLogin(), resp.ToGinHandler(courseHandler.GetCourse))
+	studentRoutes.PUT("/courses/:id/progress", access.RequireLogin(), resp.ToGinHandler(courseHandler.UpdateCourseProgress))
+	studentRoutes.GET("/questions", access.RequireLogin(), resp.ToGinHandler(courseHandler.GetQuestionList))
+	studentRoutes.POST("/questions", access.RequireLogin(), resp.ToGinHandler(courseHandler.CreateQuestion))
+	studentRoutes.GET("/questions/:id", access.RequireLogin(), resp.ToGinHandler(courseHandler.GetQuestion))
+	studentRoutes.PUT("/questions/:id/contents/:contentId", access.RequireLogin(), resp.ToGinHandler(courseHandler.AnswerQuestion))
 }
