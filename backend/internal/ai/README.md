@@ -54,6 +54,20 @@ flowchart TD
 
 本地真实调用把密钥写在 `backend/.env`，字段对照 `backend/.env.example`。然后在 `backend` 目录执行 `go run ./cmd/ai-live`。这个命令会读取 `.env`，依次跑整课、单章、activity 和质量评估。库代码本身只读进程环境变量，不会自动加载 `.env`。CI 和单测继续用 `AI_PROVIDER=mock`。
 
+## 网页调试台（B 侧联调）
+
+仅供组员在浏览器里测 `internal/ai`，**不是**讲师/学生产品 UI。静态页在 `docs/UI/b-ai/`（与 `docs/UI/` 其它成员原型分离，不共用他们的 `assets`）。
+
+在 `backend/.env` 里推荐同时配置 `AI_DEEPSEEK_API_KEY` 与 `AI_TEAMILY_API_KEY`，页面上可随意切换两家厂商。若仍用 `ai-live` 那种单组 `AI_PROVIDER` + `AI_API_KEY`，调试台里**只有与 `AI_PROVIDER` 一致**的那一家可用；另一家要单独写 `AI_DEEPSEEK_API_KEY` 或 `AI_TEAMILY_API_KEY`。`mock` 无需密钥。
+
+```bash
+cd backend
+export PATH="$HOME/.cache/genai-go/go/bin:$PATH"
+go run ./cmd/ai-playground
+```
+
+浏览器打开终端打印的地址（默认 `http://127.0.0.1:8765/`）。仅监听本机，勿暴露到公网。接口前缀 `/playground/`，响应形状与业务层一致：`{ code, msg, data }`，成功时 `data.course` / `data.meta` 等。
+
 ## 生成整课
 
 ```go
