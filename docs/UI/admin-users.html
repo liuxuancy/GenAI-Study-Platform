@@ -1,0 +1,333 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>CaveClass · User accounts</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,300..700&family=Source+Serif+4:opsz,wght@8..60,300..700&display=swap">
+<link rel="stylesheet" href="assets/app.css">
+</head>
+
+<body>
+<!-- ==================================================================
+     Administrator · User accounts
+     Four things this screen can do, and nothing else: read every account
+     on the platform, change an account's role, freeze or restore it, and
+     set a temporary password. No account can be deleted here, because a
+     deletion would take that person's courses, marks and messages with it.
+     ================================================================== -->
+<div class="app">
+
+  <!-- ---------- left: sidebar ---------- -->
+  <aside class="side">
+    <div class="side-brand">
+      <a class="brand" href="admin-home.html" aria-label="CaveClass home">
+        <span class="mark" aria-hidden="true">C</span>
+        <span class="brand-text"><strong>CaveClass</strong><small>Administrator</small></span>
+      </a>
+    </div>
+
+    <div class="nav-group">
+      <p class="nav-title">Manage</p>
+      <nav class="nav" aria-label="Administrator workspace">
+        <a href="admin-users.html" class="is-on" aria-current="page">User accounts</a>
+        <a href="admin-courses.html">Course operations</a>
+        <a href="admin-system.html">System information</a>
+      </nav>
+    </div>
+
+    <div class="side-foot">
+      <a class="tlink signout" href="login.html">Sign out</a>
+    </div>
+  </aside>
+
+  <!-- ---------- right: main ---------- -->
+  <div class="main">
+    <header class="appbar">
+      <div class="crumbs">
+        <a href="admin-home.html">Administrator</a><span class="sep">/</span><strong>User accounts</strong>
+      </div>
+      <p class="top-note" id="barNote"></p>
+    </header>
+
+    <main class="content" aria-label="User accounts">
+
+      <header class="page-head">
+        <p class="eyebrow">Access control</p>
+        <h1>User accounts</h1>
+        <p class="lede">
+          Every account on the platform, across all three roles. Two things can
+          be changed here: what an account may do, and whether it may sign in.
+        </p>
+      </header>
+
+      <div class="toolbar">
+        <label class="search">
+          <input type="search" id="q" placeholder="Search name, ID or email"
+                 aria-label="Search accounts" autocomplete="off">
+        </label>
+        <div class="seg seg--4" role="group" aria-label="Filter by role">
+          <button type="button" class="is-on" data-role="all" aria-pressed="true">All</button>
+          <button type="button" data-role="student" aria-pressed="false">Students</button>
+          <button type="button" data-role="teacher" aria-pressed="false">Teachers</button>
+          <button type="button" data-role="admin" aria-pressed="false">Admins</button>
+        </div>
+      </div>
+
+      <div class="table-wrap">
+        <table class="table">
+          <thead>
+            <tr>
+              <th scope="col">Account</th>
+              <th scope="col">ID</th>
+              <th scope="col">Role</th>
+              <th scope="col" class="col-opt">Last sign-in</th>
+              <th scope="col">Status</th>
+              <th scope="col" class="ta-r">Actions</th>
+            </tr>
+          </thead>
+          <tbody id="rows"></tbody>
+        </table>
+      </div>
+
+      <p class="table-foot">
+        <span id="count" aria-live="polite"></span>
+        <span>A freeze takes effect on the next sign-in attempt; a role change on the next successful one.</span>
+      </p>
+
+      <p class="note">
+        <b>Freezing</b> stops sign-in and nothing else — the account&rsquo;s courses,
+        answers and messages are kept, and a restore returns the person exactly
+        where they left off. <b>Resetting a password</b> sets a temporary one you
+        have to pass on yourself: this prototype has no mail service, so the new
+        password is never sent anywhere.
+      </p>
+
+    </main>
+  </div>
+</div>
+
+<!-- ---------- password reset ---------- -->
+<dialog class="sheet" id="pwSheet" aria-labelledby="pwTitle">
+  <form class="sheet-in" id="pwForm">
+    <p class="eyebrow">Password reset</p>
+    <h2 id="pwTitle">Set a temporary password</h2>
+    <p id="pwWho"></p>
+
+    <label class="field">
+      <span class="lab">Temporary password</span>
+      <input type="text" id="pwValue" autocomplete="off" spellcheck="false">
+      <button class="field-aside" type="button" id="pwGen">Generate</button>
+    </label>
+
+    <p>
+      Write it down before you close this and pass it on yourself — by phone or
+      across a desk. The platform has no mail service, so it is never sent.
+    </p>
+
+    <div class="sheet-acts">
+      <button class="btn btn--quiet" type="button" id="pwCancel">Cancel</button>
+      <button class="btn" type="submit">Set password</button>
+    </div>
+  </form>
+</dialog>
+
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+<script>
+/* ==================================================================
+   User accounts — filtering, role changes, freeze/restore, password reset.
+   The data below is the whole deployment: eighteen accounts, no backend,
+   so a change lives in this array and disappears on reload. That is the
+   honest scope of a prototype; nothing here pretends to persist.
+   ================================================================== */
+(function () {
+  'use strict';
+
+  function $(sel, root) { return (root || document).querySelector(sel); }
+  var rowsEl = $('#rows');
+  var countEl = $('#count');
+  var barNote = $('#barNote');
+  var toastEl = $('#toast');
+  var toastTimer;
+  function toast(message, ms) {
+    toastEl.textContent = message;
+    toastEl.classList.add('is-on');
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(function () { toastEl.classList.remove('is-on'); }, ms || 3600);
+  }
+
+  var ROLE = { student: 'Student', teacher: 'Teacher', admin: 'Administrator' };
+
+  var USERS = [
+    { name: 'Aaron Chan',    id: '26051234G', email: 'aaron.chan@polyu.edu.hk',    role: 'teacher', frozen: false, seen: '23 Oct, 08:42' },
+    { name: 'Emily Wong',    id: '26040856G', email: 'emily.wong@connect.polyu.hk', role: 'student', frozen: false, seen: '22 Oct, 21:07' },
+    { name: 'Jason Lam',     id: '26053991G', email: 'jason.lam@polyu.edu.hk',     role: 'admin',   frozen: false, seen: '23 Oct, 09:15' },
+    { name: 'Priya Nair',    id: '26069824G', email: 'priya.nair@connect.polyu.hk', role: 'student', frozen: true,  seen: '19 Oct, 14:02' },
+    { name: 'Marcus Yeung',  id: '26106468G', email: 'marcus.yeung@polyu.edu.hk',  role: 'teacher', frozen: false, seen: '22 Oct, 17:33' },
+    { name: 'Sophie Cheng',  id: '26120641G', email: 'sophie.cheng@connect.polyu.hk', role: 'student', frozen: false, seen: '23 Oct, 07:58' },
+    { name: 'Daniel Ho',     id: '26077120G', email: 'daniel.ho@connect.polyu.hk', role: 'student', frozen: true,  seen: '12 Oct, 11:20' },
+    { name: 'Rachel Tsang',  id: '26055432G', email: 'rachel.tsang@connect.polyu.hk', role: 'student', frozen: false, seen: '21 Oct, 19:44' },
+    { name: 'Kevin Ng',      id: '26088901G', email: 'kevin.ng@polyu.edu.hk',      role: 'teacher', frozen: false, seen: '22 Oct, 10:05' },
+    { name: 'Nadia Rahman',  id: '26033445G', email: 'nadia.rahman@connect.polyu.hk', role: 'student', frozen: false, seen: '23 Oct, 08:30' },
+    { name: 'Tommy Cheung',  id: '26091287G', email: 'tommy.cheung@connect.polyu.hk', role: 'student', frozen: false, seen: '20 Oct, 16:11' },
+    { name: 'Grace Liu',     id: '26060012G', email: 'grace.liu@polyu.edu.hk',     role: 'admin',   frozen: false, seen: '23 Oct, 09:02' },
+    { name: 'Ivan Petrov',   id: '26048760G', email: 'ivan.petrov@connect.polyu.hk', role: 'student', frozen: false, seen: '21 Oct, 12:28' },
+    { name: 'Chloe Fung',    id: '26073118G', email: 'chloe.fung@connect.polyu.hk', role: 'student', frozen: false, seen: '22 Oct, 20:15' },
+    { name: 'Wei Zhang',     id: '26104455G', email: 'wei.zhang@polyu.edu.hk',     role: 'teacher', frozen: false, seen: '19 Oct, 09:37' },
+    { name: 'Aisha Karim',   id: '26090233G', email: 'aisha.karim@connect.polyu.hk', role: 'student', frozen: true,  seen: '08 Oct, 15:49' },
+    { name: 'Leo Marchetti', id: '26066109G', email: 'leo.marchetti@polyu.edu.hk', role: 'teacher', frozen: false, seen: '23 Oct, 06:44' },
+    { name: 'Hana Sato',     id: '26081177G', email: 'hana.sato@connect.polyu.hk', role: 'student', frozen: false, seen: '22 Oct, 13:20' }
+  ];
+
+  var state = { q: '', role: 'all' };
+
+  function visible() {
+    var q = state.q.trim().toLowerCase();
+    return USERS.filter(function (u) {
+      if (state.role !== 'all' && u.role !== state.role) return false;
+      if (!q) return true;
+      return (u.name + ' ' + u.id + ' ' + u.email).toLowerCase().indexOf(q) !== -1;
+    });
+  }
+
+  function rowHTML(u) {
+    var options = ['student', 'teacher', 'admin'].map(function (r) {
+      return '<option value="' + r + '"' + (u.role === r ? ' selected' : '') + '>' + ROLE[r] + '</option>';
+    }).join('');
+
+    return '<tr data-id="' + u.id + '">'
+      + '<td class="lead"><div class="lead-in"><span class="who"><strong>' + u.name + '</strong>'
+      +   '<small>' + u.email + '</small></span></div></td>'
+      + '<td data-label="ID"><span class="mono">' + u.id + '</span></td>'
+      + '<td data-label="Role"><select class="minisel" data-act="role" aria-label="Role for '
+      +   u.name + '">' + options + '</select></td>'
+      + '<td class="col-opt quieter" data-label="Last sign-in">' + u.seen + '</td>'
+      + '<td data-label="Status"><span class="tag' + (u.frozen ? ' tag--off' : '') + '">'
+      +   (u.frozen ? 'Frozen' : 'Active') + '</span></td>'
+      + '<td class="ta-r" data-label="Actions"><div class="row-acts">'
+      +   '<button class="btn btn--quiet btn--sm" type="button" data-act="pw">Reset password</button>'
+      +   '<button class="btn btn--sm ' + (u.frozen ? 'btn--quiet' : 'btn--danger')
+      +     '" type="button" data-act="freeze">' + (u.frozen ? 'Restore' : 'Freeze') + '</button>'
+      + '</div></td>'
+      + '</tr>';
+  }
+
+  function render() {
+    var list = visible();
+    rowsEl.innerHTML = list.length
+      ? list.map(rowHTML).join('')
+      : '<tr><td colspan="6" class="empty">No account matches that search.</td></tr>';
+
+    var frozen = list.filter(function (u) { return u.frozen; }).length;
+    countEl.innerHTML = '<b>' + list.length + '</b> of ' + USERS.length + ' accounts'
+      + (frozen ? ' · ' + frozen + ' frozen' : '');
+
+    var frozenAll = USERS.filter(function (u) { return u.frozen; }).length;
+    barNote.textContent = USERS.length + ' accounts · ' + frozenAll + ' frozen';
+  }
+
+  function byId(id) {
+    for (var i = 0; i < USERS.length; i++) if (USERS[i].id === id) return USERS[i];
+    return null;
+  }
+
+  /* ---------- toolbar ---------- */
+  $('#q').addEventListener('input', function () {
+    state.q = this.value;
+    render();
+  });
+
+  $('.seg--4').addEventListener('click', function (e) {
+    var btn = e.target.closest('button[data-role]');
+    if (!btn) return;
+    state.role = btn.getAttribute('data-role');
+    Array.prototype.forEach.call(this.children, function (b) {
+      var on = b === btn;
+      b.classList.toggle('is-on', on);
+      b.setAttribute('aria-pressed', String(on));
+    });
+    render();
+  });
+
+  /* ---------- per-row actions ---------- */
+  rowsEl.addEventListener('change', function (e) {
+    var sel = e.target.closest('select[data-act="role"]');
+    if (!sel) return;
+    var u = byId(sel.closest('tr').getAttribute('data-id'));
+    u.role = sel.value;
+    toast(u.name + ' is now ' + (u.role === 'admin' ? 'an administrator'
+      : u.role === 'teacher' ? 'a teacher' : 'a student') + '.');
+    render();
+  });
+
+  rowsEl.addEventListener('click', function (e) {
+    var btn = e.target.closest('button[data-act]');
+    if (!btn) return;
+    var u = byId(btn.closest('tr').getAttribute('data-id'));
+
+    if (btn.getAttribute('data-act') === 'freeze') {
+      u.frozen = !u.frozen;
+      toast(u.frozen
+        ? u.name + ' is frozen and cannot sign in.'
+        : u.name + ' can sign in again.');
+      render();
+      return;
+    }
+
+    openSheet(u);
+  });
+
+  /* ---------- password reset ---------- */
+  var sheet = $('#pwSheet');
+  var pwValue = $('#pwValue');
+  var target = null;
+
+  function makePassword() {
+    /* no ambiguous characters — this gets read aloud or written down */
+    var alphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789';
+    var out = '';
+    for (var i = 0; i < 12; i++) out += alphabet[Math.floor(Math.random() * alphabet.length)];
+    return out.match(/.{1,4}/g).join('-');
+  }
+
+  function openSheet(u) {
+    target = u;
+    $('#pwWho').textContent = 'A new password for ' + u.name + ' (' + u.id
+      + '). Their current password stops working immediately.';
+    pwValue.value = makePassword();
+    sheet.showModal();
+    pwValue.focus();
+    /* put the caret at the end rather than selecting: a selected value would
+       be replaced by the first keystroke, and this is a value to be read out
+       and typed elsewhere, not retyped here */
+    pwValue.setSelectionRange(pwValue.value.length, pwValue.value.length);
+  }
+
+  $('#pwGen').addEventListener('click', function () {
+    pwValue.value = makePassword();
+    pwValue.focus();
+    pwValue.setSelectionRange(pwValue.value.length, pwValue.value.length);
+  });
+
+  $('#pwCancel').addEventListener('click', function () { sheet.close(); });
+
+  $('#pwForm').addEventListener('submit', function (e) {
+    e.preventDefault();
+    var value = pwValue.value.trim();
+    if (value.length < 8) {
+      toast('Use at least 8 characters.');
+      pwValue.focus();
+      return;
+    }
+    sheet.close();
+    toast('Password set for ' + target.name + '. Pass it on offline.');
+  });
+
+  render();
+})();
+</script>
+</body>
+</html>

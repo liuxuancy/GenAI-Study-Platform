@@ -1,0 +1,863 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light">
+<title>CaveClass · Bubble map · COMP5112</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,300..700&family=Source+Serif+4:opsz,wght@8..60,300..700&display=swap">
+<style>
+/* ==========================================================
+   Experiment 01 — course map as splitting bubbles.
+
+   The whole course lives in one circle in the middle of the
+   screen. Clicking a circle splits it: its children fly out
+   along the ring outside it, and the ring grows outward. Every
+   level is a fixed radius, so the map always reads as a tree
+   even when only one branch is open.
+
+   Surface rules are the same as the product: pure white, no
+   gradients, no shadows, no radii other than the circle itself.
+   Structure comes from hairlines, and from motion.
+   ========================================================== */
+:root{
+  --bg:#FFFFFF; --surface:#FAFAFB;
+  --ink:#111114; --ink-2:#55555E; --ink-3:#8C8C96; --ink-4:#B6B6BE;
+  --line:#E8E8EC; --line-2:#F1F1F4; --accent:#C0442C;
+  --f-display:'Fraunces',Georgia,'Times New Roman',serif;
+  --f-text:'Source Serif 4',Georgia,'Times New Roman',serif;
+  --ease:cubic-bezier(.16,1,.3,1);
+}
+*{box-sizing:border-box;}
+html,body{height:100%;}
+body{
+  margin:0;background:var(--bg);color:var(--ink-2);overflow:hidden;
+  font-family:var(--f-text);-webkit-font-smoothing:antialiased;
+}
+
+/* ---------- stage ---------- */
+.stage{
+  position:fixed;inset:0;display:flex;overflow:auto;
+  overscroll-behavior:contain;
+  cursor:grab;
+}
+.stage.is-panning{cursor:grabbing;}
+.canvas{position:relative;flex:none;margin:auto;}
+
+/* ---------- the bubbles ---------- */
+.node{
+  position:absolute;left:50%;top:50%;
+  display:block;padding:0;margin:0;border:0;background:none;
+  border-radius:50%;cursor:pointer;
+  transform:translate(-50%,-50%);
+  transition:transform .82s var(--ease) var(--d,0ms),
+             opacity .42s ease var(--d,0ms);
+  will-change:transform;z-index:1;
+  -webkit-tap-highlight-color:transparent;
+}
+.bubble{
+  display:flex;flex-direction:column;align-items:center;justify-content:center;
+  width:100%;height:100%;border-radius:50%;
+  border:1px solid var(--line);background:var(--bg);color:var(--ink-3);
+  padding:17%;
+  transition:border-color .3s ease,background-color .3s ease,color .3s ease,
+             transform .38s var(--ease);
+}
+.node:hover .bubble{border-color:var(--ink-3);color:var(--ink-2);transform:scale(1.035);}
+.node:active .bubble{transform:scale(.975);}
+.node:focus{outline:none;}
+.node:focus-visible .bubble{outline:2px solid var(--accent);outline-offset:3px;}
+
+/* the hairline from a parent to each child it split into */
+.link{
+  position:absolute;left:50%;top:50%;height:1px;width:0;
+  background:var(--ink);opacity:.085;
+  transform-origin:0 50%;pointer-events:none;z-index:0;
+  transition:width .82s var(--ease) var(--d,0ms),
+             transform .82s var(--ease) var(--d,0ms),
+             opacity .32s ease;
+}
+
+.label{
+  display:block;max-height:100%;overflow:hidden;
+  text-align:center;line-height:1.22;letter-spacing:-.005em;
+  text-wrap:balance;
+}
+.eb{
+  display:block;font-size:9px;letter-spacing:.16em;text-transform:uppercase;
+  color:var(--ink-4);margin-bottom:7px;flex:none;
+}
+
+/* level 0 — the course itself, filled */
+.node[data-depth="0"] .bubble{
+  background:var(--ink);border-color:var(--ink);color:#fff;
+}
+.node[data-depth="0"] .label{
+  font-family:var(--f-display);font-variation-settings:'opsz' 40;
+  font-weight:500;letter-spacing:-.012em;line-height:1.1;
+}
+.node[data-depth="0"] .eb{color:rgba(255,255,255,.5);}
+.node[data-depth="0"]:hover .bubble{background:#2B2B33;border-color:#2B2B33;}
+
+/* level 1 — modules: white, inked outline */
+.node[data-depth="1"] .bubble{border-color:var(--ink);color:var(--ink);}
+.node[data-depth="1"] .label{font-size:13px;}
+
+/* level 2 — topics: lighter outline, body colour */
+.node[data-depth="2"] .bubble{border-color:var(--ink-4);color:var(--ink-2);}
+.node[data-depth="2"] .label{font-size:11.5px;}
+
+/* level 3 — concepts: hairline, quietest */
+.node[data-depth="3"] .bubble{border-color:var(--line);color:var(--ink-2);}
+.node[data-depth="3"] .label{font-size:10.5px;}
+
+/* an open bubble is filled with the surface tint: the design system
+   already uses filled to mean "already visited" */
+.node.is-open .bubble{background:var(--surface);border-color:var(--ink);color:var(--ink);}
+.node.is-open[data-depth="0"] .bubble{background:var(--ink);border-color:var(--ink);color:#fff;}
+
+/* ---------- split and merge motion ---------- */
+@keyframes pop{
+  0%{transform:scale(1);}
+  38%{transform:scale(1.085);}
+  100%{transform:scale(1);}
+}
+.node.is-popping .bubble{animation:pop .46s var(--ease);}
+
+.ripple{
+  position:absolute;left:50%;top:50%;border-radius:50%;
+  border:1px solid var(--ink);pointer-events:none;opacity:0;
+  animation:ripple .9s cubic-bezier(.22,.68,.28,1) forwards;
+}
+@keyframes ripple{
+  0%{opacity:.30;transform:translate(-50%,-50%) translate(var(--x),var(--y)) scale(.72);}
+  100%{opacity:0;transform:translate(-50%,-50%) translate(var(--x),var(--y)) scale(2.1);}
+}
+
+/* ---------- heads-up display ---------- */
+.hud{
+  position:fixed;z-index:5;pointer-events:none;
+  font-size:11px;letter-spacing:.02em;color:var(--ink-3);
+}
+.hud > *{pointer-events:auto;}
+.hud--tl{left:clamp(18px,3vw,38px);top:clamp(16px,2.6vw,30px);}
+.hud--tr{right:clamp(18px,3vw,38px);top:clamp(16px,2.6vw,30px);text-align:right;}
+.hud--bl{left:clamp(18px,3vw,38px);bottom:clamp(16px,2.6vw,30px);max-width:min(52ch,44vw);}
+.hud--br{right:clamp(18px,3vw,38px);bottom:clamp(16px,2.6vw,30px);text-align:right;}
+
+.brand{display:flex;align-items:center;gap:11px;text-decoration:none;}
+.mark{
+  width:26px;height:26px;background:var(--accent);color:#fff;flex:none;
+  display:grid;place-items:center;
+  font-family:var(--f-display);font-size:14px;font-weight:600;
+  font-variation-settings:'opsz' 40;
+}
+.brand strong{
+  display:block;font-family:var(--f-display);font-weight:600;font-size:14px;
+  font-variation-settings:'opsz' 40;letter-spacing:-.01em;color:var(--ink);
+}
+.brand small{
+  display:block;font-size:9px;letter-spacing:.15em;text-transform:uppercase;
+  color:var(--ink-3);margin-top:2px;
+}
+
+.meter{
+  display:flex;gap:18px;justify-content:flex-end;
+  font-size:9.5px;letter-spacing:.15em;text-transform:uppercase;color:var(--ink-3);
+}
+.meter b{color:var(--ink);font-weight:400;font-variant-numeric:tabular-nums;}
+
+.ghost{
+  margin-top:13px;background:none;border:1px solid var(--line);
+  padding:6px 11px;font-family:var(--f-text);font-size:10.5px;
+  letter-spacing:.1em;text-transform:uppercase;color:var(--ink-3);
+  cursor:pointer;transition:border-color .25s,color .25s,opacity .25s;
+}
+.ghost:hover{border-color:var(--ink-3);color:var(--ink);}
+.ghost:disabled{opacity:.35;cursor:default;}
+
+.crumb{
+  display:flex;flex-wrap:wrap;align-items:baseline;gap:2px 8px;
+  font-size:10px;letter-spacing:.14em;text-transform:uppercase;
+  color:var(--ink-4);margin-bottom:8px;
+}
+.crumb button{
+  background:none;border:0;padding:0;cursor:pointer;
+  font:inherit;letter-spacing:inherit;text-transform:inherit;
+  color:var(--ink-4);transition:color .2s;
+}
+.crumb button:hover{color:var(--ink);}
+.crumb .sep{color:var(--ink-4);opacity:.6;}
+.crumb[hidden]{display:none;}
+
+.note{font-size:13px;line-height:1.55;color:var(--ink-2);max-width:46ch;}
+.note b{
+  font-family:var(--f-display);font-variation-settings:'opsz' 40;
+  font-weight:500;color:var(--ink);font-size:14px;
+}
+.note[hidden]{display:none;}
+
+.hint{
+  font-size:11.5px;color:var(--ink-4);line-height:1.5;
+  transition:opacity .5s ease;
+}
+.hint.is-gone{opacity:0;}
+.hint kbd{
+  font-family:var(--f-text);font-size:10px;letter-spacing:.08em;
+  border:1px solid var(--line);padding:1px 5px;color:var(--ink-3);
+}
+
+/* ---------- small screens ---------- */
+@media (max-width:720px){
+  .hud--bl{max-width:56vw;}
+  .meter{display:none;}
+  .hud--br{display:none;}
+  .meter{gap:12px;}
+  .note{font-size:12px;}
+}
+@media (prefers-reduced-motion:reduce){
+  .node,.bubble,.ripple{transition-duration:1ms !important;animation-duration:1ms !important;}
+}
+</style>
+</head>
+<body>
+
+<div class="stage" id="stage">
+  <div class="canvas" id="canvas"></div>
+</div>
+
+<header class="hud hud--tl">
+  <div class="brand">
+    <span class="mark" aria-hidden="true">C</span>
+    <span>
+      <strong>CaveClass</strong>
+      <small>Experiment 01 · bubble map</small>
+    </span>
+  </div>
+</header>
+
+<div class="hud hud--tr">
+  <div class="meter">
+    <span>Level <b id="mLevel">1</b> / 4</span>
+    <span><b id="mNodes">0</b> bubbles</span>
+  </div>
+  <button class="ghost" id="collapseAll" type="button" disabled>Collapse all</button>
+</div>
+
+<footer class="hud hud--bl">
+  <nav class="crumb" id="crumb" aria-label="Path" hidden></nav>
+  <p class="note" id="note" hidden></p>
+</footer>
+
+<div class="hud hud--br">
+  <p class="hint" id="hint">Click a bubble to split it · <kbd>Esc</kbd> closes the deepest one</p>
+</div>
+
+<script>
+/* ==========================================================
+   1. The tree.
+   Content is the real COMP5112 syllabus (Subject Description
+   Form, Jul 2025), compressed into four modules — the six
+   syllabus units regrouped by what a student has to hold in
+   their head at once. Four levels: course, module, topic,
+   concept. Notes are one clause each; they are what the map
+   is for, once the clicking stops.
+   ========================================================== */
+var COURSE = {
+  label: 'Data Structures and Database Systems',
+  code: 'COMP5112',
+  note: 'Three credits, level 5. Half of it is how values are arranged in memory; the other half is how a database is designed and reached.',
+  children: [
+    {
+      label: 'Data structures',
+      note: 'How values are arranged, and what that arrangement makes cheap.',
+      children: [
+        {
+          label: 'Linear structures',
+          note: 'Ordered by position — one neighbour before, one after.',
+          children: [
+            { label: 'Linked lists', note: 'Nodes chained by pointers, so an insert costs O(1) once the position is known.' },
+            { label: 'Stacks', note: 'Last in, first out: push, pop and peek, all at one end.' },
+            { label: 'Queues', note: 'First in, first out: enqueue at the rear, dequeue at the front.' }
+          ]
+        },
+        {
+          label: 'Tree structures',
+          note: 'Hierarchical — each node has one parent and ordered children.',
+          children: [
+            { label: 'Binary trees', note: 'At most two children; search, insert and delete all cost O(h).' },
+            { label: 'Balanced trees', note: 'Rotations on insert and delete keep the height at O(log n).' }
+          ]
+        },
+        {
+          label: 'Priority queues',
+          note: 'The highest-priority item leaves first, not the oldest.',
+          children: [
+            { label: 'Binary heap', note: 'A complete tree stored in an array, with every parent below its children.' },
+            { label: 'Heap operations', note: 'Insert and extract-min in O(log n); building a heap from scratch in O(n).' }
+          ]
+        }
+      ]
+    },
+    {
+      label: 'Sorting and searching',
+      note: 'Putting a collection in order, and finding one value inside it.',
+      children: [
+        {
+          label: 'Elementary sorts',
+          note: 'Quadratic, simple, and still the fastest thing on small input.',
+          children: [
+            { label: 'Bubble & insertion', note: 'Adjacent swaps and shifting: O(n²), but insertion sort wins on nearly sorted data.' },
+            { label: 'Selection sort', note: 'Take the minimum each pass and swap once — O(n²) with the fewest writes.' }
+          ]
+        },
+        {
+          label: 'Divide and conquer',
+          note: 'Split the range, sort each half, put them back together.',
+          children: [
+            { label: 'Quick sort', note: 'Partition around a pivot: O(n log n) on average, O(n²) if the pivot is always the worst.' },
+            { label: 'Merge sort', note: 'Stable and always O(n log n), at the price of O(n) extra space.' }
+          ]
+        },
+        {
+          label: 'Searching',
+          note: 'Finding one key among many.',
+          children: [
+            { label: 'Linear search', note: 'Look at everything — O(n), and the only option on unsorted data.' },
+            { label: 'Binary search', note: 'Halve a sorted range each step, so O(log n) comparisons.' }
+          ]
+        }
+      ]
+    },
+    {
+      label: 'Database foundations',
+      note: 'Data shared between applications, described once and queried by value.',
+      children: [
+        {
+          label: 'The DBMS',
+          note: 'A layer that manages what a pile of files cannot.',
+          children: [
+            { label: 'Files vs DBMS', note: 'Redundancy, inconsistency and concurrent access are the problems a DBMS exists to solve.' },
+            { label: 'Components', note: 'A query processor above, a storage manager below, and one schema shared between them.' },
+            { label: 'Independence', note: 'Logical and physical schemas can change without every program being rewritten.' }
+          ]
+        },
+        {
+          label: 'Relational model',
+          note: 'Data as relations, reached by value rather than by pointer.',
+          children: [
+            { label: 'Relations & keys', note: 'Tuples and attributes, with candidate and primary keys naming each row.' },
+            { label: 'Relational algebra', note: 'Selection, projection, join and the set operations — the semantics under SQL.' }
+          ]
+        },
+        {
+          label: 'SQL',
+          note: 'The declarative language over the relational model.',
+          children: [
+            { label: 'DDL & DML', note: 'CREATE and ALTER define the shape; SELECT, INSERT and DELETE act on the rows.' },
+            { label: 'Queries & joins', note: 'Joins combine relations; grouping and aggregation summarise them.' }
+          ]
+        }
+      ]
+    },
+    {
+      label: 'Design and storage',
+      note: 'From a written requirement to tables that hold up under load.',
+      children: [
+        {
+          label: 'ER modelling',
+          note: 'Entities, their attributes, and the relationships between them.',
+          children: [
+            { label: 'Entities', note: 'Rectangles, diamonds and participation — the sketch before any table exists.' },
+            { label: 'Cardinality', note: 'One-to-one, one-to-many, many-to-many, and weak entities that borrow a key.' }
+          ]
+        },
+        {
+          label: 'Normalization',
+          note: 'Removing redundancy by decomposing, without losing information.',
+          children: [
+            { label: 'Dependencies', note: 'X determines Y; take the closure, then derive the candidate keys.' },
+            { label: '3NF & BCNF', note: 'Every determinant is a key; the decomposition must be lossless.' }
+          ]
+        },
+        {
+          label: 'Indexing',
+          note: 'Where a row physically sits, and which structure finds it.',
+          children: [
+            { label: 'File organization', note: 'Heap, sequential or clustered — the cost of every scan follows from this.' },
+            { label: 'B+ trees & hashing', note: 'A tree for range queries, a hash for equality; both trade space for I/O.' }
+          ]
+        },
+        {
+          label: 'Query processing',
+          note: 'From SQL text to a plan the storage manager can execute.',
+          children: [
+            { label: 'Query plans', note: 'Parse, rewrite, then choose an access path per relation.' },
+            { label: 'Cost estimation', note: 'Estimate I/O and compare plans — join order usually decides the outcome.' }
+          ]
+        }
+      ]
+    }
+  ]
+};
+
+/* ==========================================================
+   2. Geometry. Four fixed rings; each node's wedge is
+   proportional to how many concepts sit under it, so the outer
+   ring stays evenly spaced however the branches open.
+   ========================================================== */
+var SIZE  = [210, 122, 98, 78];      /* diameter at k = 1 */
+var RING  = [0, 188, 312, 416];      /* radius at k = 1  */
+var BASE_FONT = [18, 13.5, 11.5, 11];
+var LEVEL_NAME = ['Course', 'Module', 'Topic', 'Concept'];
+
+var stage  = document.getElementById('stage');
+var canvas = document.getElementById('canvas');
+var crumbEl = document.getElementById('crumb');
+var noteEl  = document.getElementById('note');
+var levelEl = document.getElementById('mLevel');
+var countEl = document.getElementById('mNodes');
+var hintEl  = document.getElementById('hint');
+var collapseBtn = document.getElementById('collapseAll');
+
+var open = new Set();     /* ids whose children are on screen */
+var nodes = new Map();    /* id -> {data, el, depth} */
+var links = new Map();    /* id -> the span joining it to its parent */
+var k = 1;                /* global scale, recomputed on resize */
+
+/* assign ids and depths once */
+(function number(node, depth, path) {
+  node.depth = depth;
+  node.id = path;
+  (node.children || []).forEach(function (child, i) {
+    number(child, depth + 1, path + '.' + i);
+  });
+})(COURSE, 0, 'r');
+
+/* Walk only what is open. Each node passes its own wedge down to its
+   children in equal shares, so children always fan out around the parent
+   they came from rather than drifting towards a well-filled neighbour. */
+function layout() {
+  var items = [];
+  (function walk(node, depth, a0, a1) {
+    items.push({ data: node, depth: depth, angle: (a0 + a1) / 2 });
+    if (open.has(node.id) && node.children) {
+      var n = node.children.length;
+      var w = (a1 - a0) / n;
+      node.children.forEach(function (child, i) {
+        walk(child, depth + 1, a0 + i * w, a0 + (i + 1) * w);
+      });
+    }
+  })(COURSE, 0, -Math.PI / 2, Math.PI * 1.5);
+  return items;
+}
+
+function ringFor(items) {
+  /* a ring that holds more bubbles than its circumference allows pushes
+     outward — measured from the closest pair of angles actually on screen,
+     so the map tightens and loosens with what is open rather than with a
+     hard-coded count */
+  var ang = [[], [], [], []];
+  items.forEach(function (i) { ang[i.depth].push(i.angle); });
+
+  var r = RING.slice();
+  for (var d = 1; d < 4; d++) {
+    r[d] = Math.max(r[d], r[d - 1] + (SIZE[d - 1] + SIZE[d]) / 2 + 18);
+    var a = ang[d].sort(function (x, y) { return x - y; });
+    if (a.length > 1) {
+      var gap = a[0] + Math.PI * 2 - a[a.length - 1];
+      for (var i = 1; i < a.length; i++) gap = Math.min(gap, a[i] - a[i - 1]);
+      r[d] = Math.max(r[d], Math.min(820, (SIZE[d] + 16) / gap));
+    }
+  }
+  return r;
+}
+
+/* ==========================================================
+   3. Render.
+   ========================================================== */
+function makeNode(item) {
+  var d = item.data;
+  var btn = document.createElement('button');
+  btn.className = 'node';
+  btn.type = 'button';
+  btn.dataset.depth = item.depth;
+  btn.dataset.id = d.id;
+  btn.setAttribute('aria-label',
+    LEVEL_NAME[item.depth] + ': ' + d.label + (d.children ? '' : '. No children.'));
+
+  var bubble = document.createElement('span');
+  bubble.className = 'bubble';
+
+  if (item.depth === 0) {
+    var eb = document.createElement('span');
+    eb.className = 'eb';
+    eb.textContent = d.code;
+    bubble.appendChild(eb);
+  }
+
+  var label = document.createElement('span');
+  label.className = 'label';
+  label.textContent = d.label;
+  bubble.appendChild(label);
+  btn.appendChild(bubble);
+
+  btn.style.width = btn.style.height = (SIZE[item.depth] * k) + 'px';
+  btn.addEventListener('click', function (e) {
+    e.stopPropagation();
+    select(d);
+  });
+
+  canvas.appendChild(btn);
+  return btn;
+}
+
+function place(el, x, y, scale, opacity) {
+  el.style.transform =
+    'translate(-50%,-50%) translate(' + x + 'px,' + y + 'px) scale(' + (scale == null ? 1 : scale) + ')';
+  if (opacity != null) el.style.opacity = opacity;
+}
+
+function sizeLabel(el, depth) {
+  var label = el.querySelector('.label');
+  var base = BASE_FONT[depth] * Math.max(k, 0.86);
+  var size = base;
+  label.style.fontSize = size + 'px';
+  var guard = 0;
+  while (label.scrollHeight > label.clientHeight + 0.5 && size > 7.2 && guard++ < 40) {
+    size -= 0.4;
+    label.style.fontSize = size + 'px';
+  }
+}
+
+/* recompute every position, add what is new, retire what is gone */
+function render() {
+  var items = layout();
+  var r = ringFor(items);
+
+  var extent = 0;
+  items.forEach(function (i) {
+    extent = Math.max(extent, r[i.depth] + SIZE[i.depth] / 2);
+  });
+
+  var availW = stage.clientWidth - 36;
+  var availH = stage.clientHeight - 56;
+  var fit = Math.min(availW, availH) / (2 * extent);
+  /* one floor for every width: the whole map is always on screen, and the
+     deepest ring is allowed to get small rather than push itself off the
+     edge. On a phone that leaves the concepts readable only as shapes —
+     their names live in the note at the foot of the screen. */
+  k = Math.max(0.52, Math.min(1, fit));
+
+  var box = Math.ceil(extent * 2 * k) + 8;
+  var grew = canvas.dataset.box !== String(box);
+  canvas.dataset.box = box;
+  canvas.style.width = box + 'px';
+  canvas.style.height = box + 'px';
+
+  /* on a narrow window the canvas is wider than the stage: park the scroll
+     in the middle so the course bubble stays in the middle of the screen */
+  if (grew) {
+    requestAnimationFrame(function () {
+      stage.scrollLeft = (stage.scrollWidth - stage.clientWidth) / 2;
+      stage.scrollTop = (stage.scrollHeight - stage.clientHeight) / 2;
+    });
+  }
+
+  /* every position is computed before anything is drawn, so a child can be
+     thrown from its parent's new place rather than its old one */
+  var pos = {};
+  items.forEach(function (it) {
+    var rad = r[it.depth] * k;
+    pos[it.data.id] = {
+      x: Math.cos(it.angle) * rad,
+      y: Math.sin(it.angle) * rad
+    };
+  });
+
+  var seen = new Set();
+
+  items.forEach(function (item, idx) {
+    var d = item.data;
+    seen.add(d.id);
+
+    var rec = nodes.get(d.id);
+    var el = rec && rec.el;
+    var here = pos[d.id];
+    var px = SIZE[item.depth] * k;
+    var delay = (idx * 34) + 'ms';
+
+    if (!el) {
+      el = makeNode(item);
+      nodes.set(d.id, { data: d, el: el, depth: item.depth });
+      el.style.width = el.style.height = px + 'px';
+
+      /* born at the parent's centre, then thrown outward */
+      var from = item.depth === 0 ? { x: 0, y: 0 } : pos[parentId(d.id)];
+      place(el, from.x, from.y, 0.18, 0);
+      el.style.setProperty('--d', delay);
+
+      (function (node, depth, tx, ty) {
+        requestAnimationFrame(function () {
+          requestAnimationFrame(function () {
+            place(node, tx, ty, 1, 1);
+            sizeLabel(node, depth);
+          });
+        });
+      })(el, item.depth, here.x, here.y);
+
+      setTimeout(function () { el.style.setProperty('--d', '0ms'); }, 1100);
+    } else {
+      el.style.width = el.style.height = px + 'px';
+      place(el, here.x, here.y, 1, 1);
+      sizeLabel(el, item.depth);
+    }
+
+    el.classList.toggle('is-open', open.has(d.id) && !!d.children);
+    el.setAttribute('aria-expanded', open.has(d.id) ? 'true' : 'false');
+
+    /* the hairline that ties a child to the parent it split from */
+    if (item.depth > 0) {
+      drawLink(d.id, pos[parentId(d.id)], here, delay);
+    }
+  });
+
+  nodes.forEach(function (rec, id) {
+    if (!seen.has(id)) retire(rec);
+  });
+
+  updateHud(items);
+}
+
+function parentId(id) {
+  var i = id.lastIndexOf('.');
+  return i < 0 ? null : id.slice(0, i);
+}
+
+/* where a node actually sits right now, straight off its transform */
+function nodeXY(id) {
+  var rec = id && nodes.get(id);
+  if (!rec) return { x: 0, y: 0 };
+  var m = /translate\((-?[\d.]+)px,\s*(-?[\d.]+)px\)/.exec(rec.el.style.transform);
+  return m ? { x: parseFloat(m[1]), y: parseFloat(m[2]) } : { x: 0, y: 0 };
+}
+
+/* a link is a 1px span anchored at the parent's centre and rotated towards
+   the child; growing its width from 0 is what makes the split read as a
+   split rather than as a fade */
+function drawLink(id, from, to, delay) {
+  if (!from || !to) return;
+  var link = links.get(id);
+  var len = Math.hypot(to.x - from.x, to.y - from.y);
+  var angle = Math.atan2(to.y - from.y, to.x - from.x) * 180 / Math.PI;
+  var xf = 'translate(' + from.x + 'px,' + from.y + 'px) rotate(' + angle + 'deg)';
+
+  if (!link) {
+    link = document.createElement('span');
+    link.className = 'link';
+    link.style.transform = xf;
+    link.style.width = '0px';
+    link.style.setProperty('--d', delay);
+    canvas.appendChild(link);
+    links.set(id, link);
+    requestAnimationFrame(function () {
+      requestAnimationFrame(function () { link.style.width = len + 'px'; });
+    });
+    setTimeout(function () { link.style.setProperty('--d', '0ms'); }, 1100);
+  } else {
+    link.style.transform = xf;
+    link.style.width = len + 'px';
+    link.style.opacity = '1';
+  }
+}
+
+function dropLink(id) {
+  var link = links.get(id);
+  if (!link) return;
+  links.delete(id);
+  link.style.opacity = '0';
+  setTimeout(function () { link.remove(); }, 460);
+}
+
+/* a closing bubble falls back into its parent and fades */
+function retire(rec) {
+  var el = rec.el;
+  var to = nodeXY(parentId(rec.data.id));
+  el.style.setProperty('--d', '0ms');
+  el.style.transition = 'transform .46s cubic-bezier(.7,0,.84,0), opacity .3s ease';
+  place(el, to.x, to.y, 0.2, 0);
+  el.setAttribute('aria-hidden', 'true');
+  nodes.delete(rec.data.id);
+  dropLink(rec.data.id);
+  setTimeout(function () { el.remove(); }, 470);
+}
+
+function ripple(d, depth) {
+  if (!nodes.get(d.id)) return;
+  var at = nodeXY(d.id);
+  var size = SIZE[depth] * k;
+  for (var i = 0; i < 2; i++) {
+    var ring = document.createElement('span');
+    ring.className = 'ripple';
+    ring.style.width = ring.style.height = size + 'px';
+    ring.style.setProperty('--x', at.x + 'px');
+    ring.style.setProperty('--y', at.y + 'px');
+    ring.style.animationDelay = (i * 110) + 'ms';
+    canvas.appendChild(ring);
+    setTimeout(function (n) { return function () { n.remove(); }; }(ring), 1100 + i * 110);
+  }
+}
+
+/* ==========================================================
+   4. Behaviour.
+   ========================================================== */
+function select(d) {
+  var depth = d.depth;
+
+  if (d.children && d.children.length) {
+    if (open.has(d.id)) {
+      closeBelow(d);
+      open.delete(d.id);
+    } else {
+      open.add(d.id);
+      ripple(d, depth);
+    }
+  }
+
+  /* every click answers, leaves included — otherwise the deepest bubbles
+     feel dead when there is nothing left to open */
+  var n = nodes.get(d.id);
+  if (n) {
+    n.el.classList.remove('is-popping');
+    void n.el.offsetWidth;
+    n.el.classList.add('is-popping');
+    setTimeout(function () { n.el.classList.remove('is-popping'); }, 480);
+  }
+
+  showNote(d);
+  render();
+  if (!hintEl.classList.contains('is-gone')) {
+    hintEl.classList.add('is-gone');
+    setTimeout(function () { hintEl.hidden = true; }, 600);
+  }
+}
+
+function closeBelow(d) {
+  if (!d.children) return;
+  d.children.forEach(function (c) {
+    closeBelow(c);
+    open.delete(c.id);
+  });
+}
+
+function showNote(d) {
+  /* the breadcrumb carries the ancestors only — every one of them is a way
+     back up, and the node itself is already spelled out in the note below */
+  var trail = [];
+  var node = COURSE;
+  var parts = d.id.split('.');
+  for (var i = 1; i < parts.length; i++) {
+    trail.push(node);
+    node = node.children[+parts[i]];
+  }
+
+  crumbEl.innerHTML = '';
+  trail.forEach(function (n, i) {
+    if (i) {
+      var sep = document.createElement('span');
+      sep.className = 'sep';
+      sep.textContent = '/';
+      crumbEl.appendChild(sep);
+    }
+    var b = document.createElement('button');
+    b.type = 'button';
+    b.textContent = n.depth === 0 ? n.code : n.label;
+    b.title = 'Collapse back to ' + n.label;
+    b.addEventListener('click', function () {
+      closeBelow(n);
+      open.delete(n.id);
+      showNote(n);
+      render();
+    });
+    crumbEl.appendChild(b);
+  });
+  crumbEl.hidden = trail.length === 0;
+
+  noteEl.innerHTML = '';
+  var strong = document.createElement('b');
+  strong.textContent = d.label;
+  noteEl.appendChild(strong);
+  noteEl.appendChild(document.createTextNode(' — ' + d.note));
+  noteEl.hidden = false;
+}
+
+function updateHud(items) {
+  var deepest = 0;
+  items.forEach(function (i) { deepest = Math.max(deepest, i.depth); });
+  levelEl.textContent = String(deepest + 1);
+  countEl.textContent = String(items.length);
+  collapseBtn.disabled = open.size === 0;
+}
+
+function collapseAll() {
+  open.clear();
+  nodes.forEach(function (rec) {
+    if (rec.data.id !== 'r') retire(rec);
+  });
+  render();
+  showNote(COURSE);
+}
+
+/* Esc closes the deepest open branch */
+document.addEventListener('keydown', function (e) {
+  if (e.key !== 'Escape') return;
+  var deepest = null;
+  open.forEach(function (id) {
+    if (!deepest || id.split('.').length > deepest.split('.').length) deepest = id;
+  });
+  if (!deepest) return;
+  var parts = deepest.split('.');
+  var node = COURSE;
+  for (var i = 1; i < parts.length; i++) node = node.children[+parts[i]];
+  closeBelow(node);
+  open.delete(node.id);
+  render();
+});
+
+collapseBtn.addEventListener('click', collapseAll);
+
+/* drag to pan when the map is larger than the window */
+(function pan() {
+  var down = false, sx = 0, sy = 0, l = 0, t = 0;
+  stage.addEventListener('pointerdown', function (e) {
+    if (e.target.closest('.node')) return;
+    down = true; sx = e.clientX; sy = e.clientY;
+    l = stage.scrollLeft; t = stage.scrollTop;
+    stage.classList.add('is-panning');
+  });
+  window.addEventListener('pointermove', function (e) {
+    if (!down) return;
+    stage.scrollLeft = l - (e.clientX - sx);
+    stage.scrollTop = t - (e.clientY - sy);
+  });
+  window.addEventListener('pointerup', function () {
+    down = false;
+    stage.classList.remove('is-panning');
+  });
+})();
+
+/* resize: recompute geometry, keep what is open */
+var rt;
+window.addEventListener('resize', function () {
+  clearTimeout(rt);
+  rt = setTimeout(function () { render(); }, 120);
+});
+
+/* boot */
+showNote(COURSE);
+render();
+</script>
+</body>
+</html>

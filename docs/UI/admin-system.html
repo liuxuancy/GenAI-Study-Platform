@@ -1,0 +1,274 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>CaveClass · System information</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,300..700&family=Source+Serif+4:opsz,wght@8..60,300..700&display=swap">
+<link rel="stylesheet" href="assets/app.css">
+</head>
+
+<body>
+<!-- ==================================================================
+     Administrator · System information
+     Four figures for the deployment, then who is spending the model budget.
+     Every number on this page is derived from the same eighteen accounts and
+     twelve courses the other two screens list, so the three pages can be
+     checked against each other.
+     ================================================================== -->
+<div class="app">
+
+  <!-- ---------- left: sidebar ---------- -->
+  <aside class="side">
+    <div class="side-brand">
+      <a class="brand" href="admin-home.html" aria-label="CaveClass home">
+        <span class="mark" aria-hidden="true">C</span>
+        <span class="brand-text"><strong>CaveClass</strong><small>Administrator</small></span>
+      </a>
+    </div>
+
+    <div class="nav-group">
+      <p class="nav-title">Manage</p>
+      <nav class="nav" aria-label="Administrator workspace">
+        <a href="admin-users.html">User accounts</a>
+        <a href="admin-courses.html">Course operations</a>
+        <a href="admin-system.html" class="is-on" aria-current="page">System information</a>
+      </nav>
+    </div>
+
+    <div class="side-foot">
+      <a class="tlink signout" href="login.html">Sign out</a>
+    </div>
+  </aside>
+
+  <!-- ---------- right: main ---------- -->
+  <div class="main">
+    <header class="appbar">
+      <div class="crumbs">
+        <a href="admin-home.html">Administrator</a><span class="sep">/</span><strong>System information</strong>
+      </div>
+      <p class="top-note">CaveClass pilot · 23 October 2026</p>
+    </header>
+
+    <main class="content" aria-label="System information">
+
+      <header class="page-head">
+        <p class="eyebrow">Platform health</p>
+        <h1>System information</h1>
+        <p class="lede">
+          Four figures for this deployment, then the accounts spending the most
+          on the model. This is a read-only view: nothing on it can be changed
+          from here.
+        </p>
+      </header>
+
+      <section class="stats" aria-label="Platform totals">
+        <div class="stat">
+          <p class="k">Accounts</p>
+          <p class="v" id="sAccounts">—</p>
+          <p class="s" id="sAccountsSub"></p>
+        </div>
+        <div class="stat">
+          <p class="k">Courses</p>
+          <p class="v" id="sCourses">—</p>
+          <p class="s" id="sCoursesSub"></p>
+        </div>
+        <div class="stat">
+          <p class="k">Published</p>
+          <p class="v" id="sPublished">—</p>
+          <p class="s" id="sPublishedSub"></p>
+        </div>
+        <div class="stat">
+          <p class="k">Tokens, 30 days</p>
+          <p class="v" id="sTokens">—</p>
+          <p class="s" id="sTokensSub"></p>
+        </div>
+      </section>
+
+      <div class="subhead">
+        <div>
+          <h2>Token consumption</h2>
+          <p id="tokLine"></p>
+        </div>
+        <div class="ctl">
+          <div class="seg seg--2" role="group" aria-label="Time window">
+            <button type="button" class="is-on" data-win="7" aria-pressed="true">7 days</button>
+            <button type="button" data-win="30" aria-pressed="false">30 days</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="table-wrap">
+        <table class="table">
+          <thead>
+            <tr>
+              <th scope="col">Account</th>
+              <th scope="col" class="col-role">Role</th>
+              <th scope="col" class="ta-r col-tok">Tokens</th>
+              <th scope="col" class="ta-r col-share">Share</th>
+            </tr>
+          </thead>
+          <tbody id="rows"></tbody>
+        </table>
+      </div>
+
+      <p class="table-foot">
+        <span id="count" aria-live="polite"></span>
+        <span>Marked in red: more than a tenth of everything spent in the window.</span>
+      </p>
+
+      <p class="note">
+        <b>What is counted.</b> A token is one unit of text the model reads or
+        writes. The figures here cover the three routes that spend a budget —
+        generating a chapter, the in-line question panel on a chapter, and
+        exercise marking — summed per account and attributed to whoever was
+        signed in. <b>It is a usage ranking, not a verdict</b>: a teacher
+        generating twelve chapters for a new course will outspend every student
+        on the platform, and should.
+      </p>
+
+    </main>
+  </div>
+</div>
+
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+<script>
+/* ==================================================================
+   System information — totals are computed from the same account and
+   course lists the other two screens show (18 accounts, 12 courses), so
+   nothing here can drift from what an administrator sees elsewhere.
+   ================================================================== */
+(function () {
+  'use strict';
+
+  function $(sel, root) { return (root || document).querySelector(sel); }
+  var rowsEl = $('#rows');
+  var countEl = $('#count');
+  var lineEl = $('#tokLine');
+
+  var ROLE = { student: 'Student', teacher: 'Teacher', admin: 'Administrator' };
+
+  /* role counts and course counts mirror admin-users.html and
+     admin-courses.html: 11 students / 5 teachers / 2 administrators,
+     12 courses of which 9 published */
+  var ACCOUNTS = { student: 11, teacher: 5, admin: 2 };
+  var COURSES = { total: 12, preset: 5, generated: 7, published: 9 };
+
+  /* tokens: last 7 days and last 30 days, per account. A frozen account
+     stops spending when it is frozen, which is why three of them read 0. */
+  var USAGE = [
+    { name: 'Aaron Chan',    email: 'aaron.chan@polyu.edu.hk',     role: 'teacher', d7: 412900, d30: 1684200 },
+    { name: 'Wei Zhang',     email: 'wei.zhang@polyu.edu.hk',      role: 'teacher', d7: 203500, d30: 612800 },
+    { name: 'Marcus Yeung',  email: 'marcus.yeung@polyu.edu.hk',   role: 'teacher', d7: 148700, d30: 703400 },
+    { name: 'Jason Lam',     email: 'jason.lam@polyu.edu.hk',      role: 'admin',   d7: 96400,  d30: 402100 },
+    { name: 'Emily Wong',    email: 'emily.wong@connect.polyu.hk', role: 'student', d7: 84300,  d30: 361900 },
+    { name: 'Rachel Tsang',  email: 'rachel.tsang@connect.polyu.hk', role: 'student', d7: 62400, d30: 275600 },
+    { name: 'Kevin Ng',      email: 'kevin.ng@polyu.edu.hk',       role: 'teacher', d7: 61200,  d30: 288900 },
+    { name: 'Sophie Cheng',  email: 'sophie.cheng@connect.polyu.hk', role: 'student', d7: 51700, d30: 214300 },
+    { name: 'Chloe Fung',    email: 'chloe.fung@connect.polyu.hk', role: 'student', d7: 41800,  d30: 176200 },
+    { name: 'Nadia Rahman',  email: 'nadia.rahman@connect.polyu.hk', role: 'student', d7: 33100, d30: 188400 },
+    { name: 'Hana Sato',     email: 'hana.sato@connect.polyu.hk',  role: 'student', d7: 29300,  d30: 151800 },
+    { name: 'Leo Marchetti', email: 'leo.marchetti@polyu.edu.hk',  role: 'teacher', d7: 27800,  d30: 141600 },
+    { name: 'Ivan Petrov',   email: 'ivan.petrov@connect.polyu.hk', role: 'student', d7: 24600, d30: 118300 },
+    { name: 'Tommy Cheung',  email: 'tommy.cheung@connect.polyu.hk', role: 'student', d7: 18900, d30: 142700 },
+    { name: 'Grace Liu',     email: 'grace.liu@polyu.edu.hk',      role: 'admin',   d7: 12400,  d30: 64900  },
+    { name: 'Priya Nair',    email: 'priya.nair@connect.polyu.hk',  role: 'student', d7: 0,     d30: 96400  },
+    { name: 'Daniel Ho',     email: 'daniel.ho@connect.polyu.hk',   role: 'student', d7: 0,     d30: 38200  },
+    { name: 'Aisha Karim',   email: 'aisha.karim@connect.polyu.hk', role: 'student', d7: 0,     d30: 22500  }
+  ];
+
+  function num(n) { return n.toLocaleString('en-US'); }
+  function big(n) {
+    if (n >= 1e6) return (n / 1e6).toFixed(2).replace(/\.00$/, '') + 'M';
+    if (n >= 1e3) return Math.round(n / 1e3) + 'k';
+    return String(n);
+  }
+
+  /* ---------- totals ---------- */
+  var totalAccounts = ACCOUNTS.student + ACCOUNTS.teacher + ACCOUNTS.admin;
+  var sum7 = USAGE.reduce(function (s, u) { return s + u.d7; }, 0);
+  var sum30 = USAGE.reduce(function (s, u) { return s + u.d30; }, 0);
+
+  $('#sAccounts').textContent = totalAccounts;
+  $('#sAccountsSub').textContent = ACCOUNTS.student + ' students · '
+    + ACCOUNTS.teacher + ' teachers · ' + ACCOUNTS.admin + ' administrators';
+
+  $('#sCourses').textContent = COURSES.total;
+  $('#sCoursesSub').textContent = COURSES.preset + ' preset · '
+    + COURSES.generated + ' generated by instructors';
+
+  $('#sPublished').textContent = COURSES.published;
+  $('#sPublishedSub').textContent = (COURSES.total - COURSES.published) + ' removed by an administrator';
+
+  $('#sTokens').textContent = big(sum30);
+  $('#sTokensSub').textContent = big(sum7) + ' in the last 7 days';
+
+  /* ---------- leaderboard ---------- */
+  var window_ = 7;
+
+  function draw() {
+    var key = window_ === 7 ? 'd7' : 'd30';
+    var total = window_ === 7 ? sum7 : sum30;
+
+    var rows = USAGE
+      .map(function (u) { return { u: u, v: u[key] }; })
+      .filter(function (r) { return r.v > 0; })
+      .sort(function (a, b) { return b.v - a.v; });
+
+    var max = rows[0].v;
+    var heavy = 0;
+
+    rowsEl.innerHTML = rows.map(function (r, i) {
+      var share = r.v / total * 100;
+      var flagged = share > 10;
+      if (flagged) heavy++;
+      return '<tr>'
+        + '<td class="lead"><div class="lead-in"><span class="rank">'
+        +   String(i + 1).padStart(2, '0') + '</span>'
+        +   '<span class="who"><strong>' + r.u.name + '</strong>'
+        +   '<small>' + r.u.email + '</small></span></div></td>'
+        + '<td data-label="Role">' + ROLE[r.u.role] + '</td>'
+        + '<td class="ta-r" data-label="Tokens"><span class="num">' + num(r.v) + '</span>'
+        +   '<span class="meter"><i class="' + (flagged ? 'is-heavy' : '')
+        +     '" style="width:' + Math.round(r.v / max * 100) + '%"></i></span></td>'
+        + '<td class="ta-r' + (flagged ? ' is-heavy' : '') + '" data-label="Share">'
+        +   share.toFixed(1) + '%</td>'
+        + '</tr>';
+    }).join('');
+
+    var silent = USAGE.length - rows.length;
+    lineEl.textContent = num(total) + ' tokens in the last ' + window_ + ' days'
+      + (silent ? ', across ' + rows.length + ' of ' + USAGE.length + ' accounts (' + silent
+        + ' spent nothing)' : ' across ' + rows.length + ' accounts')
+      + '. ' + heavy + ' accounts used more than a tenth of it.';
+
+    /* the middle account, computed honestly: an even count averages the two
+       either side of the middle rather than picking the upper one */
+    var mid = rows.length % 2
+      ? rows[(rows.length - 1) / 2].v
+      : (rows[rows.length / 2 - 1].v + rows[rows.length / 2].v) / 2;
+
+    countEl.innerHTML = '<b>' + rows.length + '</b> accounts with usage'
+      + ' · median <span class="num">' + num(Math.round(mid)) + '</span>';
+  }
+
+  $('.seg--2').addEventListener('click', function (e) {
+    var btn = e.target.closest('button[data-win]');
+    if (!btn) return;
+    window_ = Number(btn.getAttribute('data-win'));
+    Array.prototype.forEach.call(this.children, function (b) {
+      var on = b === btn;
+      b.classList.toggle('is-on', on);
+      b.setAttribute('aria-pressed', String(on));
+    });
+    draw();
+  });
+
+  draw();
+})();
+</script>
+</body>
+</html>
