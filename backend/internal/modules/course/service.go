@@ -10,6 +10,7 @@ import (
 	"gorm.io/gorm"
 
 	"caveclass/internal/ai"
+	"caveclass/internal/ai/llm"
 	"caveclass/internal/framework/access"
 	"caveclass/internal/platform/errs"
 )
@@ -17,6 +18,7 @@ import (
 type Service struct {
 	database *gorm.DB
 	ai       *ai.Service
+	aiBase   llm.Config
 }
 
 // NewService 全局只初始化一次：启动时在路由表里创建。
@@ -27,6 +29,9 @@ func NewService(database *gorm.DB) *Service {
 // UseAI 挂上已调试好的模型门面。生成接口才需要它，其余课程接口不调用。
 func (service *Service) UseAI(aiService *ai.Service) {
 	service.ai = aiService
+	if aiService != nil {
+		service.aiBase = aiService.Config()
+	}
 }
 
 // CourseListItem 一门课在学生列表里的样子。

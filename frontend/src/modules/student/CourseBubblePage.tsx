@@ -2,6 +2,7 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { Link, Navigate, useParams } from 'react-router-dom'
 
+import { useAiProviderSelect } from '@/core/ai/useAiProviderSelect'
 import { useAuthStore } from '@/core/auth/store'
 import { generateStudentCourse, getStudentCourse, setStudentCourseSharing, updateStudentCourseProgress, type StudentCourseDetail } from '@/modules/student/api'
 import { bubbleLevelName, type BubbleNode } from '@/modules/student/bubbleTree'
@@ -28,6 +29,7 @@ export function CourseBubblePage() {
   const [sharing, setSharing] = useState(false)
   const [generating, setGenerating] = useState(false)
   const [generateError, setGenerateError] = useState('')
+  const { provider: aiProvider, selector: aiProviderSelector } = useAiProviderSelect()
 
   useEffect(() => {
     if (currentUser?.role !== 'ROLE_STUDENT' || !courseId || courseId === 'new') {
@@ -84,7 +86,11 @@ export function CourseBubblePage() {
           </button>
         ) : null}
         {course?.owned ? (
-          <button
+          <>
+            <span className={styles.aiModel}>
+              AI {aiProviderSelector}
+            </span>
+            <button
             className={styles.share}
             type="button"
             disabled={generating}
@@ -94,7 +100,7 @@ export function CourseBubblePage() {
               }
               setGenerating(true)
               setGenerateError('')
-              generateStudentCourse(course.id)
+              generateStudentCourse(course.id, { provider: aiProvider })
                 .then((result) => setCourse(result.course))
                 .catch((error: Error) => setGenerateError(error.message))
                 .finally(() => setGenerating(false))
@@ -102,6 +108,7 @@ export function CourseBubblePage() {
           >
             {generating ? '生成中…' : '生成章节'}
           </button>
+          </>
         ) : null}
       </div>
       {errorMessage ? <p className={styles.error}>{errorMessage}</p> : null}

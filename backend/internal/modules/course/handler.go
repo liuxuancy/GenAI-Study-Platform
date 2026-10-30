@@ -127,6 +127,14 @@ func (handler *Handler) GenerateTeacherCourse(ctx *gin.Context) (any, error) {
 	return handler.generateCourse(ctx, principal)
 }
 
+// GetAIProviders GET /api/ai/providers
+func (handler *Handler) GetAIProviders(ctx *gin.Context) (any, error) {
+	if _, err := access.GetCurrentPrincipal(ctx); err != nil {
+		return nil, err
+	}
+	return handler.service.AIProviderOptions(), nil
+}
+
 func (handler *Handler) generateCourse(ctx *gin.Context, principal *access.Principal) (any, error) {
 	courseID, err := resp.GetInt64PathParam(ctx, "id")
 	if err != nil {

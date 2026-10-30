@@ -12,6 +12,7 @@ import (
 	"caveclass/internal/ai"
 	"caveclass/internal/ai/aierr"
 	aicourse "caveclass/internal/ai/course"
+	"caveclass/internal/ai/llm"
 	"caveclass/internal/framework/access"
 	"caveclass/internal/platform/errs"
 	"caveclass/internal/platform/logs"
@@ -20,6 +21,7 @@ import (
 
 // GenerateCourseInput 是学生或教师发起的整课生成。主题空着时用课程名。
 type GenerateCourseInput struct {
+	Provider          string `json:"provider"`
 	Topic             string `json:"topic"`
 	Audience          string `json:"audience"`
 	Language          string `json:"language"`
@@ -38,7 +40,11 @@ func (service *Service) GenerateOwnedCourse(ctx context.Context, principal *acce
 	if principal.Role != access.RoleStudent && principal.Role != access.RoleTeacher {
 		return nil, errs.Forbidden("only the course owner can generate a course")
 	}
-	if service.ai == nil {
+	aiService, err := service.aiForGenerate(input.Provider)
+	if err != nil {
+		return nil, err
+	}
+	if aiService == nil {
 		return nil, errs.Internal(nil)
 	}
 	var stored struct {
@@ -68,7 +74,7 @@ func (service *Service) GenerateOwnedCourse(ctx context.Context, principal *acce
 		language = DefaultLanguage
 	}
 
-	generated, meta, err := service.ai.GenerateCourse(ctx, ai.GenerateCourseInput{
+	generated, meta, err := aiService.GenerateCourse(ctx, ai.GenerateCourseInput{
 		Topic:             topic,
 		Audience:          audience,
 		Language:          language,
@@ -81,7 +87,7 @@ func (service *Service) GenerateOwnedCourse(ctx context.Context, principal *acce
 		return nil, businessAIError(err)
 	}
 
-	if err := service.fillMissingQuizzes(ctx, principal.UserID, topic, &generated, &meta); err != nil {
+	if err := service.fillMissingQuizzes(ctx, principal.UserID, topic, &generated, &meta, aiService); err != nil {
 		return nil, err
 	}
 	if err := service.storeGeneratedCourse(ctx, principal, courseID, &generated); err != nil {
@@ -100,14 +106,14 @@ func (service *Service) GenerateOwnedCourse(ctx context.Context, principal *acce
 	return &GeneratedCourse{Course: detail, Meta: meta}, nil
 }
 
-func (service *Service) fillMissingQuizzes(ctx context.Context, userID int64, topic string, generated *aicourse.StandardCourse, meta *ai.Meta) error {
+func (service *Service) fillMissingQuizzes(ctx context.Context, userID int64, topic string, generated *aicourse.StandardCourse, meta *ai.Meta, aiService *ai.Service) error {
 	for index := range generated.Chapters {
 		chapter := &generated.Chapters[index]
 		if len(chapterQuizQuestions(*chapter)) > 0 {
 			continue
 		}
 		activityKey := chapter.Key + "-quiz"
-		activity, activityMeta, err := service.ai.GenerateActivity(ctx, ai.GenerateActivityInput{
+		activity, activityMeta, err := aiService.GenerateActivity(ctx, ai.GenerateActivityInput{
 			Topic:             topic,
 			Audience:          generated.Audience,
 			Language:          generated.Language,
@@ -301,4 +307,45 @@ func businessAIError(err error) error {
 		return errs.BadRequest(aiError.Msg)
 	}
 	return errs.Internal(err)
+}
+
+func (service *Service) aiForGenerate(requestedProvider string) (*ai.Service, error) {
+	base := service.aiBase
+	if base.Provider == "" && service.ai != nil {
+		base = service.ai.Config()
+	}
+	provider := strings.ToLower(strings.TrimSpace(requestedProvider))
+	if provider == "" {
+		provider = llm.DefaultGenerateProvider(base)
+	}
+	switch provider {
+	case llm.ProviderDeepSeek, llm.ProviderTeamily:
+	case llm.ProviderMock:
+		if base.Provider == llm.ProviderMock {
+			break
+		}
+		return nil, errs.BadRequest("provider must be deepseek or teamily")
+	default:
+		return nil, errs.BadRequest("provider must be deepseek or teamily")
+	}
+	cfg, err := llm.ConfigForProvider(base, provider)
+	if err != nil {
+		return nil, errs.BadRequest(err.Error())
+	}
+	if cfg.Provider != llm.ProviderMock && strings.TrimSpace(cfg.APIKey) == "" {
+		return nil, errs.BadRequest("AI provider " + provider + " is not configured on the server")
+	}
+	if service.ai != nil && service.ai.Config().Provider == cfg.Provider && service.ai.Config().APIKey == cfg.APIKey {
+		return service.ai, nil
+	}
+	return ai.NewForProvider(base, provider)
+}
+
+// AIProviderOptions 返回前端可选的生成模型与默认项。
+func (service *Service) AIProviderOptions() llm.GenerateProviderOptions {
+	base := service.aiBase
+	if base.Provider == "" && service.ai != nil {
+		base = service.ai.Config()
+	}
+	return ai.GenerateProviderOptions(base)
 }

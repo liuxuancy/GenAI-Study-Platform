@@ -40,6 +40,8 @@ func registerRoutes(api *gin.RouterGroup, deps Deps) {
 	courseService.UseAI(deps.AI)
 	courseHandler := course.NewHandler(courseService)
 
+	api.GET("/ai/providers", access.RequireLogin(), resp.ToGinHandler(courseHandler.GetAIProviders))
+
 	// system 模块 /api/system/*：用户管理、角色权限、班级，只有管理员使用
 	systemHandler := system.NewHandler(
 		system.NewUserService(deps.DB, deps.Cache, deps.UserDeletionGuards),

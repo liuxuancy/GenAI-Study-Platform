@@ -88,7 +88,7 @@ func main() {
 			methodNotAllowed(w)
 			return
 		}
-		writeOK(w, providerAvailability(baseCfg))
+		writeOK(w, llm.ProviderAvailability(baseCfg))
 	})
 	mux.HandleFunc("/playground/generate-course", func(w http.ResponseWriter, r *http.Request) {
 		handleGenerateCourse(w, r, baseCfg)

@@ -4,6 +4,7 @@ import { Alert, Button, Checkbox, Form, Input, Modal, Progress, Space, Table, Ta
 import { Navigate } from 'react-router-dom'
 
 import { homePathFor } from '@/core/auth/homePath'
+import { useAiProviderSelect } from '@/core/ai/useAiProviderSelect'
 import { useAuthStore } from '@/core/auth/store'
 import { ApiError } from '@/core/http'
 import {
@@ -37,6 +38,7 @@ export function TeacherHomePage() {
   const [form] = Form.useForm<{ title: string; description?: string }>()
   const [generatingId, setGeneratingId] = useState<number | null>(null)
   const [generateError, setGenerateError] = useState('')
+  const { provider: aiProvider, selector: aiProviderSelector } = useAiProviderSelect()
 
   useEffect(() => {
     if (currentUser?.role !== 'ROLE_TEACHER') {
@@ -144,16 +146,20 @@ export function TeacherHomePage() {
         <Typography.Title level={3} style={{ margin: 0 }}>
           Courses
         </Typography.Title>
-        <Button
-          type="primary"
-          onClick={() => {
-            setCreateError('')
-            form.resetFields()
-            setCreateOpen(true)
-          }}
-        >
-          New course
-        </Button>
+        <Space>
+          <span>AI 模型</span>
+          {aiProviderSelector}
+          <Button
+            type="primary"
+            onClick={() => {
+              setCreateError('')
+              form.resetFields()
+              setCreateOpen(true)
+            }}
+          >
+            New course
+          </Button>
+        </Space>
       </Space>
       {loadError ? <Alert type="error" showIcon message={loadError} style={{ marginBottom: 16 }} /> : null}
       {generateError ? <Alert type="error" showIcon message={generateError} style={{ marginBottom: 16 }} /> : null}
@@ -196,7 +202,7 @@ export function TeacherHomePage() {
                   onClick={() => {
                     setGeneratingId(course.id)
                     setGenerateError('')
-                    generateTeacherCourse(course.id)
+                    generateTeacherCourse(course.id, { provider: aiProvider })
                       .then(() => reloadCourses())
                       .catch((error: Error) => setGenerateError(error.message))
                       .finally(() => setGeneratingId(null))

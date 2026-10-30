@@ -40,8 +40,14 @@ export function publishTeacherCourse(courseId: number, classIds: number[]) {
   return http.put<TeacherCourse>(`/teacher/courses/${courseId}/classes`, { classIds })
 }
 
-export function generateTeacherCourse(courseId: number) {
-  return http.post<{ course: TeacherCourse; meta: { templateId: string } }>(`/teacher/courses/${courseId}/generate`, {})
+import { http } from '@/core/http'
+import type { GenerateCourseRequest } from '@/core/api/ai'
+
+export function generateTeacherCourse(courseId: number, input: GenerateCourseRequest = {}) {
+  return http.post<{ course: TeacherCourse; meta: { templateId: string } }>(
+    `/teacher/courses/${courseId}/generate`,
+    input,
+  )
 }
 
 export function getTeacherCourseProgress(courseId: number) {

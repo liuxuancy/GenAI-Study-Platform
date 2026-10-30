@@ -1,5 +1,6 @@
 // 学生课程和套题的列表与详情。
 import { http } from '@/core/http'
+import type { GenerateCourseRequest } from '@/core/api/ai'
 import type { BubbleNode } from '@/modules/student/bubbleTree'
 
 export interface StudentCourse {
@@ -49,8 +50,11 @@ export function setStudentCourseSharing(courseId: number, shared: boolean) {
   return http.put<{ shared: boolean; classmateCount: number }>(`/student/courses/${courseId}/sharing`, { shared })
 }
 
-export function generateStudentCourse(courseId: number) {
-  return http.post<{ course: StudentCourseDetail; meta: { templateId: string } }>(`/student/courses/${courseId}/generate`, {})
+export function generateStudentCourse(courseId: number, input: GenerateCourseRequest = {}) {
+  return http.post<{ course: StudentCourseDetail; meta: { templateId: string } }>(
+    `/student/courses/${courseId}/generate`,
+    input,
+  )
 }
 
 export interface StudentQuestionContent {
