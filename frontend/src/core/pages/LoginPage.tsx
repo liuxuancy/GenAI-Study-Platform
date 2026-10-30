@@ -1,7 +1,9 @@
-// 登录页：样式照搬设计稿 login.html。登录成功后跳回原来要去的页面，没有就去首页。
+// 登录页：样式照搬设计稿 login.html。学生登录后去学生首页，其余角色跳回原来要去的页面，没有就去首页。
 import { useEffect, useRef, useState, type FormEvent } from 'react'
 import { Navigate, useLocation, useNavigate } from 'react-router-dom'
 
+import type { RoleCode } from '@/core/api/account'
+import { homePathFor } from '@/core/auth/homePath'
 import { useAuthStore } from '@/core/auth/store'
 import styles from '@/core/pages/LoginPage.module.css'
 
@@ -20,8 +22,16 @@ const audienceNotes: Record<AudienceKey, string> = {
 
 const toastDurationMs = 3400
 
+function pathAfterLogin(role: RoleCode, from?: string) {
+  if (role === 'ROLE_STUDENT') {
+    return homePathFor(role)
+  }
+  return from ?? '/'
+}
+
 export function LoginPage() {
   const token = useAuthStore((state) => state.token)
+  const currentUser = useAuthStore((state) => state.currentUser)
   const login = useAuthStore((state) => state.login)
   const navigate = useNavigate()
   const location = useLocation()
@@ -38,9 +48,10 @@ export function LoginPage() {
 
   useEffect(() => () => window.clearTimeout(toastTimer.current), [])
 
-  // 已经登录的人打开登录页，直接进系统
+  // 已经登录的人打开登录页，按角色进入对应首页。用户资料还没拿到时先去 /，由首页再把学生送走。
   if (token && !submitting) {
-    return <Navigate to="/" replace />
+    const redirectPath = currentUser ? homePathFor(currentUser.role) : '/'
+    return <Navigate to={redirectPath} replace />
   }
 
   function showToast(message: string) {
@@ -62,7 +73,9 @@ export function LoginPage() {
     setSubmitting(true)
     try {
       await login({ username: username.trim(), password }, remember)
-      const redirectPath = (location.state as { from?: string } | null)?.from ?? '/'
+      const signedInUser = useAuthStore.getState().currentUser
+      const from = (location.state as { from?: string } | null)?.from
+      const redirectPath = signedInUser ? pathAfterLogin(signedInUser.role, from) : '/'
       navigate(redirectPath, { replace: true })
     } catch (error) {
       showToast((error as Error).message)

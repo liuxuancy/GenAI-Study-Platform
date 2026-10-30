@@ -66,7 +66,8 @@ func TestMe(t *testing.T) {
 	_, student := server.call(t, "GET", "/api/account/me", server.login(t, "student1", "student123"), nil)
 	studentData, _ := student.Data.(map[string]any)
 	if studentData["username"] != "student1" || studentData["role"] != access.RoleStudent ||
-		studentData["roleName"] != "学生" || studentData["isAdmin"] != false {
+		studentData["roleName"] != "学生" || studentData["isAdmin"] != false ||
+		studentData["major"] != "Computer Science" {
 		t.Errorf("student me = %+v", studentData)
 	}
 	if permissions, _ := studentData["permissions"].([]any); len(permissions) != 1 || permissions[0] != "student:my:view" {

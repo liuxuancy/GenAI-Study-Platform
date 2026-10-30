@@ -26,6 +26,7 @@ describe('hasPermission', () => {
     username: 'student1',
     nickname: '',
     email: '',
+    major: '',
     role: 'ROLE_STUDENT',
     roleName: '学生',
     isAdmin: false,

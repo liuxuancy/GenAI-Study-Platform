@@ -78,6 +78,7 @@ type CurrentUserResult struct {
 	Username    string   `json:"username"`
 	Nickname    string   `json:"nickname"`
 	Email       string   `json:"email"`
+	Major       string   `json:"major"`
 	Role        string   `json:"role"`
 	RoleName    string   `json:"roleName"`
 	IsAdmin     bool     `json:"isAdmin"`
@@ -95,6 +96,7 @@ func (service *Service) GetCurrentUser(ctx context.Context, principal *access.Pr
 		Username:    user.Username,
 		Nickname:    user.Nickname,
 		Email:       user.Email,
+		Major:       user.Major,
 		Role:        user.Role,
 		RoleName:    access.GetRoleName(user.Role),
 		IsAdmin:     principal.IsAdmin(),

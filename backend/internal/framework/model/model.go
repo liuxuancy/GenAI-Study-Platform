@@ -16,6 +16,7 @@ type User struct {
 	PasswordHash string `gorm:"size:100;not null" json:"-"`
 	Nickname     string `gorm:"size:64"`
 	Email        string `gorm:"size:128"`
+	Major        string `gorm:"size:64"`                // 专业，可空。学生创建课程时只读展示，页面不提供填写
 	Role         string `gorm:"size:32;not null;index"` // 创建后不可修改
 	Status       int    `gorm:"not null"`
 	TokenVersion int    `gorm:"not null"` // 禁用、改密码、重置密码时加一，旧 token 立即失效

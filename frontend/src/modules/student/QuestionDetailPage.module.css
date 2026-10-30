@@ -1,0 +1,294 @@
+.title {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: 32px;
+  font-weight: 500;
+  letter-spacing: -0.02em;
+}
+
+.courseLine {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 12px;
+  margin: 8px 0 0;
+}
+
+.course {
+  margin: 0;
+  font-size: 14px;
+  color: var(--ink-3);
+}
+
+.progress {
+  display: grid;
+  grid-template-columns: minmax(120px, 280px) 56px;
+  gap: 18px;
+  align-items: center;
+  max-width: 360px;
+  margin-top: 22px;
+}
+
+.track {
+  height: 3px;
+  background: var(--line);
+}
+
+.fill {
+  display: block;
+  height: 100%;
+  background: var(--ink);
+}
+
+.percent {
+  font-variant-numeric: tabular-nums;
+  font-size: 13px;
+  color: var(--ink-3);
+  text-align: right;
+}
+
+.meta {
+  margin: 22px 0 0;
+  font-size: 14px;
+}
+
+.withAnswer {
+  margin-right: 500px;
+}
+
+.question {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  margin-top: 28px;
+  text-align: center;
+}
+
+.content {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: 22px;
+  font-weight: 500;
+  letter-spacing: -0.01em;
+}
+
+.options {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+  margin: 16px 0 0;
+  padding: 0;
+}
+
+.option {
+  padding: 8px 16px;
+  font: inherit;
+  color: var(--ink);
+  cursor: pointer;
+  background: var(--bg);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+}
+
+.option[aria-pressed='true'] {
+  border-color: var(--ink);
+}
+
+.actions {
+  display: flex;
+  justify-content: center;
+  gap: 10px;
+  margin-top: 28px;
+}
+
+.actions button {
+  padding: 8px 16px;
+  font: inherit;
+  cursor: pointer;
+  border: 1px solid var(--ink);
+  border-radius: 0;
+}
+
+.save {
+  color: var(--ink);
+  background: var(--bg);
+}
+
+.submit {
+  color: var(--bg);
+  background: var(--ink);
+}
+
+.save:disabled,
+.submit:disabled {
+  cursor: default;
+}
+
+.save:disabled {
+  color: var(--ink-4);
+  border-color: var(--line);
+}
+
+.submit:disabled {
+  color: var(--bg);
+  background: var(--ink-4);
+  border-color: var(--ink-4);
+}
+
+.numbers {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px;
+  margin-top: 16px;
+}
+
+.number {
+  min-width: 36px;
+  height: 36px;
+  padding: 0 10px;
+  font: inherit;
+  color: var(--ink);
+  cursor: pointer;
+  background: var(--bg);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+}
+
+.number[aria-pressed='true'] {
+  border-color: var(--ink);
+}
+
+.viewAnswer {
+  position: fixed;
+  top: 16px;
+  right: 16px;
+  z-index: 40;
+  height: 28px;
+  padding: 0 12px;
+  font: inherit;
+  font-size: 13px;
+  line-height: 26px;
+  color: var(--ink);
+  cursor: pointer;
+  background: var(--bg);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+}
+
+.detail {
+  position: fixed;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 30;
+  display: flex;
+  flex-direction: column;
+  width: 500px;
+  background: var(--bg);
+  border-left: 1px solid var(--line);
+}
+
+.detailBody {
+  flex: 1;
+  padding: 72px 28px 24px;
+  overflow: auto;
+}
+
+.level {
+  margin: 0;
+  font-size: 13px;
+  color: var(--ink-3);
+}
+
+.detailTitle {
+  margin: 10px 0 0;
+  font-family: var(--font-display);
+  font-size: 28px;
+  font-weight: 500;
+  letter-spacing: -0.02em;
+}
+
+.detailNote {
+  margin: 16px 0 0;
+  font-size: 16px;
+  line-height: 1.5;
+}
+
+.close {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  font-size: 18px;
+  line-height: 1;
+  color: var(--ink-3);
+  cursor: pointer;
+  background: transparent;
+  border: 0;
+}
+
+.chat {
+  display: flex;
+  flex: 0 0 auto;
+  flex-direction: column;
+  width: calc(100% + 1px);
+  margin-left: -1px;
+  max-height: 280px;
+  padding: 12px;
+  background: var(--bg);
+  border-top: 1px solid var(--line);
+  border-left: 1px solid var(--line);
+}
+
+.chatLog {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 8px;
+  min-height: 72px;
+  margin: 0 0 10px;
+  overflow: auto;
+}
+
+.chatUser,
+.chatReply {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.4;
+}
+
+.chatReply {
+  color: var(--ink-3);
+}
+
+.chatForm {
+  display: flex;
+  gap: 8px;
+}
+
+.chatForm input {
+  flex: 1;
+  min-width: 0;
+  padding: 8px 10px;
+  font: inherit;
+  color: var(--ink);
+  background: var(--bg);
+  border: 1px solid var(--line);
+}
+
+.chatForm button {
+  padding: 8px 12px;
+  font: inherit;
+  color: var(--bg);
+  cursor: pointer;
+  background: var(--ink);
+  border: 0;
+}
+
+.error {
+  color: var(--accent);
+}
