@@ -8,6 +8,7 @@ import type { RoleNavItem } from '@/core/layout/RoleHomeShell'
 import { RoleHomeShell } from '@/core/layout/RoleHomeShell'
 
 import {
+  createStudentCourse,
   createStudentQuestions,
   getStudentCourses,
   getStudentQuestions,
@@ -28,6 +29,16 @@ const courseTypeLabel: Record<string, string> = {
 }
 
 const structuredCourseType = 'Structured'
+
+function visibilityText(visibility: string) {
+  if (visibility === 'class') {
+    return '同班可见'
+  }
+  if (visibility === 'assigned') {
+    return '教师课程'
+  }
+  return '仅自己'
+}
 
 export function StudentHomePage() {
   const currentUser = useAuthStore((state) => state.currentUser)
@@ -136,8 +147,11 @@ function CourseSection({
   const dialogRef = useRef<HTMLDialogElement>(null)
   const [dialogOpen, setDialogOpen] = useState(false)
   const [courseName, setCourseName] = useState('')
+  const [description, setDescription] = useState('')
   const [courseType, setCourseType] = useState(structuredCourseType)
   const [nameError, setNameError] = useState('')
+  const [createError, setCreateError] = useState('')
+  const [creating, setCreating] = useState(false)
 
   useEffect(() => {
     const dialog = dialogRef.current
@@ -154,19 +168,31 @@ function CourseSection({
 
   function openDialog() {
     setCourseName('')
+    setDescription('')
     setCourseType(structuredCourseType)
     setNameError('')
+    setCreateError('')
     setDialogOpen(true)
   }
 
-  function createCourse() {
+  async function createCourse() {
     const title = courseName.trim()
     if (!title) {
       setNameError('Enter a course name.')
       return
     }
     setNameError('')
-    navigate(`/student/courses/new?title=${encodeURIComponent(title)}`)
+    setCreating(true)
+    setCreateError('')
+    try {
+      const created = await createStudentCourse({ title, description: description.trim() })
+      setDialogOpen(false)
+      navigate(`/student/courses/${created.id}`)
+    } catch (error) {
+      setCreateError(error instanceof Error ? error.message : 'Could not create the course.')
+    } finally {
+      setCreating(false)
+    }
   }
 
   return (
@@ -196,6 +222,11 @@ function CourseSection({
           </label>
           {nameError ? <p className={styles.error}>{nameError}</p> : null}
           <label className={styles.field}>
+            Description
+            <input value={description} onChange={(event) => setDescription(event.target.value)} />
+          </label>
+          {createError ? <p className={styles.error}>{createError}</p> : null}
+          <label className={styles.field}>
             Major
             <input value={major} disabled />
           </label>
@@ -209,8 +240,8 @@ function CourseSection({
             <button className={styles.cancel} type="button" onClick={() => setDialogOpen(false)}>
               Cancel
             </button>
-            <button className={styles.create} type="submit">
-              Create
+            <button className={styles.create} type="submit" disabled={creating}>
+              {creating ? 'Creating…' : 'Create'}
             </button>
           </div>
         </form>
@@ -239,9 +270,10 @@ function CourseList({ courses, errorMessage }: { courses: StudentCourse[] | null
             <Link className={styles.title} to={`/student/courses/${course.id}`}>
               {course.title}
             </Link>
-            {courseTypeLabel[course.courseType] ? (
-              <span className={styles.course}>{courseTypeLabel[course.courseType]}</span>
-            ) : null}
+            <span className={styles.course}>
+              {visibilityText(course.visibility)}
+              {courseTypeLabel[course.courseType] ? ` · ${courseTypeLabel[course.courseType]}` : ''}
+            </span>
           </span>
           <ProgressBar percent={course.percent} />
         </li>

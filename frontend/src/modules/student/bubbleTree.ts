@@ -1,9 +1,13 @@
-// 课程气泡图的四层示例树。每门课都用这棵树，不读取课程表里的章节字段。
+// 气泡节点。课程页使用接口返回的树：章是子节点，叶子是 activity。
 
 export interface BubbleNode {
   label: string
   note: string
   code?: string
+  key?: string
+  kind?: string
+  activityType?: string
+  questionId?: number
   children?: BubbleNode[]
 }
 

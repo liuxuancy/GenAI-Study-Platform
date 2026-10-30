@@ -31,6 +31,7 @@ type CourseListItem struct {
 	Description string `json:"description"`
 	Percent     int    `json:"percent"`
 	Visibility  string `json:"visibility"`
+	Owned       bool   `json:"owned"`
 }
 
 type storedCourse struct {
@@ -56,7 +57,7 @@ func (service *Service) GetCourseList(ctx context.Context, principal *access.Pri
 	var rows []storedCourse
 	err := service.database.WithContext(ctx).Raw(
 		`SELECT c.id, c.title, COALESCE(c.course_type, '') AS course_type, COALESCE(c.description, '') AS description,
-		        COALESCE(p.percent, 0) AS percent, c.is_publish,
+		        COALESCE(p.percent, 0) AS percent, c.is_publish, c.owner_id,
 		        (SELECT COUNT(*) FROM course_class cc WHERE cc.course_id = c.id) AS class_count
 		 FROM course c
 		 LEFT JOIN student_course_progress p ON p.course_id = c.id AND p.user_id = ?
@@ -76,6 +77,7 @@ func (service *Service) GetCourseList(ctx context.Context, principal *access.Pri
 			Description: row.Description,
 			Percent:     row.Percent,
 			Visibility:  visibilityLabel(row.IsPublish, row.ClassCount),
+			Owned:       row.OwnerID == principal.UserID,
 		})
 	}
 	return items, nil
@@ -160,6 +162,7 @@ type CourseDetail struct {
 	Visibility     string      `json:"visibility"`
 	Shared         bool        `json:"shared"`
 	ClassmateCount int         `json:"classmateCount"`
+	Owned          bool        `json:"owned"`
 	Tree           *BubbleNode `json:"tree"`
 }
 
@@ -185,10 +188,10 @@ func (service *Service) GetCourse(ctx context.Context, principal *access.Princip
 	if result.RowsAffected == 0 {
 		return nil, errs.NotFound("course not found")
 	}
-	return service.studentCourseDetail(ctx, row)
+	return service.studentCourseDetail(ctx, principal.UserID, row)
 }
 
-func (service *Service) studentCourseDetail(ctx context.Context, row storedCourse) (*CourseDetail, error) {
+func (service *Service) studentCourseDetail(ctx context.Context, viewerID int64, row storedCourse) (*CourseDetail, error) {
 	questions, err := service.chapterQuestions(ctx, row.ID)
 	if err != nil {
 		return nil, err
@@ -210,6 +213,7 @@ func (service *Service) studentCourseDetail(ctx context.Context, row storedCours
 		Visibility:     visibilityLabel(row.IsPublish, row.ClassCount),
 		Shared:         row.IsPublish == PublishOn && row.ClassCount == 0,
 		ClassmateCount: classmates,
+		Owned:          row.OwnerID == viewerID,
 		Tree:           tree,
 	}, nil
 }

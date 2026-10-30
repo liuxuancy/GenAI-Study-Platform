@@ -1,10 +1,10 @@
-// 课程详情：气泡一次展开或收回一层。点叶子时说明和对话框一起出现在右侧。
-// 新建课程还没有入库，详情暂时用这棵示例树，标题用课程列表里刚填的名字。
+// 课程详情：气泡按接口里的章节展开。叶子显示正文，有测验的章可以进入该章题目。
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
-import { Link, Navigate, useParams, useSearchParams } from 'react-router-dom'
+import { Link, Navigate, useParams } from 'react-router-dom'
 
 import { useAuthStore } from '@/core/auth/store'
-import { bubbleLevelName, sampleCourseTree, type BubbleNode } from '@/modules/student/bubbleTree'
+import { getStudentCourse, setStudentCourseSharing, updateStudentCourseProgress, type StudentCourseDetail } from '@/modules/student/api'
+import { bubbleLevelName, type BubbleNode } from '@/modules/student/bubbleTree'
 import {
   ancestorIds,
   bubbleLinks,
@@ -15,24 +15,20 @@ import {
   placeBubbles,
   stepOpenLayer,
 } from '@/modules/student/bubbleLayout'
-import { getStudentCourse, updateStudentCourseProgress, type StudentCourseDetail } from '@/modules/student/api'
 import styles from '@/modules/student/CourseBubblePage.module.css'
 
 const labelSize = [18, 13.5, 11.5, 11]
 
 export function CourseBubblePage() {
   const { courseId } = useParams()
-  const [searchParams] = useSearchParams()
   const currentUser = useAuthStore((state) => state.currentUser)
-  const isNewCourse = courseId === 'new'
-  const previewTitle = searchParams.get('title')?.trim() ?? ''
-  const [course, setCourse] = useState<StudentCourseDetail | null>(
-    isNewCourse ? { id: 0, title: previewTitle } : null,
-  )
+  const [course, setCourse] = useState<StudentCourseDetail | null>(null)
   const [errorMessage, setErrorMessage] = useState('')
+  const [shareError, setShareError] = useState('')
+  const [sharing, setSharing] = useState(false)
 
   useEffect(() => {
-    if (isNewCourse || currentUser?.role !== 'ROLE_STUDENT' || !courseId) {
+    if (currentUser?.role !== 'ROLE_STUDENT' || !courseId || courseId === 'new') {
       return
     }
     let cancelled = false
@@ -50,13 +46,29 @@ export function CourseBubblePage() {
     return () => {
       cancelled = true
     }
-  }, [courseId, currentUser?.role, isNewCourse])
+  }, [courseId, currentUser?.role])
 
   if (!currentUser) {
     return null
   }
-  if (currentUser.role !== 'ROLE_STUDENT') {
-    return <Navigate to="/" replace />
+  if (currentUser.role !== 'ROLE_STUDENT' || courseId === 'new') {
+    return <Navigate to="/student" replace />
+  }
+
+  async function toggleSharing() {
+    if (!course || sharing) {
+      return
+    }
+    setSharing(true)
+    setShareError('')
+    try {
+      const result = await setStudentCourseSharing(course.id, !course.shared)
+      setCourse({ ...course, shared: result.shared, classmateCount: result.classmateCount, visibility: result.shared ? 'class' : 'private' })
+    } catch (error) {
+      setShareError(error instanceof Error ? error.message : 'Could not update sharing.')
+    } finally {
+      setSharing(false)
+    }
   }
 
   return (
@@ -64,14 +76,23 @@ export function CourseBubblePage() {
       <div className={styles.back}>
         <Link to="/student">Course list</Link>
         {course?.title ? <span className={styles.courseName}>{course.title}</span> : null}
+        {course?.owned ? (
+          <button className={styles.share} type="button" disabled={sharing} onClick={() => void toggleSharing()}>
+            {course.shared ? '改为仅自己' : '对同班公开'}
+          </button>
+        ) : null}
       </div>
       {errorMessage ? <p className={styles.error}>{errorMessage}</p> : null}
-      {course ? <BubbleMap courseId={isNewCourse ? '' : (courseId ?? '')} /> : null}
+      {shareError ? <p className={styles.shareError}>{shareError}</p> : null}
+      {course?.owned && course.shared && course.classmateCount === 0 ? (
+        <p className={styles.shareNote}>这门课已对同班同学公开，但你还没有同班同学，所以暂时没有其他人能看到。</p>
+      ) : null}
+      {course?.tree ? <BubbleMap courseId={courseId ?? ''} tree={course.tree} /> : course ? <p className={styles.emptyMap}>这门课还没有章节。</p> : null}
     </div>
   )
 }
 
-function BubbleMap({ courseId }: { courseId: string }) {
+function BubbleMap({ courseId, tree }: { courseId: string; tree: BubbleNode }) {
   const stageRef = useRef<HTMLDivElement>(null)
   const drag = useRef<{ x: number; y: number; panX: number; panY: number } | null>(null)
   const [openIds, setOpenIds] = useState<ReadonlySet<string>>(() => new Set())
@@ -89,13 +110,13 @@ function BubbleMap({ courseId }: { courseId: string }) {
       return
     }
     const update = () => {
-      setScale(fitScale(mapExtent(sampleCourseTree, openIds), stage.clientWidth, stage.clientHeight))
+      setScale(fitScale(mapExtent(tree, openIds), stage.clientWidth, stage.clientHeight))
     }
     update()
     const observer = new ResizeObserver(update)
     observer.observe(stage)
     return () => observer.disconnect()
-  }, [openIds])
+  }, [openIds, tree])
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
@@ -112,12 +133,12 @@ function BubbleMap({ courseId }: { courseId: string }) {
     return () => window.removeEventListener('keydown', onKeyDown)
   }, [detailId])
 
-  const bubbles = placeBubbles(sampleCourseTree, openIds, scale)
+  const bubbles = placeBubbles(tree, openIds, scale)
   const links = bubbleLinks(bubbles)
-  const extent = mapExtent(sampleCourseTree, openIds)
+  const extent = mapExtent(tree, openIds)
   const box = Math.ceil(extent * 2 * scale) + 8
-  const selected = selectedId ? findBubble(sampleCourseTree, selectedId) : null
-  const detail = detailId ? findBubble(sampleCourseTree, detailId) : null
+  const selected = selectedId ? findBubble(tree, selectedId) : null
+  const detail = detailId ? findBubble(tree, detailId) : null
   const leaf = detail && !detail.children?.length ? detail : null
 
   const closeDetail = () => {
@@ -139,7 +160,7 @@ function BubbleMap({ courseId }: { courseId: string }) {
       setSaving(true)
       setDoneError('')
       try {
-        await updateStudentCourseProgress(courseId, leafPercent(next))
+        await updateStudentCourseProgress(courseId, leafPercent(tree, next))
       } catch (error) {
         setDoneError(error instanceof Error ? error.message : 'Could not save progress.')
         setSaving(false)
@@ -222,7 +243,7 @@ function BubbleMap({ courseId }: { courseId: string }) {
                 data-depth={bubble.depth}
                 data-open={openIds.has(bubble.id) ? 'true' : 'false'}
                 data-done={isBubbleDone(bubble.node, bubble.id, doneIds) ? 'true' : 'false'}
-                aria-label={`${bubbleLevelName[bubble.depth]}: ${bubble.node.label}`}
+                aria-label={`${bubbleName(bubble.node, bubble.depth)}: ${bubble.node.label}`}
                 style={{
                   width: bubble.size,
                   height: bubble.size,
@@ -243,7 +264,7 @@ function BubbleMap({ courseId }: { courseId: string }) {
         <div className={styles.note}>
           <p className={styles.crumb}>
             {ancestorIds(selectedId).map((id) => {
-              const ancestor = findBubble(sampleCourseTree, id)
+              const ancestor = findBubble(tree, id)
               if (!ancestor) {
                 return null
               }
@@ -254,7 +275,12 @@ function BubbleMap({ courseId }: { courseId: string }) {
               )
             })}
           </p>
-          {leaf && selectedId === detailId ? null : <p>{selected.note}</p>}
+          {leaf && selectedId === detailId ? null : <p className={styles.noteText}>{selected.note}</p>}
+          {selected.questionId ? (
+            <Link className={styles.quiz} to={`/student/questions/${selected.questionId}`}>
+              进入本章测验
+            </Link>
+          ) : null}
         </div>
       ) : null}
       </div>
@@ -277,6 +303,7 @@ function BubbleMap({ courseId }: { courseId: string }) {
           <div className={styles.detailBody}>
             <p className={styles.level}>{bubbleLevelName[bubbleDepth(detailId)]}</p>
             <h2 className={styles.detailTitle}>{leaf.label}</h2>
+            {leaf.activityType ? <p className={styles.level}>{activityLabel(leaf.activityType)}</p> : null}
             <p className={styles.detailNote}>{leaf.note}</p>
             {doneError ? <p className={styles.doneError}>{doneError}</p> : null}
           </div>
@@ -285,6 +312,13 @@ function BubbleMap({ courseId }: { courseId: string }) {
       ) : null}
     </>
   )
+}
+
+function bubbleName(node: BubbleNode, depth: number) {
+  if (node.kind === 'course' || node.kind === 'chapter' || node.kind === 'activity') {
+    return node.kind[0].toUpperCase() + node.kind.slice(1)
+  }
+  return bubbleLevelName[depth] ?? 'Item'
 }
 
 function bubbleDepth(id: string) {
@@ -298,12 +332,28 @@ function isBubbleDone(node: BubbleNode, id: string, doneIds: ReadonlySet<string>
   return node.children.every((child, index) => isBubbleDone(child, `${id}.${index}`, doneIds))
 }
 
-function leafPercent(doneIds: ReadonlySet<string>) {
-  const total = countLeaves(sampleCourseTree)
+function activityLabel(activityType: string) {
+  if (activityType === 'rich_text') {
+    return 'Reading'
+  }
+  if (activityType === 'coding') {
+    return 'Coding'
+  }
+  if (activityType === 'mock_interview') {
+    return 'Interview'
+  }
+  if (activityType === 'quiz_game') {
+    return 'Quiz'
+  }
+  return activityType
+}
+
+function leafPercent(tree: BubbleNode, doneIds: ReadonlySet<string>) {
+  const total = countLeaves(tree)
   if (total <= 0) {
     return 0
   }
-  const percent = Math.floor((countDoneLeaves(sampleCourseTree, 'r', doneIds) * 100) / total)
+  const percent = Math.floor((countDoneLeaves(tree, 'r', doneIds) * 100) / total)
   if (percent > 100) {
     return 100
   }
