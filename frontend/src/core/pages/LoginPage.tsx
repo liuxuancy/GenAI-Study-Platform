@@ -1,4 +1,4 @@
-// 登录页：样式照搬设计稿 login.html。学生登录后去学生首页，其余角色跳回原来要去的页面，没有就去首页。
+// 登录页：样式照搬设计稿 login.html。学生去学生首页，讲师去讲师首页，管理员跳回原来要去的页面。
 import { useEffect, useRef, useState, type FormEvent } from 'react'
 import { Navigate, useLocation, useNavigate } from 'react-router-dom'
 
@@ -17,16 +17,16 @@ const audienceLabels: Record<AudienceKey, string> = {
 
 const audienceNotes: Record<AudienceKey, string> = {
   student: 'Student view: the course map, chapter list and AI explanations.',
-  teacher: 'Teacher view: chapter drafts and explanation editing. Admins also manage users and role permissions.',
+  teacher: 'Teacher view: your courses, the classes you publish to, and student progress. Admins also manage users and role permissions.',
 }
 
 const toastDurationMs = 3400
 
 function pathAfterLogin(role: RoleCode, from?: string) {
-  if (role === 'ROLE_STUDENT') {
-    return homePathFor(role)
+  if (role === 'ROLE_ADMIN') {
+    return from ?? '/'
   }
-  return from ?? '/'
+  return homePathFor(role)
 }
 
 export function LoginPage() {

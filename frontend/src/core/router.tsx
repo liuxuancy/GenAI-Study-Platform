@@ -9,6 +9,7 @@ import { NotFoundPage } from '@/core/pages/NotFoundPage'
 import { CourseBubblePage } from '@/modules/student/CourseBubblePage'
 import { QuestionDetailPage } from '@/modules/student/QuestionDetailPage'
 import { StudentHomePage } from '@/modules/student/StudentHomePage'
+import { TeacherHomePage } from '@/modules/teacher/TeacherHomePage'
 
 export const appRouter = createBrowserRouter([
   { path: '/login', element: <LoginPage /> },
@@ -45,6 +46,7 @@ export const appRouter = createBrowserRouter([
     ),
     children: [
       { index: true, element: <HomePage /> },
+      { path: 'teacher', element: <TeacherHomePage /> },
       { path: '*', element: <NotFoundPage /> },
     ],
   },

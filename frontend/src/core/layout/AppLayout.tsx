@@ -5,14 +5,17 @@ import { Outlet, useLocation, useNavigate } from 'react-router-dom'
 import { useAuthStore } from '@/core/auth/store'
 import styles from '@/core/layout/AppLayout.module.css'
 
-// 阶段 6 只有首页；阶段 7 改成从各模块收集、按权限过滤
-const menuItems = [{ key: '/', label: 'Home' }]
+// 讲师多一个课程菜单。其余菜单仍按角色写在这里，阶段 7 再改成按权限收集。
 
 export function AppLayout() {
   const currentUser = useAuthStore((state) => state.currentUser)
   const logout = useAuthStore((state) => state.logout)
   const navigate = useNavigate()
   const location = useLocation()
+  const menuItems = [{ key: '/', label: 'Home' }]
+  if (currentUser?.role === 'ROLE_TEACHER') {
+    menuItems.push({ key: '/teacher', label: 'Courses' })
+  }
 
   return (
     <Layout style={{ minHeight: '100vh' }}>
