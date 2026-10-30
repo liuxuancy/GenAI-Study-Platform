@@ -1,4 +1,4 @@
-// 学生课程和套题的列表与详情。课程含已公开的课和自己创建的课；套题含自己的和老师已公开的。
+// 学生课程和套题。能看见一门课的规则在 visibility.go。套题在能看见所属课程时可见，自己创建的题始终可见。
 
 package course
 
@@ -23,11 +23,28 @@ func NewService(database *gorm.DB) *Service {
 }
 
 // CourseListItem 一门课在学生列表里的样子。
+// Visibility：private 仅自己，class 同班可见，assigned 教师发到自己所在的班。
 type CourseListItem struct {
-	ID         int64  `json:"id"`
-	Title      string `json:"title"`
-	CourseType string `json:"courseType"`
-	Percent    int    `json:"percent"`
+	ID          int64  `json:"id"`
+	Title       string `json:"title"`
+	CourseType  string `json:"courseType"`
+	Description string `json:"description"`
+	Percent     int    `json:"percent"`
+	Visibility  string `json:"visibility"`
+}
+
+type storedCourse struct {
+	ID          int64
+	Title       string
+	CourseType  string
+	Description string
+	Audience    string
+	Language    string
+	ContentJSON string
+	IsPublish   int
+	OwnerID     int64
+	Percent     int
+	ClassCount  int
 }
 
 // GetCourseList 当前学生可见的课程和自己的进度。没有进度行时 percent 为 0。
@@ -36,20 +53,30 @@ func (service *Service) GetCourseList(ctx context.Context, principal *access.Pri
 		return nil, errs.Forbidden("only students can view courses")
 	}
 
-	var items []CourseListItem
+	var rows []storedCourse
 	err := service.database.WithContext(ctx).Raw(
-		`SELECT c.id, c.title, COALESCE(c.course_type, '') AS course_type, COALESCE(p.percent, 0) AS percent
+		`SELECT c.id, c.title, COALESCE(c.course_type, '') AS course_type, COALESCE(c.description, '') AS description,
+		        COALESCE(p.percent, 0) AS percent, c.is_publish,
+		        (SELECT COUNT(*) FROM course_class cc WHERE cc.course_id = c.id) AS class_count
 		 FROM course c
 		 LEFT JOIN student_course_progress p ON p.course_id = c.id AND p.user_id = ?
-		 WHERE c.is_publish = ? OR c.owner_id = ?
+		 WHERE `+studentVisibleCourseSQL("c")+`
 		 ORDER BY c.id`,
-		principal.UserID, PublishOn, principal.UserID,
-	).Scan(&items).Error
+		append([]any{principal.UserID}, studentVisibleCourseArgs(principal.UserID)...)...,
+	).Scan(&rows).Error
 	if err != nil {
 		return nil, err
 	}
-	if items == nil {
-		items = []CourseListItem{}
+	items := make([]CourseListItem, 0, len(rows))
+	for _, row := range rows {
+		items = append(items, CourseListItem{
+			ID:          row.ID,
+			Title:       row.Title,
+			CourseType:  row.CourseType,
+			Description: row.Description,
+			Percent:     row.Percent,
+			Visibility:  visibilityLabel(row.IsPublish, row.ClassCount),
+		})
 	}
 	return items, nil
 }
@@ -74,7 +101,7 @@ type questionProgressRow struct {
 	Answered      int
 }
 
-// GetQuestionList 当前学生自己创建的套题，以及老师已公开的套题。进度是答题进度，对错不计入。
+// GetQuestionList 当前学生能看见所属课程的套题，以及自己创建的套题。进度是答题进度，对错不计入。
 func (service *Service) GetQuestionList(ctx context.Context, principal *access.Principal) ([]QuestionListItem, error) {
 	if principal.Role != access.RoleStudent {
 		return nil, errs.Forbidden("only students can view questions")
@@ -87,12 +114,11 @@ func (service *Service) GetQuestionList(ctx context.Context, principal *access.P
 		 FROM course_question q
 		 JOIN course_question_content qc ON qc.question_id = q.id
 		 JOIN course c ON c.id = q.course_id
-		 JOIN sys_user creator ON creator.id = q.creator_id
 		 LEFT JOIN student_question_progress p ON p.content_id = qc.id AND p.user_id = ?
-		 WHERE q.creator_id = ? OR (q.is_publish = ? AND creator.role = ?)
+		 WHERE q.creator_id = ? OR `+studentVisibleCourseSQL("c")+`
 		 GROUP BY q.id, q.title, c.title, q.difficulty, q.question_count
 		 ORDER BY q.id`,
-		principal.UserID, principal.UserID, PublishOn, access.RoleTeacher,
+		append([]any{principal.UserID, principal.UserID}, studentVisibleCourseArgs(principal.UserID)...)...,
 	).Scan(&rows).Error
 	if err != nil {
 		return nil, err
@@ -124,32 +150,68 @@ func answerPercent(answered int, questionCount int) int {
 	return percent
 }
 
-// CourseDetail 课程详情只返回课程名。气泡内容不来自这张表。
+// CourseDetail 学生看到的一门课。没有正文时 Tree 为 null。
 type CourseDetail struct {
-	ID    int64  `json:"id"`
-	Title string `json:"title"`
+	ID             int64       `json:"id"`
+	Title          string      `json:"title"`
+	Description    string      `json:"description"`
+	Audience       string      `json:"audience"`
+	Language       string      `json:"language"`
+	Visibility     string      `json:"visibility"`
+	Shared         bool        `json:"shared"`
+	ClassmateCount int         `json:"classmateCount"`
+	Tree           *BubbleNode `json:"tree"`
 }
 
-// GetCourse 学生打开已公开或自己创建的课。看不见和没有这门课都是 404。
+// GetCourse 学生打开自己能看见的课。看不见和没有这门课都是 404。
 func (service *Service) GetCourse(ctx context.Context, principal *access.Principal, courseID int64) (*CourseDetail, error) {
 	if principal.Role != access.RoleStudent {
 		return nil, errs.Forbidden("only students can view courses")
 	}
 
-	var detail CourseDetail
+	var row storedCourse
 	result := service.database.WithContext(ctx).Raw(
-		`SELECT c.id, c.title
+		`SELECT c.id, c.title, COALESCE(c.description, '') AS description, COALESCE(c.audience, '') AS audience,
+		        COALESCE(c.language, '') AS language, COALESCE(c.content_json, '') AS content_json,
+		        c.is_publish, c.owner_id,
+		        (SELECT COUNT(*) FROM course_class cc WHERE cc.course_id = c.id) AS class_count
 		 FROM course c
-		 WHERE c.id = ? AND (c.is_publish = ? OR c.owner_id = ?)`,
-		courseID, PublishOn, principal.UserID,
-	).Scan(&detail)
+		 WHERE c.id = ? AND `+studentVisibleCourseSQL("c"),
+		append([]any{courseID}, studentVisibleCourseArgs(principal.UserID)...)...,
+	).Scan(&row)
 	if result.Error != nil {
 		return nil, result.Error
 	}
 	if result.RowsAffected == 0 {
 		return nil, errs.NotFound("course not found")
 	}
-	return &detail, nil
+	return service.studentCourseDetail(ctx, row)
+}
+
+func (service *Service) studentCourseDetail(ctx context.Context, row storedCourse) (*CourseDetail, error) {
+	questions, err := service.chapterQuestions(ctx, row.ID)
+	if err != nil {
+		return nil, err
+	}
+	tree, err := buildCourseTree(row.Title, row.Description, row.ContentJSON, questions)
+	if err != nil {
+		return nil, err
+	}
+	classmates, err := service.countClassmates(ctx, row.OwnerID)
+	if err != nil {
+		return nil, err
+	}
+	return &CourseDetail{
+		ID:             row.ID,
+		Title:          row.Title,
+		Description:    row.Description,
+		Audience:       row.Audience,
+		Language:       shownLanguage(row.Language),
+		Visibility:     visibilityLabel(row.IsPublish, row.ClassCount),
+		Shared:         row.IsPublish == PublishOn && row.ClassCount == 0,
+		ClassmateCount: classmates,
+		Tree:           tree,
+	}, nil
 }
 
 // CourseProgress 当前学生对一门课的进度百分比。
@@ -224,7 +286,7 @@ type questionContentRow struct {
 	Explanation   string
 }
 
-// GetQuestion 可见范围与列表相同：自己创建的，或老师已公开的。否则 404。
+// GetQuestion 可见范围与列表相同：能看见所属课程，或这套题是自己创建的。否则 404。
 func (service *Service) GetQuestion(ctx context.Context, principal *access.Principal, questionID int64) (*QuestionDetail, error) {
 	if principal.Role != access.RoleStudent {
 		return nil, errs.Forbidden("only students can view questions")
@@ -237,11 +299,10 @@ func (service *Service) GetQuestion(ctx context.Context, principal *access.Princ
 		 FROM course_question q
 		 JOIN course_question_content qc ON qc.question_id = q.id
 		 JOIN course c ON c.id = q.course_id
-		 JOIN sys_user creator ON creator.id = q.creator_id
 		 LEFT JOIN student_question_progress p ON p.content_id = qc.id AND p.user_id = ?
-		 WHERE q.id = ? AND (q.creator_id = ? OR (q.is_publish = ? AND creator.role = ?))
+		 WHERE q.id = ? AND (q.creator_id = ? OR `+studentVisibleCourseSQL("c")+`)
 		 GROUP BY q.id, q.title, c.title, q.difficulty, q.question_count`,
-		principal.UserID, questionID, principal.UserID, PublishOn, access.RoleTeacher,
+		append([]any{principal.UserID, questionID, principal.UserID}, studentVisibleCourseArgs(principal.UserID)...)...,
 	).Scan(&row)
 	if result.Error != nil {
 		return nil, result.Error
@@ -304,10 +365,10 @@ func (service *Service) AnswerQuestion(ctx context.Context, principal *access.Pr
 		`SELECT qc.id, qc.content, qc.options
 		 FROM course_question_content qc
 		 JOIN course_question q ON q.id = qc.question_id
-		 JOIN sys_user creator ON creator.id = q.creator_id
+		 JOIN course c ON c.id = q.course_id
 		 WHERE qc.id = ? AND qc.question_id = ?
-		   AND (q.creator_id = ? OR (q.is_publish = ? AND creator.role = ?))`,
-		contentID, questionID, principal.UserID, PublishOn, access.RoleTeacher,
+		   AND (q.creator_id = ? OR `+studentVisibleCourseSQL("c")+`)`,
+		append([]any{contentID, questionID, principal.UserID}, studentVisibleCourseArgs(principal.UserID)...)...,
 	).Scan(&content)
 	if result.Error != nil {
 		return nil, result.Error
@@ -389,12 +450,15 @@ func (service *Service) CreateQuestion(ctx context.Context, principal *access.Pr
 		return nil, err
 	}
 
-	var course CourseDetail
+	var course struct {
+		ID    int64
+		Title string
+	}
 	result := service.database.WithContext(ctx).Raw(
 		`SELECT c.id, c.title
 		 FROM course c
-		 WHERE c.id = ? AND (c.is_publish = ? OR c.owner_id = ?)`,
-		input.CourseID, PublishOn, principal.UserID,
+		 WHERE c.id = ? AND `+studentVisibleCourseSQL("c"),
+		append([]any{input.CourseID}, studentVisibleCourseArgs(principal.UserID)...)...,
 	).Scan(&course)
 	if result.Error != nil {
 		return nil, result.Error

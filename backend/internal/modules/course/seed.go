@@ -17,6 +17,9 @@ type seedProgress struct {
 
 const seedMajor = "Computer Science"
 
+// seedClassName 示例班。已发布且属于 teacher1 的课会挂到这个班，否则学生列表在可见性收紧后会变空。
+const seedClassName = "示例班"
+
 type seedCourse struct {
 	Title     string
 	IsPublish int
@@ -59,7 +62,7 @@ func Seed(ctx context.Context, database *gorm.DB) error {
 				return err
 			}
 		}
-		return nil
+		return ensureSeedClass(tx)
 	})
 }
 
@@ -309,6 +312,108 @@ func fillEmptyQuestionDifficulty(tx *gorm.DB, questionID int64, difficulty strin
 	return tx.Exec(
 		"UPDATE course_question SET difficulty = ? WHERE id = ? AND (difficulty IS NULL OR difficulty = '')",
 		difficulty, questionID,
+	).Error
+}
+
+func ensureSeedClass(tx *gorm.DB) error {
+	classID, err := ensureClass(tx, seedClassName)
+	if err != nil {
+		return err
+	}
+	if err := ensureClassMember(tx, classID, "teacher1"); err != nil {
+		return err
+	}
+	if err := ensureClassMember(tx, classID, "student1"); err != nil {
+		return err
+	}
+	for _, item := range seedCourses {
+		if item.Owner != "teacher1" || item.IsPublish != PublishOn {
+			continue
+		}
+		if err := ensureTeacherCourseClass(tx, item.Title, classID); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func ensureClass(tx *gorm.DB, name string) (int64, error) {
+	var classID int64
+	found := tx.Raw("SELECT id FROM study_class WHERE name = ?", name).Scan(&classID)
+	if found.Error != nil {
+		return 0, found.Error
+	}
+	if found.RowsAffected > 0 {
+		return classID, nil
+	}
+	now := time.Now().UTC()
+	if err := tx.Exec(
+		"INSERT INTO study_class (name, created_at, updated_at) VALUES (?, ?, ?)",
+		name, now, now,
+	).Error; err != nil {
+		return 0, err
+	}
+	found = tx.Raw("SELECT id FROM study_class WHERE name = ?", name).Scan(&classID)
+	if found.Error != nil {
+		return 0, found.Error
+	}
+	if found.RowsAffected == 0 {
+		return 0, fmt.Errorf("class %q was not inserted", name)
+	}
+	return classID, nil
+}
+
+func ensureClassMember(tx *gorm.DB, classID int64, username string) error {
+	userID, err := getUserIDByUsername(tx, username)
+	if err != nil {
+		return err
+	}
+	var count int64
+	err = tx.Raw(
+		"SELECT COUNT(*) FROM study_class_member WHERE class_id = ? AND user_id = ?",
+		classID, userID,
+	).Scan(&count).Error
+	if err != nil {
+		return err
+	}
+	if count > 0 {
+		return nil
+	}
+	return tx.Exec(
+		"INSERT INTO study_class_member (class_id, user_id) VALUES (?, ?)",
+		classID, userID,
+	).Error
+}
+
+// ensureTeacherCourseClass 只给当前仍然已发布、且所有者是 teacher1 的课补发布关系。已撤回的不重新发布。
+func ensureTeacherCourseClass(tx *gorm.DB, title string, classID int64) error {
+	var courseID int64
+	found := tx.Raw(
+		`SELECT c.id FROM course c
+		 JOIN sys_user owner ON owner.id = c.owner_id
+		 WHERE c.title = ? AND c.is_publish = ? AND owner.username = ?`,
+		title, PublishOn, "teacher1",
+	).Scan(&courseID)
+	if found.Error != nil {
+		return found.Error
+	}
+	if found.RowsAffected == 0 {
+		return nil
+	}
+	var count int64
+	err := tx.Raw(
+		"SELECT COUNT(*) FROM course_class WHERE course_id = ? AND class_id = ?",
+		courseID, classID,
+	).Scan(&count).Error
+	if err != nil {
+		return err
+	}
+	if count > 0 {
+		return nil
+	}
+	return tx.Exec(
+		"INSERT INTO course_class (course_id, class_id) VALUES (?, ?)",
+		courseID, classID,
 	).Error
 }
 

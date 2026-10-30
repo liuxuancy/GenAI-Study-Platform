@@ -282,10 +282,9 @@ func TestGetQuestionList(t *testing.T) {
 	if err != nil {
 		t.Fatalf("other student questions: %v", err)
 	}
-	assertQuestions(t, otherStudent, []QuestionListItem{
-		{Title: "What is a commit?", CourseTitle: "Introduction to Git", Answered: 0, QuestionCount: 2, Percent: 0},
-		{Title: "Which paragraph comes first?", CourseTitle: "How a lecture is read", Answered: 0, QuestionCount: 2, Percent: 0},
-	})
+	if len(otherStudent) != 0 {
+		t.Fatalf("user outside the class sees %v", otherStudent)
+	}
 
 	_, err = service.GetQuestionList(context.Background(), &access.Principal{
 		UserID: teacherID,
@@ -347,8 +346,8 @@ func TestGetCourse(t *testing.T) {
 	if err != nil {
 		t.Fatalf("published course: %v", err)
 	}
-	if detail.Title != "Introduction to Git" {
-		t.Fatalf("title = %q", detail.Title)
+	if detail.Title != "Introduction to Git" || detail.Tree != nil || detail.Language != DefaultLanguage || detail.Visibility != VisibilityAssigned {
+		t.Fatalf("published course = %+v", detail)
 	}
 
 	own, err := service.GetCourse(context.Background(), student, courseIDByTitle(t, database, "Asking on a line"))

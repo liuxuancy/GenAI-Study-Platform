@@ -35,7 +35,10 @@ func registerRoutes(api *gin.RouterGroup, deps Deps) {
 	accountRoutes.PUT("/profile", access.RequireLogin(), resp.ToGinHandler(accountHandler.UpdateProfile))
 	accountRoutes.PUT("/password", access.RequireLogin(), resp.ToGinHandler(accountHandler.ChangePassword))
 
-	// system 模块 /api/system/*：用户管理、角色权限，只有管理员使用
+	// course 模块同时服务学生、教师和管理员班级。班级表在 course 里，避免 system 与 course 互相 import。
+	courseHandler := course.NewHandler(course.NewService(deps.DB))
+
+	// system 模块 /api/system/*：用户管理、角色权限、班级，只有管理员使用
 	systemHandler := system.NewHandler(
 		system.NewUserService(deps.DB, deps.Cache, deps.UserDeletionGuards),
 		system.NewRoleService(deps.DB, deps.Cache, deps.Catalog),
@@ -49,15 +52,31 @@ func registerRoutes(api *gin.RouterGroup, deps Deps) {
 	systemRoutes.GET("/roles", access.RequirePermission(system.PermissionRoleView), resp.ToGinHandler(systemHandler.GetRoleList))
 	systemRoutes.PUT("/roles/:code/permissions", access.RequirePermission(system.PermissionRoleAssign), resp.ToGinHandler(systemHandler.AssignRolePermissions))
 	systemRoutes.GET("/permissions", access.RequirePermission(system.PermissionCatalogList), resp.ToGinHandler(systemHandler.GetPermissionCatalog))
+	systemRoutes.GET("/classes", access.RequirePermission(system.PermissionClassView), resp.ToGinHandler(courseHandler.GetClassList))
+	systemRoutes.POST("/classes", access.RequirePermission(system.PermissionClassCreate), resp.ToGinHandler(courseHandler.CreateClass))
+	systemRoutes.PUT("/classes/:id", access.RequirePermission(system.PermissionClassUpdate), resp.ToGinHandler(courseHandler.RenameClass))
+	systemRoutes.PUT("/classes/:id/members", access.RequirePermission(system.PermissionClassUpdate), resp.ToGinHandler(courseHandler.SetClassMembers))
 
-	// course 模块 /api/student/*：学生可见的课程和套题，含列表与详情
-	courseHandler := course.NewHandler(course.NewService(deps.DB))
+	// course 模块 /api/student/*：学生可见的课程和套题
 	studentRoutes := api.Group("/student")
 	studentRoutes.GET("/courses", access.RequireLogin(), resp.ToGinHandler(courseHandler.GetCourseList))
+	studentRoutes.POST("/courses", access.RequireLogin(), resp.ToGinHandler(courseHandler.CreateStudentCourse))
 	studentRoutes.GET("/courses/:id", access.RequireLogin(), resp.ToGinHandler(courseHandler.GetCourse))
 	studentRoutes.PUT("/courses/:id/progress", access.RequireLogin(), resp.ToGinHandler(courseHandler.UpdateCourseProgress))
+	studentRoutes.PUT("/courses/:id/sharing", access.RequireLogin(), resp.ToGinHandler(courseHandler.SetCourseSharing))
+	studentRoutes.PUT("/courses/:id/content", access.RequireLogin(), resp.ToGinHandler(courseHandler.SaveStudentCourseContent))
 	studentRoutes.GET("/questions", access.RequireLogin(), resp.ToGinHandler(courseHandler.GetQuestionList))
 	studentRoutes.POST("/questions", access.RequireLogin(), resp.ToGinHandler(courseHandler.CreateQuestion))
 	studentRoutes.GET("/questions/:id", access.RequireLogin(), resp.ToGinHandler(courseHandler.GetQuestion))
 	studentRoutes.PUT("/questions/:id/contents/:contentId", access.RequireLogin(), resp.ToGinHandler(courseHandler.AnswerQuestion))
+
+	// course 模块 /api/teacher/*：教师自己的课，以及发到自己所在的班
+	teacherRoutes := api.Group("/teacher")
+	teacherRoutes.GET("/classes", access.RequireLogin(), resp.ToGinHandler(courseHandler.GetTeacherClasses))
+	teacherRoutes.GET("/courses", access.RequireLogin(), resp.ToGinHandler(courseHandler.GetTeacherCourseList))
+	teacherRoutes.POST("/courses", access.RequireLogin(), resp.ToGinHandler(courseHandler.CreateTeacherCourse))
+	teacherRoutes.GET("/courses/:id", access.RequireLogin(), resp.ToGinHandler(courseHandler.GetTeacherCourse))
+	teacherRoutes.PUT("/courses/:id/classes", access.RequireLogin(), resp.ToGinHandler(courseHandler.PublishCourseToClasses))
+	teacherRoutes.GET("/courses/:id/progress", access.RequireLogin(), resp.ToGinHandler(courseHandler.GetTeacherCourseProgress))
+	teacherRoutes.PUT("/courses/:id/content", access.RequireLogin(), resp.ToGinHandler(courseHandler.SaveTeacherCourseContent))
 }

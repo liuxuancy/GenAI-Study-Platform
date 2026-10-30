@@ -14,6 +14,9 @@ const (
 	PermissionRoleView          = "system:role:view"
 	PermissionRoleAssign        = "system:role:assign-permission"
 	PermissionCatalogList       = "system:permission:list"
+	PermissionClassView         = "system:class:view"
+	PermissionClassCreate       = "system:class:create"
+	PermissionClassUpdate       = "system:class:update"
 )
 
 // Module 实现 module.Module。
@@ -34,5 +37,8 @@ func (Module) GetPermissions() []access.PermissionDef {
 		{Code: PermissionRoleView, Name: "角色权限", Type: access.PermissionTypeMenu, Description: "角色权限页面"},
 		{Code: PermissionRoleAssign, Name: "配置角色权限", Type: access.PermissionTypeButton},
 		{Code: PermissionCatalogList, Name: "权限码目录", Type: access.PermissionTypeAPI, Description: "角色权限页的勾选树数据"},
+		{Code: PermissionClassView, Name: "班级管理", Type: access.PermissionTypeMenu, Description: "班级列表"},
+		{Code: PermissionClassCreate, Name: "新建班级", Type: access.PermissionTypeButton},
+		{Code: PermissionClassUpdate, Name: "编辑班级", Type: access.PermissionTypeButton, Description: "改班名、分配教师和学生"},
 	}
 }
