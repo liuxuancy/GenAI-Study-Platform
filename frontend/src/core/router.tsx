@@ -6,6 +6,9 @@ import { AppLayout } from '@/core/layout/AppLayout'
 import { HomePage } from '@/core/pages/HomePage'
 import { LoginPage } from '@/core/pages/LoginPage'
 import { NotFoundPage } from '@/core/pages/NotFoundPage'
+import { AccountPage } from '@/modules/account/AccountPage'
+import { AdminClassesPage } from '@/modules/admin/AdminClassesPage'
+import { AdminUsersPage } from '@/modules/admin/AdminUsersPage'
 import { CourseBubblePage } from '@/modules/student/CourseBubblePage'
 import { QuestionDetailPage } from '@/modules/student/QuestionDetailPage'
 import { StudentHomePage } from '@/modules/student/StudentHomePage'
@@ -47,6 +50,9 @@ export const appRouter = createBrowserRouter([
     children: [
       { index: true, element: <HomePage /> },
       { path: 'teacher', element: <TeacherHomePage /> },
+      { path: 'account', element: <AccountPage /> },
+      { path: 'admin', element: <AdminUsersPage /> },
+      { path: 'admin/classes', element: <AdminClassesPage /> },
       { path: '*', element: <NotFoundPage /> },
     ],
   },

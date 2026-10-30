@@ -10,7 +10,7 @@ export function HomePage() {
   if (!currentUser) {
     return null
   }
-  if (currentUser.role === 'ROLE_STUDENT') {
+  if (currentUser.role === 'ROLE_STUDENT' || currentUser.role === 'ROLE_ADMIN') {
     return <Navigate to={homePathFor(currentUser.role)} replace />
   }
 

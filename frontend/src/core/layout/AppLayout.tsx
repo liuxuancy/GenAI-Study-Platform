@@ -5,17 +5,37 @@ import { Outlet, useLocation, useNavigate } from 'react-router-dom'
 import { useAuthStore } from '@/core/auth/store'
 import styles from '@/core/layout/AppLayout.module.css'
 
-// 讲师多一个课程菜单。其余菜单仍按角色写在这里，阶段 7 再改成按权限收集。
+// 菜单按角色写死。阶段 7 再改成按权限收集。
+
+function menuFor(role?: string) {
+  if (role === 'ROLE_ADMIN') {
+    return [
+      { key: '/admin', label: 'Users' },
+      { key: '/admin/classes', label: 'Classes' },
+      { key: '/account', label: 'Account' },
+    ]
+  }
+  if (role === 'ROLE_TEACHER') {
+    return [
+      { key: '/teacher', label: 'Courses' },
+      { key: '/account', label: 'Account' },
+    ]
+  }
+  if (role === 'ROLE_STUDENT') {
+    return [
+      { key: '/student', label: 'Courses' },
+      { key: '/account', label: 'Account' },
+    ]
+  }
+  return [{ key: '/', label: 'Home' }]
+}
 
 export function AppLayout() {
   const currentUser = useAuthStore((state) => state.currentUser)
   const logout = useAuthStore((state) => state.logout)
   const navigate = useNavigate()
   const location = useLocation()
-  const menuItems = [{ key: '/', label: 'Home' }]
-  if (currentUser?.role === 'ROLE_TEACHER') {
-    menuItems.push({ key: '/teacher', label: 'Courses' })
-  }
+  const menuItems = menuFor(currentUser?.role)
 
   return (
     <Layout style={{ minHeight: '100vh' }}>

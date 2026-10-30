@@ -44,6 +44,7 @@ type UserItem struct {
 	Username  string    `json:"username"`
 	Nickname  string    `json:"nickname"`
 	Email     string    `json:"email"`
+	Major     string    `json:"major"`
 	Role      string    `json:"role"`
 	RoleName  string    `json:"roleName" gorm:"-"`
 	Status    int       `json:"status"`
@@ -74,7 +75,7 @@ const countUsersSQL = `
 	  AND (? = -1 OR status = ?)`
 
 const listUsersSQL = `
-	SELECT id, username, nickname, email, role, status, created_at
+	SELECT id, username, nickname, email, COALESCE(major, '') AS major, role, status, created_at
 	FROM sys_user
 	WHERE (? = '' OR username LIKE ? ESCAPE '\' OR nickname LIKE ? ESCAPE '\')
 	  AND (? = '' OR role = ?)
@@ -151,12 +152,13 @@ func (service *UserService) CreateUser(ctx context.Context, input CreateUserInpu
 }
 
 type UpdateUserInput struct {
-	Nickname string `json:"nickname" binding:"max=64"`
-	Email    string `json:"email" binding:"omitempty,email,max=128"`
-	Status   *int   `json:"status" binding:"required,oneof=0 1"` // 用指针才能区分"没传"和"传了 0（禁用）"
+	Nickname string  `json:"nickname" binding:"max=64"`
+	Email    string  `json:"email" binding:"omitempty,email,max=128"`
+	Major    *string `json:"major" binding:"omitempty,max=64"` // 不传则不改专业
+	Status   *int    `json:"status" binding:"required,oneof=0 1"` // 用指针才能区分"没传"和"传了 0（禁用）"
 }
 
-// UpdateUser 修改昵称、邮箱、状态。不能禁用自己；从启用改为禁用时 token 版本加一，该用户立即下线。
+// UpdateUser 修改昵称、邮箱、专业、状态。角色不可改。不能禁用自己；从启用改为禁用时 token 版本加一，该用户立即下线。
 func (service *UserService) UpdateUser(ctx context.Context, operator *access.Principal, userID int64, input UpdateUserInput) error {
 	user, err := service.getUserByID(ctx, userID)
 	if err != nil {
@@ -171,9 +173,13 @@ func (service *UserService) UpdateUser(ctx context.Context, operator *access.Pri
 	if user.Status == model.UserStatusActive && newStatus == model.UserStatusDisabled {
 		tokenVersionIncrement = 1
 	}
+	major := user.Major
+	if input.Major != nil {
+		major = strings.TrimSpace(*input.Major)
+	}
 	err = service.database.WithContext(ctx).Exec(
-		"UPDATE sys_user SET nickname = ?, email = ?, status = ?, token_version = token_version + ?, updated_at = ? WHERE id = ?",
-		strings.TrimSpace(input.Nickname), strings.TrimSpace(input.Email), newStatus, tokenVersionIncrement,
+		"UPDATE sys_user SET nickname = ?, email = ?, major = ?, status = ?, token_version = token_version + ?, updated_at = ? WHERE id = ?",
+		strings.TrimSpace(input.Nickname), strings.TrimSpace(input.Email), major, newStatus, tokenVersionIncrement,
 		time.Now().UTC(), userID,
 	).Error
 	if err != nil {
@@ -247,7 +253,7 @@ func (service *UserService) getUserByID(ctx context.Context, userID int64) (*mod
 func (service *UserService) getUserItemByUsername(ctx context.Context, username string) (*UserItem, error) {
 	var item UserItem
 	err := service.database.WithContext(ctx).Raw(
-		"SELECT id, username, nickname, email, role, status, created_at FROM sys_user WHERE username = ?", username,
+		"SELECT id, username, nickname, email, COALESCE(major, '') AS major, role, status, created_at FROM sys_user WHERE username = ?", username,
 	).Scan(&item).Error
 	if err != nil {
 		return nil, err

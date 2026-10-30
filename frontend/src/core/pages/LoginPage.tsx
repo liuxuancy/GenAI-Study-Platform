@@ -24,7 +24,7 @@ const toastDurationMs = 3400
 
 function pathAfterLogin(role: RoleCode, from?: string) {
   if (role === 'ROLE_ADMIN') {
-    return from ?? '/'
+    return from && from !== '/' ? from : homePathFor(role)
   }
   return homePathFor(role)
 }

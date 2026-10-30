@@ -43,6 +43,7 @@ function visibilityText(visibility: string) {
 export function StudentHomePage() {
   const currentUser = useAuthStore((state) => state.currentUser)
   const logout = useAuthStore((state) => state.logout)
+  const navigate = useNavigate()
   const [section, setSection] = useState<StudentSection>('courses')
   const [courses, setCourses] = useState<StudentCourse[] | null>(null)
   const [questions, setQuestions] = useState<StudentQuestion[] | null>(null)
@@ -106,6 +107,10 @@ export function StudentHomePage() {
       label: 'Answer list',
       active: section === 'answers',
       onSelect: () => setSection('answers'),
+    },
+    {
+      label: 'Account',
+      onSelect: () => navigate('/account'),
     },
   ]
 
