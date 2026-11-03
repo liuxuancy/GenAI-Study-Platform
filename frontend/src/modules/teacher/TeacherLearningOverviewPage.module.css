@@ -1,0 +1,417 @@
+.page {
+  --insights-bg: #f7f6f2;
+  --insights-surface: #ffffff;
+  --insights-soft: #f2f0eb;
+  --insights-line: #eae8e2;
+  --insights-brand: #cc5138;
+  --insights-ink: #262626;
+  --insights-muted: #898984;
+
+  max-width: 1280px;
+  margin: 0 auto;
+  padding: 0 0 var(--space-8);
+  font-family: var(--font-ui);
+}
+
+.hero {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-6);
+  margin-bottom: var(--space-6);
+  padding-bottom: var(--space-5);
+  border-bottom: 1px solid var(--insights-line);
+}
+
+.heroMain h1 {
+  margin: 0;
+  font-family: var(--font-display);
+  font-weight: 500;
+  font-size: clamp(32px, 3.6vw, 44px);
+  letter-spacing: -0.03em;
+  line-height: 1.06;
+  color: var(--insights-ink);
+}
+
+.heroMain p.subtitle {
+  margin: 12px 0 0;
+  max-width: 52ch;
+  font-size: 15px;
+  line-height: 1.55;
+  color: var(--insights-muted);
+}
+
+.eyebrow {
+  margin: 0 0 10px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.18em;
+  color: var(--insights-brand);
+}
+
+.heroMeta {
+  flex: none;
+  min-width: 200px;
+  padding: var(--space-4) var(--space-5);
+  background: var(--insights-surface);
+  border: 1px solid var(--insights-line);
+  border-radius: 10px;
+  box-shadow: 0 1px 2px rgba(38, 38, 38, 0.04);
+}
+
+.metaRow {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.metaRow + .metaRow {
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid var(--insights-line);
+}
+
+.metaLabel {
+  color: var(--insights-muted);
+}
+
+.metaValue {
+  font-weight: 600;
+  color: var(--insights-ink);
+  text-align: right;
+}
+
+.courseBar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4);
+  margin-bottom: var(--space-5);
+  padding: var(--space-4) var(--space-5);
+  background: var(--insights-surface);
+  border: 1px solid var(--insights-line);
+  border-radius: 10px;
+  box-shadow: 0 1px 2px rgba(38, 38, 38, 0.04);
+  transition:
+    border-color 0.2s var(--ease),
+    box-shadow 0.2s var(--ease);
+}
+
+.courseBar:hover {
+  border-color: #ddd9d0;
+  box-shadow: 0 4px 14px rgba(38, 38, 38, 0.05);
+}
+
+.courseBarLabel {
+  margin: 0 0 4px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  color: var(--insights-muted);
+}
+
+.courseBarTitle {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: 18px;
+  font-weight: 500;
+  letter-spacing: -0.02em;
+  color: var(--insights-ink);
+}
+
+.courseBarMeta {
+  margin: 6px 0 0;
+  font-size: 12px;
+  color: var(--insights-muted);
+}
+
+.courseSelectWrap {
+  width: min(360px, 100%);
+}
+
+.courseSelectWrap :global(.ant-select) {
+  width: 100%;
+}
+
+.courseSelectWrap :global(.ant-select-selector) {
+  border-radius: 8px !important;
+  border-color: var(--insights-line) !important;
+  min-height: 40px !important;
+  align-items: center !important;
+  transition:
+    border-color 0.2s var(--ease),
+    box-shadow 0.2s var(--ease) !important;
+}
+
+.courseSelectWrap :global(.ant-select:hover .ant-select-selector) {
+  border-color: #cfcbc2 !important;
+}
+
+.courseSelectWrap :global(.ant-select-focused .ant-select-selector) {
+  border-color: var(--insights-brand) !important;
+  box-shadow: 0 0 0 2px rgba(204, 81, 56, 0.12) !important;
+}
+
+.statGrid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--space-4);
+  margin-bottom: var(--space-6);
+}
+
+.rosterSection {
+  margin-bottom: var(--space-6);
+  padding: var(--space-5);
+  background: var(--insights-surface);
+  border: 1px solid var(--insights-line);
+  border-radius: 10px;
+  box-shadow: 0 1px 2px rgba(38, 38, 38, 0.04);
+}
+
+.rosterHeader {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: var(--space-4);
+  margin-bottom: var(--space-5);
+  padding-bottom: var(--space-4);
+  border-bottom: 1px solid var(--insights-line);
+}
+
+.rosterHeader h2 {
+  margin: 6px 0 0;
+  font-family: var(--font-display);
+  font-size: clamp(22px, 2.5vw, 28px);
+  font-weight: 500;
+  letter-spacing: -0.025em;
+  color: var(--insights-ink);
+}
+
+.rosterSubtitle {
+  margin: 8px 0 0;
+  font-size: 13px;
+  color: var(--insights-muted);
+  max-width: 48ch;
+  line-height: 1.5;
+}
+
+.rosterMeta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.metaPill {
+  padding: 6px 12px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--insights-ink);
+  background: var(--insights-soft);
+  border: 1px solid var(--insights-line);
+}
+
+.tableWrap {
+  overflow-x: auto;
+  margin: 0 calc(-1 * var(--space-1));
+  padding: 0 var(--space-1);
+}
+
+.dataTable {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.dataTable thead th {
+  padding: 12px 14px;
+  text-align: left;
+  font-weight: 600;
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--insights-muted);
+  background: var(--insights-soft);
+  border-bottom: 1px solid var(--insights-line);
+  white-space: nowrap;
+}
+
+.dataTable thead th.quizHead {
+  white-space: normal;
+  min-width: 140px;
+  max-width: 200px;
+  line-height: 1.35;
+  text-transform: none;
+  letter-spacing: 0;
+  font-size: 12px;
+}
+
+.dataTable tbody td {
+  padding: 14px;
+  vertical-align: middle;
+  border-bottom: 1px solid var(--insights-line);
+  color: var(--insights-ink);
+}
+
+.dataTable tbody tr {
+  transition: background 0.15s var(--ease);
+}
+
+.dataTable tbody tr:hover td {
+  background: #faf9f6;
+}
+
+.studentCell {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 168px;
+}
+
+.avatar {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  flex: none;
+  font-family: var(--font-display);
+  font-size: 15px;
+  font-weight: 500;
+  color: var(--insights-brand);
+  background: #fcebe5;
+  border: 1px solid #f0d5cc;
+}
+
+.studentName {
+  display: block;
+  font-weight: 600;
+  line-height: 1.3;
+}
+
+.studentUsername {
+  display: block;
+  margin-top: 2px;
+  font-size: 12px;
+  color: var(--insights-muted);
+}
+
+.analyticsGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-4);
+}
+
+.alert {
+  margin-bottom: var(--space-4);
+}
+
+.alert :global(.ant-alert) {
+  border-radius: 10px;
+}
+
+.emptyRoster {
+  padding: var(--space-8) var(--space-4);
+  text-align: center;
+}
+
+.emptyIcon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 48px;
+  height: 48px;
+  margin-bottom: var(--space-3);
+  border-radius: 50%;
+  background: var(--insights-soft);
+  color: var(--insights-muted);
+  font-size: 22px;
+}
+
+.emptyTitle {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: 20px;
+  color: var(--insights-ink);
+}
+
+.emptyText {
+  margin: 8px auto 0;
+  max-width: 36ch;
+  font-size: 13px;
+  color: var(--insights-muted);
+  line-height: 1.55;
+}
+
+.noQuizHint {
+  margin: 0 0 var(--space-4);
+  padding: var(--space-3) var(--space-4);
+  font-size: 13px;
+  color: var(--insights-muted);
+  background: var(--insights-soft);
+  border-radius: 8px;
+  border: 1px dashed var(--insights-line);
+}
+
+.linkButton {
+  margin-top: var(--space-4);
+  padding: 8px 14px;
+  border: 1px solid var(--insights-line);
+  border-radius: 8px;
+  background: var(--insights-surface);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--insights-brand);
+  cursor: pointer;
+  transition:
+    border-color 0.2s var(--ease),
+    background 0.2s var(--ease);
+}
+
+.linkButton:hover {
+  border-color: #dcc9c2;
+  background: #fffaf8;
+}
+
+.skeletonGrid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--space-4);
+  margin-bottom: var(--space-6);
+}
+
+@media (max-width: 1024px) {
+  .hero {
+    flex-direction: column;
+  }
+
+  .heroMeta {
+    width: 100%;
+  }
+
+  .statGrid,
+  .skeletonGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .analyticsGrid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 720px) {
+  .courseBar {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .courseSelectWrap {
+    width: 100%;
+  }
+}

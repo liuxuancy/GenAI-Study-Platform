@@ -29,9 +29,9 @@ func TestGetCourseList(t *testing.T) {
 		t.Fatalf("student list: %v", err)
 	}
 	wantStudent := []CourseListItem{
-		{Title: "Introduction to Git", CourseType: CourseTypeStructured, Percent: 35},
-		{Title: "How a lecture is read", CourseType: CourseTypeStructured, Percent: 70},
-		{Title: "Asking on a line", CourseType: CourseTypeStructured, Percent: 10},
+		{Title: "Introduction to Git", CourseType: CourseTypeStructured, Percent: 0},
+		{Title: "How a lecture is read", CourseType: CourseTypeStructured, Percent: 0},
+		{Title: "Asking on a line", CourseType: CourseTypeStructured, Percent: 0},
 	}
 	assertTitles(t, studentItems, wantStudent)
 
@@ -78,20 +78,21 @@ func TestSeedCourseType(t *testing.T) {
 	}
 }
 
-func TestSeedFillsEmptyMajorAndDifficulty(t *testing.T) {
+func TestSeedFillsEmptyMajor(t *testing.T) {
 	database := testutil.NewDB(t, Module{})
 	if err := Seed(context.Background(), database); err != nil {
 		t.Fatalf("seed courses: %v", err)
 	}
 	assertCourseMajors(t, database, seedMajor)
-	assertSeedDifficulties(t, database)
 
 	studentID := testutil.GetUserID(t, database, "student1")
 	testutil.MustExec(t, database, "UPDATE course SET major = ? WHERE title = ?", "Mathematics", "Draft lecture")
 	testutil.MustExec(t, database, "UPDATE course SET major = '' WHERE title = ?", "Asking on a line")
-	testutil.MustExec(t, database, "UPDATE course_question SET difficulty = ? WHERE title = ?", "hard", "What is a commit?")
-	testutil.MustExec(t, database, "UPDATE course_question SET difficulty = '' WHERE title = ?", "Where do you ask?")
-	testutil.MustExec(t, database, "UPDATE student_course_progress SET percent = ? WHERE user_id = ? AND course_id = (SELECT id FROM course WHERE title = ?)", 25, studentID, "Introduction to Git")
+	testutil.MustExec(t, database,
+		`INSERT INTO student_course_progress (user_id, course_id, percent)
+		 VALUES (?, (SELECT id FROM course WHERE title = ?), 25)`,
+		studentID, "Introduction to Git",
+	)
 
 	if err := Seed(context.Background(), database); err != nil {
 		t.Fatalf("seed again: %v", err)
@@ -99,9 +100,6 @@ func TestSeedFillsEmptyMajorAndDifficulty(t *testing.T) {
 
 	assertColumn(t, database, "SELECT major FROM course WHERE title = ?", "Draft lecture", "Mathematics")
 	assertColumn(t, database, "SELECT COALESCE(major, '') FROM course WHERE title = ?", "Asking on a line", seedMajor)
-	assertColumn(t, database, "SELECT difficulty FROM course_question WHERE title = ?", "What is a commit?", "hard")
-	assertColumn(t, database, "SELECT COALESCE(difficulty, '') FROM course_question WHERE title = ?", "Where do you ask?", "easy")
-	assertColumn(t, database, "SELECT difficulty FROM course_question WHERE title = ?", "Which paragraph comes first?", "medium")
 	var percent int
 	err := database.Raw(
 		"SELECT percent FROM student_course_progress WHERE user_id = ? AND course_id = (SELECT id FROM course WHERE title = ?)",
@@ -113,6 +111,21 @@ func TestSeedFillsEmptyMajorAndDifficulty(t *testing.T) {
 	if percent != 25 {
 		t.Fatalf("progress = %d, want 25", percent)
 	}
+}
+
+func TestLegacyQuestionSeedFillsEmptyDifficulty(t *testing.T) {
+	database := testutil.NewDB(t, Module{})
+	seedCoursesAndLegacyQuestions(t, database)
+	assertSeedDifficulties(t, database)
+
+	testutil.MustExec(t, database, "UPDATE course_question SET difficulty = ? WHERE title = ?", "hard", "What is a commit?")
+	testutil.MustExec(t, database, "UPDATE course_question SET difficulty = '' WHERE title = ?", "Where do you ask?")
+
+	seedLegacyQuestionSetsAgain(t, database)
+
+	assertColumn(t, database, "SELECT difficulty FROM course_question WHERE title = ?", "What is a commit?", "hard")
+	assertColumn(t, database, "SELECT COALESCE(difficulty, '') FROM course_question WHERE title = ?", "Where do you ask?", "easy")
+	assertColumn(t, database, "SELECT difficulty FROM course_question WHERE title = ?", "Which paragraph comes first?", "medium")
 }
 
 func assertCourseMajors(t *testing.T, database *gorm.DB, want string) {
@@ -208,8 +221,8 @@ func TestUpdateCourseProgress(t *testing.T) {
 	}
 	assertTitles(t, items, []CourseListItem{
 		{Title: "Introduction to Git", CourseType: CourseTypeStructured, Percent: 8},
-		{Title: "How a lecture is read", CourseType: CourseTypeStructured, Percent: 70},
-		{Title: "Asking on a line", CourseType: CourseTypeStructured, Percent: 10},
+		{Title: "How a lecture is read", CourseType: CourseTypeStructured, Percent: 0},
+		{Title: "Asking on a line", CourseType: CourseTypeStructured, Percent: 0},
 	})
 
 	askingID := courseIDByTitle(t, database, "Asking on a line")
@@ -236,6 +249,7 @@ func TestUpdateCourseProgress(t *testing.T) {
 
 func TestGetQuestionList(t *testing.T) {
 	database := testutil.NewDB(t, Module{})
+	seedCoursesAndLegacyQuestions(t, database)
 	if err := Seed(context.Background(), database); err != nil {
 		t.Fatalf("seed courses: %v", err)
 	}
@@ -282,10 +296,9 @@ func TestGetQuestionList(t *testing.T) {
 	if err != nil {
 		t.Fatalf("other student questions: %v", err)
 	}
-	assertQuestions(t, otherStudent, []QuestionListItem{
-		{Title: "What is a commit?", CourseTitle: "Introduction to Git", Answered: 0, QuestionCount: 2, Percent: 0},
-		{Title: "Which paragraph comes first?", CourseTitle: "How a lecture is read", Answered: 0, QuestionCount: 2, Percent: 0},
-	})
+	if len(otherStudent) != 0 {
+		t.Fatalf("user outside the class sees %v", otherStudent)
+	}
 
 	_, err = service.GetQuestionList(context.Background(), &access.Principal{
 		UserID: teacherID,
@@ -347,8 +360,8 @@ func TestGetCourse(t *testing.T) {
 	if err != nil {
 		t.Fatalf("published course: %v", err)
 	}
-	if detail.Title != "Introduction to Git" {
-		t.Fatalf("title = %q", detail.Title)
+	if detail.Title != "Introduction to Git" || detail.Tree != nil || detail.Language != DefaultLanguage || detail.Visibility != VisibilityAssigned {
+		t.Fatalf("published course = %+v", detail)
 	}
 
 	own, err := service.GetCourse(context.Background(), student, courseIDByTitle(t, database, "Asking on a line"))
@@ -372,9 +385,7 @@ func TestGetCourse(t *testing.T) {
 
 func TestGetQuestion(t *testing.T) {
 	database := testutil.NewDB(t, Module{})
-	if err := Seed(context.Background(), database); err != nil {
-		t.Fatalf("seed questions: %v", err)
-	}
+	seedCoursesAndLegacyQuestions(t, database)
 	service := NewService(database)
 	studentID := testutil.GetUserID(t, database, "student1")
 	teacherID := testutil.GetUserID(t, database, "teacher1")
@@ -396,6 +407,12 @@ func TestGetQuestion(t *testing.T) {
 	if own.Questions[0].UserOption != "" {
 		t.Fatalf("user option = %q", own.Questions[0].UserOption)
 	}
+	if own.IsSubmit {
+		t.Fatal("expected unsubmitted own question")
+	}
+	if own.Questions[0].CorrectAnswer != "" || own.Questions[0].Explanation != "" {
+		t.Fatalf("expected redacted answers before submit, got %+v", own.Questions[0])
+	}
 
 	published, err := service.GetQuestion(context.Background(), student, questionIDByTitle(t, database, "What is a commit?"))
 	if err != nil {
@@ -407,8 +424,11 @@ func TestGetQuestion(t *testing.T) {
 	if published.Questions[0].UserOption != "A snapshot of the work" {
 		t.Fatalf("published user option = %q", published.Questions[0].UserOption)
 	}
-	if published.Questions[0].CorrectAnswer != "A snapshot of the work" || published.Questions[0].Explanation == "" {
-		t.Fatalf("answer = %+v", published.Questions[0])
+	if published.IsSubmit {
+		t.Fatal("seed published set should not be marked submitted")
+	}
+	if published.Questions[0].CorrectAnswer != "" || published.Questions[0].Explanation != "" {
+		t.Fatalf("expected redacted answers before submit, got %+v", published.Questions[0])
 	}
 
 	_, err = service.GetQuestion(context.Background(), &access.Principal{UserID: teacherID, Role: access.RoleStudent}, own.ID)
@@ -424,9 +444,7 @@ func TestGetQuestion(t *testing.T) {
 
 func TestAnswerQuestion(t *testing.T) {
 	database := testutil.NewDB(t, Module{})
-	if err := Seed(context.Background(), database); err != nil {
-		t.Fatalf("seed questions: %v", err)
-	}
+	seedCoursesAndLegacyQuestions(t, database)
 	service := NewService(database)
 	studentID := testutil.GetUserID(t, database, "student1")
 	teacherID := testutil.GetUserID(t, database, "teacher1")
@@ -499,6 +517,20 @@ func TestAnswerQuestion(t *testing.T) {
 	}
 	if submittedCount(t, database, teacherID, questionID) != 0 {
 		t.Fatal("submit marked another user")
+	}
+
+	final, err := service.GetQuestion(context.Background(), student, questionID)
+	if err != nil {
+		t.Fatalf("after submit detail: %v", err)
+	}
+	if !final.IsSubmit || final.Score == nil || *final.Score != 50 {
+		t.Fatalf("after submit = isSubmit %v score %v", final.IsSubmit, final.Score)
+	}
+	if final.Questions[0].CorrectAnswer != "On the line" || final.Questions[0].Explanation == "" {
+		t.Fatalf("expected revealed answer after submit, got %+v", final.Questions[0])
+	}
+	if !final.Questions[0].IsCorrect || final.Questions[1].IsCorrect {
+		t.Fatalf("isCorrect = %v %v", final.Questions[0].IsCorrect, final.Questions[1].IsCorrect)
 	}
 }
 

@@ -30,12 +30,14 @@ type compatibleClient struct {
 }
 
 type chatRequest struct {
-	Model          string        `json:"model"`
-	Messages       []chatMessage `json:"messages"`
-	Temperature    float64       `json:"temperature"`
-	ResponseFormat struct {
-		Type string `json:"type"`
-	} `json:"response_format"`
+	Model          string           `json:"model"`
+	Messages       []chatMessage    `json:"messages"`
+	Temperature    float64          `json:"temperature"`
+	ResponseFormat *chatResponseFmt `json:"response_format,omitempty"`
+}
+
+type chatResponseFmt struct {
+	Type string `json:"type"`
 }
 
 type chatMessage struct {
@@ -73,7 +75,9 @@ func (client *compatibleClient) Complete(ctx context.Context, request Request) (
 		Messages:    []chatMessage{{Role: "user", Content: request.Prompt}},
 		Temperature: 0.2,
 	}
-	body.ResponseFormat.Type = "json_object"
+	if request.JSONResponse {
+		body.ResponseFormat = &chatResponseFmt{Type: "json_object"}
+	}
 	payload, err := json.Marshal(body)
 	if err != nil {
 		return Response{}, aierr.Internal(err, "encode chat request")

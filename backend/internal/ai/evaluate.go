@@ -2,7 +2,6 @@ package ai
 
 import (
 	"context"
-	"encoding/json"
 
 	"caveclass/internal/ai/aierr"
 	"caveclass/internal/ai/course"
@@ -28,13 +27,13 @@ func (service *Service) EvaluateCourse(ctx context.Context, subject course.Stand
 	if err != nil {
 		return quality.Report{}, Meta{}, err
 	}
-	encoded, err := json.Marshal(subject)
+	courseJSON, err := marshalCourseForQuality(subject)
 	if err != nil {
-		return quality.Report{}, Meta{}, aierr.InvalidInput(err, "course")
+		return quality.Report{}, Meta{}, err
 	}
 	response, meta, err := service.runModel(ctx, SceneEvaluate, prompt.ContentQualityV1, "", prompt.QualityData{
 		Rubric:     checkedRubric,
-		CourseJSON: string(encoded),
+		CourseJSON: courseJSON,
 	})
 	if err != nil {
 		return quality.Report{}, meta, err

@@ -16,8 +16,8 @@ func ParseQualityJSON(rawText string, repair bool) (quality.Report, Report, erro
 		return quality.Report{}, Report{}, err
 	}
 	var parsed quality.Report
-	if err := json.Unmarshal([]byte(extracted), &parsed); err != nil {
-		return quality.Report{}, Report{}, aierr.OutputParseFailed(err, "invalid JSON")
+	if err := unmarshalQualityJSON(extracted, &parsed); err != nil {
+		return quality.Report{}, Report{}, err
 	}
 	var present map[string]json.RawMessage
 	if err := json.Unmarshal([]byte(extracted), &present); err != nil {
@@ -34,6 +34,20 @@ func ParseQualityJSON(rawText string, repair bool) (quality.Report, Report, erro
 		return quality.Report{}, Report{}, schemaFailed(&course.ValidationError{Problems: problems})
 	}
 	return parsed, report, nil
+}
+
+func unmarshalQualityJSON(extracted string, parsed *quality.Report) error {
+	err := json.Unmarshal([]byte(extracted), parsed)
+	if err == nil {
+		return nil
+	}
+	relaxed := RelaxJSON(extracted)
+	if relaxed != extracted {
+		if err2 := json.Unmarshal([]byte(relaxed), parsed); err2 == nil {
+			return nil
+		}
+	}
+	return aierr.OutputParseFailed(err, "invalid JSON")
 }
 
 func qualityProblems(parsed quality.Report, present map[string]json.RawMessage) []course.Problem {

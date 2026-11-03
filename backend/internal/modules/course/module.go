@@ -2,7 +2,10 @@
 
 package course
 
-import "caveclass/internal/framework/access"
+import (
+	"caveclass/internal/framework/access"
+	"caveclass/internal/usage"
+)
 
 // Module 实现 module.Module。
 type Module struct{}
@@ -14,10 +17,24 @@ func (Module) GetDefaultGrants() map[string][]string  { return nil }
 func (Module) GetModels() []any {
 	return []any{
 		&Course{},
+		&CourseChapter{},
+		&CourseSection{},
 		&StudentCourseProgress{},
+		&StudentLearningEvent{},
+		&StudentAIConversation{},
+		&StudentAIMessage{},
 		&CourseQuestion{},
 		&CourseQuestionContent{},
 		&StudentQuestionProgress{},
 		&StudentQuestionRecord{},
+		&QuizAttempt{},
+		&QuizAnswer{},
+		&MigrationLog{},
+		&StudyClass{},
+		&StudyClassMember{},
+		&CourseClass{},
+		&CourseQualityReport{},
+		&CourseResource{},
+		&usage.Usage{},
 	}
 }

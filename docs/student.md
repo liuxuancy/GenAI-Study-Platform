@@ -85,6 +85,31 @@
 
 没有这一行表示未提交。
 
+### `student_learning_event`
+
+学生学习活动事件，供学习中心趋势与日历聚合。
+
+| 列 | 说明 |
+|---|---|
+| `id` | 主键 |
+| `user_id` | 学生 |
+| `event_type` | `course_session`、`course_progress`、`quiz_answer`、`quiz_submit`、`chapter_qa` |
+| `course_id` | 课程，可空 |
+| `quiz_id` | 套题，可空 |
+| `ref_key` | 附加键，如章节 key，可空 |
+| `duration_seconds` | 时长（秒），非负 |
+| `occurred_at` | 发生时间（UTC） |
+
+写入来源：课程页心跳、保存进度、答题/提交测验、章节问答。
+
+### 学习中心 API
+
+| 方法 | 路径 | 说明 |
+|---|---|---|
+| GET | `/api/student/learning/dashboard?year=&month=` | 今日任务、本周分钟趋势、当月活跃日、规则建议 |
+| POST | `/api/student/learning/insights` | 手动生成 AI 学习建议（body 可选 `provider`、`language`：`zh-CN` / `en-US`，默认 `zh-CN`） |
+| POST | `/api/student/courses/:id/learning/heartbeat` | 上报阅读时长，body `{ "seconds": 1–120 }` |
+
 ## 业务规则
 
 学生可以查看自己创建的和公开的课程和题目。

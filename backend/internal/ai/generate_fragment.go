@@ -126,7 +126,7 @@ func (service *Service) GenerateActivity(ctx context.Context, input GenerateActi
 	} else if checked.TemplateID != prompt.ActivityV1 {
 		return course.Activity{}, Meta{}, aierr.InvalidInput(nil, "templateId")
 	}
-	contextText, err := marshalContext(input.ContextCourse)
+	contextText, err := marshalActivityContext(input.ContextCourse, checked.TargetChapterKey)
 	if err != nil {
 		return course.Activity{}, Meta{}, err
 	}

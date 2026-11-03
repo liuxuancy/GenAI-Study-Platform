@@ -22,6 +22,7 @@ type GenerateCourseInput struct {
 	ChapterCountHint  int
 	Model             string
 	TemplateID        string
+	OutlineOnly       bool
 }
 
 // GenerateCourse 校验入参，渲染 full_course_v1，调用模型，再解析并校验课程。
@@ -46,8 +47,14 @@ func (service *Service) GenerateCourse(ctx context.Context, input GenerateCourse
 		return course.StandardCourse{}, Meta{}, err
 	}
 	if checked.TemplateID == "" {
-		checked.TemplateID = prompt.FullCourseV1
-	} else if checked.TemplateID != prompt.FullCourseV1 {
+		if input.OutlineOnly {
+			checked.TemplateID = prompt.CourseOutlineV1
+		} else {
+			checked.TemplateID = prompt.FullCourseV1
+		}
+	} else if input.OutlineOnly && checked.TemplateID != prompt.CourseOutlineV1 {
+		return course.StandardCourse{}, Meta{}, aierr.InvalidInput(nil, "templateId")
+	} else if !input.OutlineOnly && checked.TemplateID != prompt.FullCourseV1 {
 		return course.StandardCourse{}, Meta{}, aierr.InvalidInput(nil, "templateId")
 	}
 	response, meta, err := service.runModel(ctx, SceneFullCourse, checked.TemplateID, checked.Model, prompt.FullCourseData{
@@ -84,7 +91,11 @@ func (service *Service) runModel(ctx context.Context, scene, templateID, request
 		meta.ModelRequested = llm.DefaultModelPrimary
 	}
 	started := time.Now()
-	response, err := llm.Call(ctx, service.client, service.config, llm.Request{Model: requestedModel, Prompt: rendered})
+	response, err := llm.Call(ctx, service.client, service.config, llm.Request{
+		Model:        requestedModel,
+		Prompt:       rendered,
+		JSONResponse: promptExpectsJSONResponse(templateID),
+	})
 	meta.LatencyMs = time.Since(started).Milliseconds()
 	if err != nil {
 		return llm.Response{}, meta, completeError(err)
@@ -97,6 +108,11 @@ func (service *Service) runModel(ctx context.Context, scene, templateID, request
 		TotalTokens:      response.Usage.TotalTokens,
 	}
 	return response, meta, nil
+}
+
+// promptExpectsJSONResponse 为 false 的模板输出 Markdown 等纯文本，不能对 DeepSeek 启用 json_object。
+func promptExpectsJSONResponse(templateID string) bool {
+	return templateID != prompt.ChapterQAV1
 }
 
 func applyReport(meta *Meta, report parse.Report) {

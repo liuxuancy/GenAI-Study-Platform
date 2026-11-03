@@ -37,3 +37,11 @@ export function logout() {
 export function getCurrentUser() {
   return http.get<CurrentUser>('/account/me')
 }
+
+export function updateProfile(input: { nickname: string; email: string }) {
+  return http.put<null>('/account/profile', input)
+}
+
+export function changePassword(input: { oldPassword: string; newPassword: string }) {
+  return http.put<null>('/account/password', input)
+}

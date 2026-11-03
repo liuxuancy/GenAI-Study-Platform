@@ -1,42 +1,38 @@
-// 登录页：样式照搬设计稿 login.html。学生登录后去学生首页，其余角色跳回原来要去的页面，没有就去首页。
+// 登录页：样式对齐 docs/UI/login.html。须先选身份再登录，账号角色须与所选身份一致。
 import { useEffect, useRef, useState, type FormEvent } from 'react'
 import { Navigate, useLocation, useNavigate } from 'react-router-dom'
 
-import type { RoleCode } from '@/core/api/account'
 import { homePathFor } from '@/core/auth/homePath'
+import {
+  audienceMismatchMessage,
+  roleMatchesAudience,
+  type LoginAudience,
+} from '@/core/auth/loginAudience'
+import { pathAfterLogin } from '@/core/auth/postLoginPath'
 import { useAuthStore } from '@/core/auth/store'
+import { LanguageSwitcher } from '@/core/i18n/LanguageSwitcher'
+import { useI18n } from '@/core/i18n/useI18n'
 import styles from '@/core/pages/LoginPage.module.css'
 
-type AudienceKey = 'student' | 'teacher'
-
-// 学生 / 讲师·管理员切换只改说明文字。实际角色由账号决定，登录时不需要选。
-const audienceLabels: Record<AudienceKey, string> = {
-  student: 'Student',
-  teacher: 'Teacher / Admin',
-}
-
-const audienceNotes: Record<AudienceKey, string> = {
-  student: 'Student view: the course map, chapter list and AI explanations.',
-  teacher: 'Teacher view: chapter drafts and explanation editing. Admins also manage users and role permissions.',
+const audienceKeys: Record<LoginAudience, { label: string; note: string }> = {
+  student: { label: 'login.form.audienceStudent', note: 'login.form.noteStudent' },
+  teacher: { label: 'login.form.audienceTeacher', note: 'login.form.noteTeacher' },
+  admin: { label: 'login.form.audienceAdmin', note: 'login.form.noteAdmin' },
 }
 
 const toastDurationMs = 3400
 
-function pathAfterLogin(role: RoleCode, from?: string) {
-  if (role === 'ROLE_STUDENT') {
-    return homePathFor(role)
-  }
-  return from ?? '/'
-}
-
 export function LoginPage() {
+  const { t } = useI18n()
   const token = useAuthStore((state) => state.token)
   const currentUser = useAuthStore((state) => state.currentUser)
   const login = useAuthStore((state) => state.login)
+  const loadCurrentUser = useAuthStore((state) => state.loadCurrentUser)
+  const clearSession = useAuthStore((state) => state.clearSession)
   const navigate = useNavigate()
   const location = useLocation()
 
-  const [audience, setAudience] = useState<AudienceKey>('student')
+  const [audience, setAudience] = useState<LoginAudience>('student')
   const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
   const [remember, setRemember] = useState(true)
@@ -48,10 +44,21 @@ export function LoginPage() {
 
   useEffect(() => () => window.clearTimeout(toastTimer.current), [])
 
-  // 已经登录的人打开登录页，按角色进入对应首页。用户资料还没拿到时先去 /，由首页再把学生送走。
-  if (token && !submitting) {
-    const redirectPath = currentUser ? homePathFor(currentUser.role) : '/'
-    return <Navigate to={redirectPath} replace />
+  useEffect(() => {
+    if (!token || currentUser || submitting) {
+      return
+    }
+    void loadCurrentUser().catch(() => {
+      clearSession()
+    })
+  }, [token, currentUser, submitting, loadCurrentUser, clearSession])
+
+  if (token && !submitting && currentUser) {
+    return <Navigate to={homePathFor(currentUser.role)} replace />
+  }
+
+  if (token && !submitting && !currentUser) {
+    return null
   }
 
   function showToast(message: string) {
@@ -67,15 +74,27 @@ export function LoginPage() {
       return
     }
     if (username.trim() === '' || password === '') {
-      showToast('Please enter your username and password.')
+      showToast(t('login.error.credentialsRequired'))
       return
     }
     setSubmitting(true)
     try {
       await login({ username: username.trim(), password }, remember)
       const signedInUser = useAuthStore.getState().currentUser
+      if (!signedInUser) {
+        clearSession()
+        showToast(t('login.error.profileLoadFailed'))
+        setSubmitting(false)
+        return
+      }
+      if (!roleMatchesAudience(signedInUser.role, audience)) {
+        clearSession()
+        showToast(audienceMismatchMessage(audience))
+        setSubmitting(false)
+        return
+      }
       const from = (location.state as { from?: string } | null)?.from
-      const redirectPath = signedInUser ? pathAfterLogin(signedInUser.role, from) : '/'
+      const redirectPath = pathAfterLogin(signedInUser.role, from)
       navigate(redirectPath, { replace: true })
     } catch (error) {
       showToast((error as Error).message)
@@ -91,60 +110,61 @@ export function LoginPage() {
             C
           </span>
           <span>
-            <strong className={styles.brandName}>CaveClass</strong>
-            <small className={styles.brandTagline}>Courses, explained by AI</small>
+            <strong className={styles.brandName}>{t('common.brandName')}</strong>
+            <small className={styles.brandTagline}>{t('login.brandTagline')}</small>
           </span>
         </div>
-        <p className={styles.topNote}>AI course companion · Beta</p>
+        <div className={styles.topbarRight}>
+          <p className={styles.topNote}>{t('login.topNote')}</p>
+          <LanguageSwitcher compact />
+        </div>
       </header>
 
       <main className={styles.stage}>
         <section className={styles.intro}>
-          <p className={styles.eyebrow}>How a course reads</p>
-          <h1>Every lecture, explained in order.</h1>
-          <p className={styles.lede}>
-            CaveClass rewrites each course as a short walkthrough — in the order you actually need it.
-          </p>
+          <p className={styles.eyebrow}>{t('login.intro.eyebrow')}</p>
+          <h1>{t('login.intro.title')}</h1>
+          <p className={styles.lede}>{t('login.intro.lede')}</p>
 
           <ol className={styles.points}>
             <li>
               <span className={styles.pointNumber}>01</span>
               <div>
-                <h3>Read it once, in order</h3>
-                <p>Each lecture becomes a written walkthrough — no slide deck, no skipping.</p>
+                <h3>{t('login.intro.point1Title')}</h3>
+                <p>{t('login.intro.point1Body')}</p>
               </div>
             </li>
             <li>
               <span className={styles.pointNumber}>02</span>
               <div>
-                <h3>Ask on the line you are stuck on</h3>
-                <p>Highlight any sentence and ask. The answer stays attached to that line.</p>
+                <h3>{t('login.intro.point2Title')}</h3>
+                <p>{t('login.intro.point2Body')}</p>
               </div>
             </li>
             <li>
               <span className={styles.pointNumber}>03</span>
               <div>
-                <h3>Keep your place</h3>
-                <p>Your progress is marked chapter by chapter, so you always know the next step.</p>
+                <h3>{t('login.intro.point3Title')}</h3>
+                <p>{t('login.intro.point3Body')}</p>
               </div>
             </li>
           </ol>
 
           <ul className={styles.specs}>
-            <li>12-week courses</li>
-            <li>One chapter a week</li>
-            <li>AI-guided</li>
+            <li>{t('login.intro.spec1')}</li>
+            <li>{t('login.intro.spec2')}</li>
+            <li>{t('login.intro.spec3')}</li>
           </ul>
         </section>
 
         <section className={styles.panelWrap}>
           <form className={styles.panel} onSubmit={handleSubmit} noValidate>
-            <p className={styles.eyebrow}>Account</p>
-            <h2>Sign in</h2>
-            <p className={styles.panelSub}>Use the CaveClass account issued by your administrator.</p>
+            <p className={styles.eyebrow}>{t('login.form.eyebrow')}</p>
+            <h2>{t('login.form.signIn')}</h2>
+            <p className={styles.panelSub}>{t('login.form.panelSub')}</p>
 
-            <div className={styles.segment} role="tablist" aria-label="Choose your view">
-              {(['student', 'teacher'] as const).map((key) => (
+            <div className={`${styles.segment} ${styles.segmentThree}`} role="tablist" aria-label={t('login.form.roleTabsAria')}>
+              {(['student', 'teacher', 'admin'] as const).map((key) => (
                 <button
                   key={key}
                   type="button"
@@ -153,18 +173,18 @@ export function LoginPage() {
                   className={audience === key ? styles.segmentActive : undefined}
                   onClick={() => setAudience(key)}
                 >
-                  {audienceLabels[key]}
+                  {t(audienceKeys[key].label)}
                 </button>
               ))}
             </div>
-            <p className={styles.roleNote}>{audienceNotes[audience]}</p>
+            <p className={styles.roleNote}>{t(audienceKeys[audience].note)}</p>
 
             <label className={styles.field}>
-              <span className={styles.fieldLabel}>Username</span>
+              <span className={styles.fieldLabel}>{t('login.form.usernameLabel')}</span>
               <input
                 type="text"
                 name="username"
-                placeholder="e.g. student1"
+                placeholder={t('login.form.usernamePlaceholder')}
                 autoComplete="username"
                 value={username}
                 onChange={(event) => setUsername(event.target.value)}
@@ -172,11 +192,11 @@ export function LoginPage() {
             </label>
 
             <label className={styles.field}>
-              <span className={styles.fieldLabel}>Password</span>
+              <span className={styles.fieldLabel}>{t('login.form.passwordLabel')}</span>
               <input
                 type={passwordVisible ? 'text' : 'password'}
                 name="password"
-                placeholder="Your password"
+                placeholder={t('login.form.passwordPlaceholder')}
                 autoComplete="current-password"
                 value={password}
                 onChange={(event) => setPassword(event.target.value)}
@@ -184,10 +204,10 @@ export function LoginPage() {
               <button
                 className={styles.peek}
                 type="button"
-                aria-label={passwordVisible ? 'Hide password' : 'Show password'}
+                aria-label={passwordVisible ? t('login.form.hidePassword') : t('login.form.showPassword')}
                 onClick={() => setPasswordVisible(!passwordVisible)}
               >
-                {passwordVisible ? 'Hide' : 'Show'}
+                {passwordVisible ? t('login.form.hide') : t('login.form.show')}
               </button>
             </label>
 
@@ -199,19 +219,72 @@ export function LoginPage() {
                     <path d="M2 6.4 L 4.6 9 L 10 3" />
                   </svg>
                 </span>
-                <span>Remember me</span>
+                <span>{t('login.form.rememberMe')}</span>
               </label>
+              <a className={styles.tlink} href="#" onClick={(event) => event.preventDefault()}>
+                {t('login.form.forgotPassword')}
+              </a>
             </div>
 
             <button className={styles.submit} type="submit" aria-busy={submitting}>
-              {submitting ? 'Signing in…' : 'Sign in'}
+              {submitting ? t('login.form.signingIn') : t('login.form.signIn')}
             </button>
+
+            <hr className={styles.panelRule} />
+
+            <p className={styles.panelFoot}>
+              {audience === 'student' ? (
+                <>
+                  {t('login.form.footStudentLead')}{' '}
+                  <a className={styles.tlink} href="#" onClick={(event) => event.preventDefault()}>
+                    {t('login.form.createAccount')}
+                  </a>
+                </>
+              ) : audience === 'teacher' ? (
+                <>
+                  {t('login.form.footTeacherLead')}{' '}
+                  <a className={styles.tlink} href="#" onClick={(event) => event.preventDefault()}>
+                    {t('login.form.requestAccess')}
+                  </a>
+                </>
+              ) : (
+                <>
+                  {t('login.form.footAdminLead')}{' '}
+                  <a className={styles.tlink} href="#" onClick={(event) => event.preventDefault()}>
+                    {t('login.form.requestAccess')}
+                  </a>
+                </>
+              )}
+            </p>
           </form>
+
+          <p className={styles.legal}>
+            {t('login.legal.prefix')}{' '}
+            <a href="#" onClick={(event) => event.preventDefault()}>
+              {t('login.legal.terms')}
+            </a>{' '}
+            {t('login.legal.and')}{' '}
+            <a href="#" onClick={(event) => event.preventDefault()}>
+              {t('login.legal.privacy')}
+            </a>
+            .
+          </p>
         </section>
       </main>
 
       <footer className={styles.foot}>
-        <span>© 2026 CaveClass · A GenAI course learning platform</span>
+        <span>{t('login.footer.copyright')}</span>
+        <span className={styles.footLinks}>
+          <a href="#" onClick={(event) => event.preventDefault()}>
+            {t('login.footer.status')}
+          </a>
+          <a href="#" onClick={(event) => event.preventDefault()}>
+            {t('login.footer.help')}
+          </a>
+          <a href="#" onClick={(event) => event.preventDefault()}>
+            {t('login.footer.contact')}
+          </a>
+        </span>
       </footer>
 
       <div className={`${styles.toast} ${toastVisible ? styles.toastVisible : ''}`} role="status" aria-live="polite">

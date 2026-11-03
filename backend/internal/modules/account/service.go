@@ -37,18 +37,17 @@ type LoginResult struct {
 	ExpiresAt time.Time `json:"expiresAt"`
 }
 
-// errWrongCredentials 用户不存在和密码错误返回同一句话，不让人借此探测用户名是否存在。
-var errWrongCredentials = errs.Unauthorized("incorrect username or password")
+// errWrongCredentials 用户不存在和密码错误返回同一句话，不让人借此探测账号是否存在。
+var errWrongCredentials = errs.Unauthorized("incorrect email, username or password")
 
-// Login 校验用户名密码，签发 token。
+// Login 校验用户名或邮箱与密码，签发 token。identifier 字段 JSON 名仍为 username。
 func (service *Service) Login(ctx context.Context, input LoginInput) (*LoginResult, error) {
-	username := strings.ToLower(strings.TrimSpace(input.Username))
-	var user model.User
-	result := service.database.WithContext(ctx).Raw("SELECT * FROM sys_user WHERE username = ?", username).Scan(&user)
-	if result.Error != nil {
-		return nil, result.Error
+	identifier := strings.ToLower(strings.TrimSpace(input.Username))
+	user, found, err := service.findUserForLogin(ctx, identifier)
+	if err != nil {
+		return nil, err
 	}
-	if result.RowsAffected == 0 {
+	if !found {
 		identity.CompareWithDummyHash(input.Password) // 耗时和密码错误时一致
 		return nil, errWrongCredentials
 	}
@@ -65,6 +64,31 @@ func (service *Service) Login(ctx context.Context, input LoginInput) (*LoginResu
 	}
 	logs.CtxInfo(ctx, "login succeeded: user_id=%d username=%s", user.ID, user.Username)
 	return &LoginResult{Token: token, ExpiresAt: expiresAt}, nil
+}
+
+func (service *Service) findUserForLogin(ctx context.Context, identifier string) (*model.User, bool, error) {
+	var user model.User
+	result := service.database.WithContext(ctx).Raw(
+		"SELECT * FROM sys_user WHERE LOWER(username) = ?",
+		identifier,
+	).Scan(&user)
+	if result.Error != nil {
+		return nil, false, result.Error
+	}
+	if result.RowsAffected > 0 {
+		return &user, true, nil
+	}
+	result = service.database.WithContext(ctx).Raw(
+		"SELECT * FROM sys_user WHERE email != '' AND LOWER(email) = ?",
+		identifier,
+	).Scan(&user)
+	if result.Error != nil {
+		return nil, false, result.Error
+	}
+	if result.RowsAffected > 0 {
+		return &user, true, nil
+	}
+	return nil, false, nil
 }
 
 // Logout token 是无状态的，后端只记一条日志，前端丢弃 token 即可。

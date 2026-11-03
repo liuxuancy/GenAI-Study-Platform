@@ -1,3 +1,6 @@
+import { getAppLocale } from '@/core/i18n/store'
+import { translateApp } from '@/core/i18n/translateApp'
+
 // 请求封装：自动带上 token，解开后端的 {code, msg, data}，失败时抛出 ApiError。
 // 收到 401 时通知登录状态退出，页面随之跳回登录页。
 
@@ -17,7 +20,7 @@ interface ApiResult<T> {
   data: T
 }
 
-type HttpMethod = 'GET' | 'POST' | 'PUT' | 'DELETE'
+type HttpMethod = 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE'
 
 export interface HttpAuthHooks {
   getToken: () => string | null
@@ -53,7 +56,7 @@ export async function request<T>(method: HttpMethod, path: string, body?: unknow
       body: body === undefined ? undefined : JSON.stringify(body),
     })
   } catch {
-    throw new ApiError(0, 'Network error: is the backend running?')
+    throw new ApiError(0, translateApp(getAppLocale(), 'http.networkError'))
   }
 
   const result = await parseResult<T>(response)
@@ -71,7 +74,46 @@ export const http = {
   get: <T>(path: string) => request<T>('GET', path),
   post: <T>(path: string, body?: unknown) => request<T>('POST', path, body),
   put: <T>(path: string, body?: unknown) => request<T>('PUT', path, body),
+  patch: <T>(path: string, body?: unknown) => request<T>('PATCH', path, body),
   delete: <T>(path: string) => request<T>('DELETE', path),
+}
+
+export function uploadForm<T>(
+  path: string,
+  formData: FormData,
+  onProgress?: (percent: number) => void,
+): Promise<T> {
+  return new Promise((resolve, reject) => {
+    const token = authHooks.getToken()
+    const xhr = new XMLHttpRequest()
+    xhr.open('POST', `/api${path}`)
+    if (token) {
+      xhr.setRequestHeader('Authorization', `Bearer ${token}`)
+    }
+    xhr.upload.onprogress = (event) => {
+      if (!onProgress || !event.lengthComputable) {
+        return
+      }
+      onProgress(Math.round((event.loaded / event.total) * 100))
+    }
+    xhr.onload = () => {
+      try {
+        const result = JSON.parse(xhr.responseText) as ApiResult<T>
+        if (result.code !== 0) {
+          if (result.code === 401 && token) {
+            authHooks.onUnauthorized()
+          }
+          reject(new ApiError(result.code, result.msg))
+          return
+        }
+        resolve(result.data)
+      } catch {
+        reject(new ApiError(xhr.status || 500, 'Unexpected server response'))
+      }
+    }
+    xhr.onerror = () => reject(new ApiError(0, 'Network error: is the backend running?'))
+    xhr.send(formData)
+  })
 }
 
 // parseResult 响应体不是 JSON 时（比如后端没启动，代理返回 502）也转成统一格式。

@@ -1,16 +1,50 @@
 /* 全局样式：设计令牌（颜色、字体）和页面基础样式，登录页和布局共用。 */
 :root {
-  --bg: #ffffff;
-  --surface: #fafafb;
-  --ink: #111114;
-  --ink-2: #55555e;
-  --ink-3: #8c8c96;
-  --ink-4: #b6b6be;
-  --line: #e8e8ec;
-  --accent: #c0442c;
+  /* CaveClass design tokens (student + shared) */
+  --color-bg: #f8f7f4;
+  --color-surface: #ffffff;
+  --color-surface-soft: #f4f2ee;
+  --color-primary: #c84d35;
+  --color-primary-hover: #ad402d;
+  --color-primary-soft: #fcebe5;
+  --color-teal: #24464a;
+  --color-green: #548b76;
+  --color-blue: #638aa7;
+  --color-purple: #8971ad;
+  --color-yellow: #d8aa63;
+  --color-text: #242522;
+  --color-text-secondary: #777873;
+  --color-text-muted: #a1a19b;
+  --color-border: #eae8e3;
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 18px;
+  --radius-xl: 24px;
+  --shadow-card: 0 4px 18px rgba(35, 40, 35, 0.045);
+  --shadow-hover: 0 10px 28px rgba(35, 40, 35, 0.09);
+  --sidebar-width: 244px;
+  --header-height: 64px;
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-8: 32px;
+
+  /* Legacy aliases (login, admin, teacher) */
+  --bg: var(--color-surface);
+  --surface: var(--color-surface-soft);
+  --ink: var(--color-text);
+  --ink-2: var(--color-text-secondary);
+  --ink-3: var(--color-text-muted);
+  --ink-4: #c8c8c2;
+  --line: var(--color-border);
+  --accent: var(--color-primary);
 
   --font-display: 'Fraunces', Georgia, 'Times New Roman', serif;
   --font-text: 'Source Serif 4', Georgia, 'Times New Roman', serif;
+  --font-ui: 'DM Sans', 'Noto Sans SC', system-ui, sans-serif;
 
   --gutter: clamp(20px, 4vw, 56px);
   --ease: cubic-bezier(0.4, 0, 0.2, 1);

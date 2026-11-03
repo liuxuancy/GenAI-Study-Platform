@@ -16,6 +16,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
 
+	"caveclass/internal/ai"
 	"caveclass/internal/framework/access"
 	"caveclass/internal/framework/identity"
 	"caveclass/internal/framework/model"
@@ -50,6 +51,9 @@ func run() error {
 	resetDemo := flag.Bool("reset-demo", false, "删除本地数据库，重新写入种子数据和演示数据后启动（仅 dev）")
 	flag.Parse()
 
+	if err := loadDotEnv(); err != nil {
+		return err
+	}
 	cfg, err := config.Load()
 	if err != nil {
 		return err
@@ -90,6 +94,11 @@ func run() error {
 		return err
 	}
 
+	aiService, err := ai.NewFromEnv()
+	if err != nil {
+		return fmt.Errorf("ai: %w", err)
+	}
+
 	gin.SetMode(gin.ReleaseMode) // 请求日志由我们自己的 Logger 输出
 	server := &http.Server{
 		Addr: cfg.HTTPAddr,
@@ -99,6 +108,7 @@ func run() error {
 			Cache:              access.NewCache(cfg.PermissionCacheTTL, access.NewDBLoader(database)),
 			TokenIssuer:        identity.NewTokenIssuer(cfg.JWTSecret, cfg.JWTTTL),
 			UserDeletionGuards: registry.GetUserDeletionGuards(),
+			AI:                 aiService,
 		}),
 		ReadHeaderTimeout: 10 * time.Second,
 	}
@@ -143,6 +153,9 @@ func prepareDatabase(database *gorm.DB, registry *module.Registry, loadDemo bool
 	}
 	if err := course.Seed(ctx, database); err != nil {
 		return fmt.Errorf("seed courses: %w", err)
+	}
+	if err := course.RunStartupMigrations(ctx, database); err != nil {
+		return fmt.Errorf("quiz migrations: %w", err)
 	}
 	if loadDemo {
 		if err := seed.LoadDemo(ctx, database, registry.GetModules()); err != nil {

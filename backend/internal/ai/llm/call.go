@@ -37,7 +37,7 @@ func Call(ctx context.Context, client Client, cfg Config, request Request) (Resp
 	if primary == "" {
 		primary = DefaultModelPrimary
 	}
-	response, err := attemptModel(ctx, client, cfg, primary, request.Prompt)
+	response, err := attemptModel(ctx, client, cfg, primary, request)
 	if err == nil {
 		logUsage(ctx, response)
 		return response, nil
@@ -47,7 +47,9 @@ func Call(ctx context.Context, client Client, cfg Config, request Request) (Resp
 		return Response{}, err
 	}
 	logFallback(ctx, primary, cfg.ModelFallback, err)
-	response, fallbackErr := attemptModel(ctx, client, cfg, cfg.ModelFallback, request.Prompt)
+	fallbackRequest := request
+	fallbackRequest.Model = cfg.ModelFallback
+	response, fallbackErr := attemptModel(ctx, client, cfg, cfg.ModelFallback, fallbackRequest)
 	if fallbackErr != nil {
 		logFailure(ctx, cfg.ModelFallback, fallbackErr)
 		return Response{}, fallbackErr
@@ -57,7 +59,7 @@ func Call(ctx context.Context, client Client, cfg Config, request Request) (Resp
 	return response, nil
 }
 
-func attemptModel(ctx context.Context, client Client, cfg Config, model, prompt string) (Response, error) {
+func attemptModel(ctx context.Context, client Client, cfg Config, model string, request Request) (Response, error) {
 	attempts := cfg.MaxRetries + 1
 	if attempts < 1 {
 		attempts = 1
@@ -70,7 +72,9 @@ func attemptModel(ctx context.Context, client Client, cfg Config, model, prompt 
 			}
 			break
 		}
-		response, err := completeOnce(ctx, client, cfg.Timeout, model, prompt)
+		attemptRequest := request
+		attemptRequest.Model = model
+		response, err := completeOnce(ctx, client, cfg.Timeout, attemptRequest)
 		if err == nil {
 			return response, nil
 		}
@@ -85,19 +89,19 @@ func attemptModel(ctx context.Context, client Client, cfg Config, model, prompt 
 	return Response{}, last
 }
 
-func completeOnce(ctx context.Context, client Client, timeout time.Duration, model, prompt string) (Response, error) {
+func completeOnce(ctx context.Context, client Client, timeout time.Duration, request Request) (Response, error) {
 	attemptCtx := ctx
 	if timeout > 0 {
 		var cancel context.CancelFunc
 		attemptCtx, cancel = context.WithTimeout(ctx, timeout)
 		defer cancel()
 	}
-	response, err := client.Complete(attemptCtx, Request{Model: model, Prompt: prompt})
+	response, err := client.Complete(attemptCtx, request)
 	if err != nil {
 		return Response{}, err
 	}
 	if response.Model == "" {
-		response.Model = model
+		response.Model = request.Model
 	}
 	return response, nil
 }

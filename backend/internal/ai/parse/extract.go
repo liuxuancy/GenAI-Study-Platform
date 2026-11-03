@@ -15,6 +15,7 @@ var codeFence = regexp.MustCompile("(?is)```(?:json\\b)?[ \\t]*\\r?\\n?(.*?)```"
 // 正文以 { 开头时，字符串里的 markdown 代码块不会被当成外层围栏。
 func ExtractJSON(rawText string) (string, error) {
 	text := strings.TrimSpace(rawText)
+	text = strings.TrimPrefix(text, "\uFEFF")
 	if text == "" {
 		return "", aierr.OutputParseFailed(nil, "empty input")
 	}

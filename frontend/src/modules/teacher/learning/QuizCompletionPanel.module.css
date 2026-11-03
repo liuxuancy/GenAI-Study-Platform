@@ -1,0 +1,103 @@
+.panel {
+  padding: var(--space-5);
+  background: var(--insights-surface, #fff);
+  border: 1px solid var(--insights-line, #eae8e2);
+  border-radius: 10px;
+  box-shadow: 0 1px 2px rgba(38, 38, 38, 0.04);
+  height: 100%;
+}
+
+.eyebrow {
+  margin: 0 0 6px;
+  font-family: var(--font-ui);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.16em;
+  color: var(--insights-brand, #cc5138);
+}
+
+.title {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: 20px;
+  font-weight: 500;
+  letter-spacing: -0.02em;
+  color: var(--insights-ink, #262626);
+}
+
+.rate {
+  margin: var(--space-4) 0 var(--space-3);
+  font-family: var(--font-display);
+  font-size: 32px;
+  font-weight: 500;
+  letter-spacing: -0.03em;
+  color: var(--insights-ink, #262626);
+}
+
+.rateHint {
+  margin: 0 0 var(--space-4);
+  font-family: var(--font-ui);
+  font-size: 12px;
+  color: var(--insights-muted, #898984);
+}
+
+.bars {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.barRow {
+  display: grid;
+  grid-template-columns: 72px 1fr 36px;
+  align-items: center;
+  gap: 10px;
+  font-family: var(--font-ui);
+  font-size: 12px;
+}
+
+.barLabel {
+  color: var(--insights-muted, #898984);
+}
+
+.barTrack {
+  height: 8px;
+  border-radius: 999px;
+  background: var(--insights-soft, #f2f0eb);
+  overflow: hidden;
+}
+
+.barFillSubmitted {
+  height: 100%;
+  border-radius: inherit;
+  background: #548b76;
+  transition: width 0.55s var(--ease);
+}
+
+.barFillProgress {
+  height: 100%;
+  border-radius: inherit;
+  background: #d8aa63;
+  transition: width 0.55s var(--ease);
+}
+
+.barFillIdle {
+  height: 100%;
+  border-radius: inherit;
+  background: #c8c5bc;
+  transition: width 0.55s var(--ease);
+}
+
+.barValue {
+  text-align: right;
+  font-weight: 600;
+  color: var(--insights-ink, #262626);
+  font-variant-numeric: tabular-nums;
+}
+
+.empty {
+  margin-top: var(--space-4);
+  font-family: var(--font-ui);
+  font-size: 13px;
+  color: var(--insights-muted, #898984);
+}

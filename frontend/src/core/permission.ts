@@ -1,6 +1,8 @@
 // 权限码匹配，规则和后端 access.Match 完全一致，两边共用 docs/permission-cases.json 里的用例。
 // 前端判断只用来决定显示哪些菜单和按钮，真正的拦截在后端。
 import type { CurrentUser } from '@/core/api/account'
+import { getAppLocale } from '@/core/i18n/store'
+import { translateApp } from '@/core/i18n/translateApp'
 
 const codeSeparator = ':'
 const wildcard = '*'
@@ -56,4 +58,9 @@ function parseCode(code: string): string[] | null {
     }
   }
   return segments
+}
+
+/** 前端展示用：无权操作时的通用提示（与 courseResources.permissionDenied 语义一致）。 */
+export function permissionDeniedMessage(locale = getAppLocale()) {
+  return translateApp(locale, 'common.permissionDenied')
 }
