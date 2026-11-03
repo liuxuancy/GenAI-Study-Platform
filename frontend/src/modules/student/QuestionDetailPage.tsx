@@ -103,7 +103,7 @@ export function QuestionDetailPage() {
 
     const runSaves = toSave.reduce(
       (chain, item) =>
-        chain.then((snapshot) =>
+        chain.then(() =>
           answerStudentQuestion(questionId, item.contentId, item.option, false).then((updated) => {
             setDetail(updated)
             setPending((currentPending) => dropPending(currentPending, item.contentId))

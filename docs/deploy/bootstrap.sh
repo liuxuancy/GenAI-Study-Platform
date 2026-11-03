@@ -8,7 +8,8 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 
 REPO_DIR="${REPO_DIR:?设置 REPO_DIR，或复制 env.example 为 env 并 source}"
 GIT_REPO="${GIT_REPO:?设置 GIT_REPO}"
-BRANCH="${BRANCH:-main}"
+DEFAULT_BRANCH="$(git -C "$REPO_DIR" remote show origin 2>/dev/null | awk '/HEAD branch/ {print $NF}')"
+BRANCH="${BRANCH:-${DEFAULT_BRANCH:-master}}"
 
 if [ ! -d "$REPO_DIR/.git" ]; then
   git clone -b "$BRANCH" "$GIT_REPO" "$REPO_DIR"
@@ -16,7 +17,14 @@ fi
 
 cd "$REPO_DIR"
 git fetch origin
-git checkout "$BRANCH"
+if git show-ref --verify --quiet "refs/heads/$BRANCH"; then
+  git checkout "$BRANCH"
+elif git show-ref --verify --quiet "refs/remotes/origin/$BRANCH"; then
+  git checkout -B "$BRANCH" "origin/$BRANCH"
+else
+  echo "error: branch $BRANCH not found; set BRANCH in docs/deploy/env (git branch -a)"
+  exit 1
+fi
 git pull --ff-only origin "$BRANCH"
 
 # 首次复制 backend/.env，在面板或 SSH 里填 JWT_SECRET、COS、AI 等后再部署

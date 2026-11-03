@@ -298,7 +298,12 @@ function CourseQuizList({ groups }: { groups: ReturnType<typeof buildCourseQuizG
 
 function CourseHeader({ group }: { group: ReturnType<typeof buildCourseQuizGroups>[number] }) {
   const { t } = useI18n()
-  const coverKey = resolveCourseCoverKey(group.courseTitle, '', group.courseId)
+  const courseIdNum = Number(group.courseId)
+  const coverKey = resolveCourseCoverKey(
+    group.courseTitle,
+    '',
+    Number.isFinite(courseIdNum) ? courseIdNum : undefined,
+  )
   return (
     <header className={styles.courseHeader}>
       <div className={`${styles.courseIcon} ${styles[`cover_${coverKey}`]}`} aria-hidden>

@@ -9,11 +9,19 @@ ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 
 REPO_DIR="${REPO_DIR:-$ROOT}"
 SERVICE_NAME="${SERVICE_NAME:-caveclass}"
-BRANCH="${BRANCH:-main}"
+DEFAULT_BRANCH="$(git -C "$REPO_DIR" remote show origin 2>/dev/null | awk '/HEAD branch/ {print $NF}')"
+BRANCH="${BRANCH:-${DEFAULT_BRANCH:-master}}"
 
 cd "$REPO_DIR"
 git fetch origin
-git checkout "$BRANCH"
+if git show-ref --verify --quiet "refs/heads/$BRANCH"; then
+  git checkout "$BRANCH"
+elif git show-ref --verify --quiet "refs/remotes/origin/$BRANCH"; then
+  git checkout -B "$BRANCH" "origin/$BRANCH"
+else
+  echo "error: branch $BRANCH not found; set BRANCH in docs/deploy/env (git branch -a)"
+  exit 1
+fi
 git pull --ff-only origin "$BRANCH"
 
 # 可选：INIT_DB=1 bash deploy.sh 会重建 SQLite（停服务后再用）
