@@ -35,14 +35,14 @@ func TestUsageReportTotalsAndPeople(t *testing.T) {
 		adminID, usage.SceneGenerateCourse, usage.StatusSuccess, later,
 	)
 
-	report, err := NewUsageService(database).GetUsageReport(context.Background())
+	report, err := NewUsageService(database).GetUsageReport(context.Background(), UsageListQuery{})
 	if err != nil {
 		t.Fatal(err)
 	}
 	if report.AccountCount != 4 || report.CallCount != 3 || report.PromptTokens != 5 || report.CompletionTokens != 8 || report.TotalTokens != 13 {
 		t.Fatalf("totals = %+v", report)
 	}
-	if len(report.Users) != 3 {
+	if report.Total != 2 || len(report.Users) != 2 {
 		t.Fatalf("users = %+v", report.Users)
 	}
 	student := report.Users[0]
@@ -58,13 +58,50 @@ func TestUsageReportTotalsAndPeople(t *testing.T) {
 	if student.Calls[0].TotalTokens != 0 || student.Calls[1].Scene != usage.SceneGenerateCourse || !student.Calls[1].CreatedAt.Equal(earlier) {
 		t.Fatalf("call order = %+v", student.Calls)
 	}
-	names := []string{report.Users[1].Username, report.Users[2].Username}
-	if (names[0] != "teacher1" && names[0] != "teacher2") || report.Users[1].CallCount != 0 || report.Users[1].Calls == nil {
-		t.Fatalf("teachers = %+v %+v", report.Users[1], report.Users[2])
+	if report.Users[1].Username != "admin" || report.Users[1].Role != access.RoleAdmin {
+		t.Fatalf("admin usage missing: %+v", report.Users[1])
 	}
-	for _, user := range report.Users {
-		if user.Role == access.RoleAdmin {
-			t.Fatalf("admin listed: %+v", user)
-		}
+}
+
+func TestUsageReportFiltersAndPagination(t *testing.T) {
+	database := testutil.NewDB(t)
+	if err := database.AutoMigrate(&usage.Usage{}); err != nil {
+		t.Fatal(err)
+	}
+	studentID := testutil.GetUserID(t, database, "student1")
+	teacherID := testutil.GetUserID(t, database, "teacher1")
+	dayOne := time.Date(2026, 10, 1, 23, 0, 0, 0, time.UTC)
+	dayTwo := dayOne.Add(2 * time.Hour)
+	for _, row := range []struct {
+		userID int64
+		scene  string
+		model  string
+		status string
+		at     time.Time
+	}{
+		{studentID, usage.SceneChapterQA, "model-a", usage.StatusSuccess, dayOne},
+		{studentID, usage.SceneChapterQA, "model-b", usage.StatusFailed, dayTwo},
+		{teacherID, usage.SceneChapterQA, "model-a", usage.StatusSuccess, dayOne},
+	} {
+		testutil.MustExec(t, database,
+			`INSERT INTO ai_usage (user_id, scene, model, prompt_tokens, completion_tokens, total_tokens, call_status, created_at)
+			 VALUES (?, ?, ?, 2, 3, 5, ?, ?)`,
+			row.userID, row.scene, row.model, row.status, row.at,
+		)
+	}
+
+	report, err := NewUsageService(database).GetUsageReport(context.Background(), UsageListQuery{
+		From: "2026-10-01", To: "2026-10-01", User: "student",
+		Role: access.RoleStudent, Scene: usage.SceneChapterQA, Model: "model-a",
+		CallStatus: usage.StatusSuccess, Page: 1, PageSize: 1,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if report.CallCount != 1 || report.TotalTokens != 5 || report.Total != 1 || len(report.Users) != 1 {
+		t.Fatalf("filtered report = %+v", report)
+	}
+	if len(report.Users[0].Calls) != 1 || report.Users[0].Calls[0].Model != "model-a" {
+		t.Fatalf("filtered calls = %+v", report.Users[0].Calls)
 	}
 }

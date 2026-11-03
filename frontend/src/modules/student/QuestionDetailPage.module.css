@@ -6,6 +6,20 @@
   letter-spacing: -0.02em;
 }
 
+.backLine {
+  margin: 0 0 16px;
+  font-size: 13px;
+}
+
+.backLine a {
+  color: var(--color-text-secondary);
+  text-decoration: none;
+}
+
+.backLine a:hover {
+  color: var(--color-primary);
+}
+
 .courseLine {
   display: flex;
   justify-content: space-between;

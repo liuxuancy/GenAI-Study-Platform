@@ -14,6 +14,12 @@ import {
 export function AdminUsersPage() {
   const currentUser = useAuthStore((state) => state.currentUser)
   const [users, setUsers] = useState<AdminUser[] | null>(null)
+  const [total, setTotal] = useState(0)
+  const [keyword, setKeyword] = useState('')
+  const [role, setRole] = useState<string>()
+  const [status, setStatus] = useState<number>()
+  const [page, setPage] = useState(1)
+  const [pageSize, setPageSize] = useState(20)
   const [loadError, setLoadError] = useState('')
   const [editing, setEditing] = useState<AdminUser | null>(null)
   const [resetting, setResetting] = useState<AdminUser | null>(null)
@@ -23,8 +29,12 @@ export function AdminUsersPage() {
   const [passwordForm] = Form.useForm<{ password: string }>()
 
   function reload() {
-    return getAdminUsers()
-      .then((result) => setUsers(result.items))
+    setLoadError('')
+    return getAdminUsers({ keyword, role, status, page, pageSize })
+      .then((result) => {
+        setUsers(result.items)
+        setTotal(result.total)
+      })
       .catch((error: Error) => setLoadError(error.message))
   }
 
@@ -33,7 +43,7 @@ export function AdminUsersPage() {
       return
     }
     void reload()
-  }, [currentUser?.role])
+  }, [currentUser?.role, keyword, role, status, page, pageSize])
 
   if (!currentUser) {
     return null
@@ -99,12 +109,72 @@ export function AdminUsersPage() {
       <Typography.Title level={3} style={{ marginTop: 0 }}>
         Users
       </Typography.Title>
+      <Space wrap style={{ marginBottom: 16 }}>
+        <Input.Search
+          allowClear
+          placeholder="Username or nickname"
+          value={keyword}
+          onChange={(event) => {
+            setKeyword(event.target.value)
+            setPage(1)
+          }}
+          style={{ width: 240 }}
+        />
+        <Select
+          allowClear
+          placeholder="Role"
+          value={role}
+          onChange={(value) => {
+            setRole(value)
+            setPage(1)
+          }}
+          style={{ width: 140 }}
+          options={[
+            { value: 'ROLE_ADMIN', label: 'Admin' },
+            { value: 'ROLE_TEACHER', label: 'Teacher' },
+            { value: 'ROLE_STUDENT', label: 'Student' },
+          ]}
+        />
+        <Select
+          allowClear
+          placeholder="Status"
+          value={status}
+          onChange={(value) => {
+            setStatus(value)
+            setPage(1)
+          }}
+          style={{ width: 130 }}
+          options={[
+            { value: 1, label: 'Active' },
+            { value: 0, label: 'Disabled' },
+          ]}
+        />
+        <Button
+          onClick={() => {
+            setKeyword('')
+            setRole(undefined)
+            setStatus(undefined)
+            setPage(1)
+          }}
+        >
+          Reset
+        </Button>
+      </Space>
       {loadError ? <Alert type="error" showIcon message={loadError} style={{ marginBottom: 16 }} /> : null}
       <Table<AdminUser>
         rowKey="id"
         loading={users === null && !loadError}
         dataSource={users ?? []}
-        pagination={false}
+        pagination={{
+          current: page,
+          pageSize,
+          total,
+          showSizeChanger: true,
+          onChange: (nextPage, nextPageSize) => {
+            setPage(nextPageSize === pageSize ? nextPage : 1)
+            setPageSize(nextPageSize)
+          },
+        }}
         columns={[
           { title: 'Username', dataIndex: 'username' },
           { title: 'Nickname', dataIndex: 'nickname', render: (value: string) => value || '—' },

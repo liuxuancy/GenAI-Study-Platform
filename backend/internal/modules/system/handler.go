@@ -100,7 +100,11 @@ func (handler *Handler) GetPermissionCatalog(*gin.Context) (any, error) {
 	return handler.roleService.GetPermissionCatalog(), nil
 }
 
-// GetUsageReport GET /api/system/usage
+// GetUsageReport GET /api/system/usage?from=&to=&user=&role=&scene=&model=&call_status=&page=&pageSize=
 func (handler *Handler) GetUsageReport(ctx *gin.Context) (any, error) {
-	return handler.usageService.GetUsageReport(ctx.Request.Context())
+	var query UsageListQuery
+	if err := resp.BindQuery(ctx, &query); err != nil {
+		return nil, err
+	}
+	return handler.usageService.GetUsageReport(ctx.Request.Context(), query)
 }

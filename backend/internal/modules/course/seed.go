@@ -198,10 +198,13 @@ func ensureQuestionSet(tx *gorm.DB, item seedQuestionSet) error {
 		return fmt.Errorf("question %q: %w", item.Title, err)
 	}
 
+	now := time.Now().UTC()
+	status := publishStatusFromLegacy(item.IsPublish)
 	err = tx.Exec(
-		`INSERT INTO course_question (title, course_id, creator_id, question_count, is_publish, difficulty)
-		 VALUES (?, ?, ?, ?, ?, ?)`,
-		item.Title, courseID, creatorID, item.QuestionCount, item.IsPublish, item.Difficulty,
+		`INSERT INTO course_question
+		 (title, course_id, creator_id, question_count, is_publish, difficulty, publish_status, created_at, updated_at)
+		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		item.Title, courseID, creatorID, item.QuestionCount, item.IsPublish, item.Difficulty, status, now, now,
 	).Error
 	if err != nil {
 		return err
@@ -219,12 +222,13 @@ func ensureQuestionSet(tx *gorm.DB, item seedQuestionSet) error {
 		return fmt.Errorf("question %q: %w", item.Title, err)
 	}
 
-	for _, content := range item.Items {
+	for index, content := range item.Items {
 		err = tx.Exec(
 			`INSERT INTO course_question_content
-			 (question_id, content, options, correct_answer, explanation)
-			 VALUES (?, ?, ?, ?, ?)`,
+			 (question_id, content, options, correct_answer, explanation, question_type, sort_order, score, created_at, updated_at)
+			 VALUES (?, ?, ?, ?, ?, ?, ?, 1, ?, ?)`,
 			questionID, content.Content, content.Options, content.CorrectAnswer, content.Explanation,
+			QuestionTypeSingleChoice, index+1, now, now,
 		).Error
 		if err != nil {
 			return err

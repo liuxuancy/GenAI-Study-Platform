@@ -26,8 +26,29 @@ export interface AdminClass {
   members: AdminClassMember[]
 }
 
-export function getAdminUsers() {
-  return http.get<{ items: AdminUser[]; total: number }>('/system/users?page=1&pageSize=100')
+export interface AdminUserQuery {
+  keyword?: string
+  role?: string
+  status?: number
+  page?: number
+  pageSize?: number
+}
+
+function queryString(values: Record<string, string | number | undefined>) {
+  const params = new URLSearchParams()
+  Object.entries(values).forEach(([key, value]) => {
+    if (value !== undefined && value !== '') {
+      params.set(key, String(value))
+    }
+  })
+  const encoded = params.toString()
+  return encoded ? `?${encoded}` : ''
+}
+
+export function getAdminUsers(query: AdminUserQuery = {}) {
+  return http.get<{ items: AdminUser[]; total: number }>(
+    `/system/users${queryString({ page: 1, pageSize: 20, ...query })}`,
+  )
 }
 
 export function updateAdminUser(userId: number, input: { nickname: string; email: string; major: string; status: number }) {
@@ -105,6 +126,9 @@ export interface AdminUsageReport {
   completionTokens: number
   totalTokens: number
   users: AdminUsageUser[]
+  total: number
+  page: number
+  pageSize: number
 }
 
 export function getAdminCourses() {
@@ -115,6 +139,30 @@ export function setAdminCoursePublished(courseId: number, published: boolean) {
   return http.put<AdminCourse>(`/system/courses/${courseId}/publish`, { published })
 }
 
-export function getAdminUsage() {
-  return http.get<AdminUsageReport>('/system/usage')
+export interface AdminUsageQuery {
+  from?: string
+  to?: string
+  user?: string
+  role?: string
+  scene?: string
+  model?: string
+  call_status?: string
+  page?: number
+  pageSize?: number
+}
+
+export function getAdminUsage(query: AdminUsageQuery = {}) {
+  return http.get<AdminUsageReport>(
+    `/system/usage${queryString({
+      from: query.from,
+      to: query.to,
+      user: query.user,
+      role: query.role,
+      scene: query.scene,
+      model: query.model,
+      call_status: query.call_status,
+      page: query.page,
+      pageSize: query.pageSize,
+    })}`,
+  )
 }

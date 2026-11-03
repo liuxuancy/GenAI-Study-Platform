@@ -154,6 +154,9 @@ func prepareDatabase(database *gorm.DB, registry *module.Registry, loadDemo bool
 	if err := course.Seed(ctx, database); err != nil {
 		return fmt.Errorf("seed courses: %w", err)
 	}
+	if err := course.RunStartupMigrations(ctx, database); err != nil {
+		return fmt.Errorf("quiz migrations: %w", err)
+	}
 	if loadDemo {
 		if err := seed.LoadDemo(ctx, database, registry.GetModules()); err != nil {
 			return fmt.Errorf("load demo data: %w", err)

@@ -20,13 +20,13 @@ function menuFor(role?: string) {
   if (role === 'ROLE_TEACHER') {
     return [
       { key: '/teacher', label: 'Courses' },
-      { key: '/account', label: 'Account' },
+      { key: '/teacher/account', label: 'Account' },
     ]
   }
   if (role === 'ROLE_STUDENT') {
     return [
       { key: '/student', label: 'Courses' },
-      { key: '/account', label: 'Account' },
+      { key: '/student/account', label: 'Account' },
     ]
   }
   return [{ key: '/', label: 'Home' }]

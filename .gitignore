@@ -6,6 +6,7 @@
 # backend
 backend/data/
 backend/*.exe
+backend/server
 backend/tmp/
 
 # frontend

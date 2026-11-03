@@ -2,6 +2,7 @@ package ai_test
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"strings"
 	"testing"
@@ -256,4 +257,33 @@ func removeJSONField(t *testing.T, raw string, field string) string {
 		end++
 	}
 	return raw[:start] + raw[end:]
+}
+
+func TestGenerateCourseOutlineOnlyUsesOutlineTemplate(t *testing.T) {
+	stub := &stubClient{text: llm.MockOutlineText(), model: "stub"}
+	service, err := ai.New(llm.Config{Provider: llm.ProviderMock, MaxTopicLen: 500}, stub)
+	if err != nil {
+		t.Fatal(err)
+	}
+	parsed, meta, err := service.GenerateCourse(context.Background(), ai.GenerateCourseInput{
+		Topic:       "Git 入门",
+		Audience:    course.AudienceCS,
+		OutlineOnly: true,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if meta.TemplateID != prompt.CourseOutlineV1 {
+		t.Fatalf("template = %q", meta.TemplateID)
+	}
+	if !strings.Contains(stub.prompt, "OUTLINE ONLY") {
+		t.Fatalf("outline prompt missing marker: %s", stub.prompt)
+	}
+	var rich course.RichTextPayload
+	if err := json.Unmarshal(parsed.Chapters[0].Activities[0].Payload, &rich); err != nil {
+		t.Fatal(err)
+	}
+	if rich.Markdown != "（待生成）" {
+		t.Fatalf("markdown = %q", rich.Markdown)
+	}
 }

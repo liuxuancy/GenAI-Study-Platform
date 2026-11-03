@@ -26,8 +26,8 @@ func ParseCourseJSON(rawText string, repair bool) (course.StandardCourse, Report
 		return course.StandardCourse{}, Report{}, err
 	}
 	var parsed course.StandardCourse
-	if err := json.Unmarshal([]byte(extracted), &parsed); err != nil {
-		return course.StandardCourse{}, Report{}, aierr.OutputParseFailed(err, "invalid JSON")
+	if err := unmarshalCourseJSON(extracted, &parsed); err != nil {
+		return course.StandardCourse{}, Report{}, err
 	}
 
 	report := Report{}
@@ -44,6 +44,20 @@ func ParseCourseJSON(rawText string, repair bool) (course.StandardCourse, Report
 		return course.StandardCourse{}, Report{}, schemaFailed(err)
 	}
 	return parsed, report, nil
+}
+
+func unmarshalCourseJSON(extracted string, parsed *course.StandardCourse) error {
+	err := json.Unmarshal([]byte(extracted), parsed)
+	if err == nil {
+		return nil
+	}
+	relaxed := RelaxJSON(extracted)
+	if relaxed != extracted {
+		if err2 := json.Unmarshal([]byte(relaxed), parsed); err2 == nil {
+			return nil
+		}
+	}
+	return aierr.OutputParseFailed(err, "invalid JSON")
 }
 
 // 只补缺失或空白的默认值。estimatedMinutes 只有键不存在时才记为修复。

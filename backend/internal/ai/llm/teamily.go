@@ -59,6 +59,9 @@ func (client *teamilyClient) Complete(ctx context.Context, request Request) (Res
 	if ctx == nil {
 		ctx = context.Background()
 	}
+	if len(request.Prompt) > TeamilyMaxInputChars {
+		return Response{}, aierr.InputTooLong(nil, fmt.Sprintf("prompt exceeds %d characters", TeamilyMaxInputChars))
+	}
 	body := teamilyRequest{Input: request.Prompt, Wait: true}
 	body.Thread.Mode = "new"
 	payload, err := json.Marshal(body)
@@ -186,6 +189,13 @@ func teamilyStatusError(status int, parsed teamilyResponse, raw []byte) error {
 		message = message[:300]
 	}
 	detail := fmt.Sprintf("status=%d %s", status, message)
+	lower := strings.ToLower(message)
+	if status == http.StatusBadRequest {
+		if strings.Contains(lower, "32000") || strings.Contains(lower, "too long") || strings.Contains(lower, "length") || strings.Contains(lower, "limit") {
+			return aierr.InputTooLong(fmt.Errorf("teamily request failed"), detail)
+		}
+		return aierr.InvalidInput(fmt.Errorf("teamily request failed"), detail)
+	}
 	if status == http.StatusTooManyRequests || status == http.StatusRequestTimeout || status >= http.StatusInternalServerError {
 		return aierr.ModelUnavailable(fmt.Errorf("teamily request failed"), detail)
 	}

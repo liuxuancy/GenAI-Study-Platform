@@ -1,7 +1,7 @@
 // 管理员系统页：账号数、课程数、已发布数、全站 token，以及每位师生的用量明细。
 import { useEffect, useState } from 'react'
-import { Alert, Col, Row, Statistic, Table, Tag, Typography } from 'antd'
-import { Navigate } from 'react-router-dom'
+import { Alert, Button, Col, Input, Row, Select, Space, Statistic, Table, Tag, Typography } from 'antd'
+import { Navigate, useSearchParams } from 'react-router-dom'
 
 import { useAuthStore } from '@/core/auth/store'
 import {
@@ -17,6 +17,7 @@ const sceneLabel: Record<string, string> = {
   generate_activity: 'Generate activity',
   evaluate_course: 'Evaluate course',
   chapter_qa: 'Chapter Q&A',
+  learning_insight: 'Learning insight',
   study_note: 'Study note',
 }
 
@@ -28,20 +29,50 @@ function formatWhen(value: string) {
   return date.toLocaleString()
 }
 
+function dateValue(date: Date) {
+  const year = date.getFullYear()
+  const month = String(date.getMonth() + 1).padStart(2, '0')
+  const day = String(date.getDate()).padStart(2, '0')
+  return `${year}-${month}-${day}`
+}
+
 export function AdminSystemPage() {
   const currentUser = useAuthStore((state) => state.currentUser)
+  const [searchParams, setSearchParams] = useSearchParams()
   const [report, setReport] = useState<AdminUsageReport | null>(null)
   const [courseTotal, setCourseTotal] = useState<number | null>(null)
   const [publishedCount, setPublishedCount] = useState<number | null>(null)
   const [loadError, setLoadError] = useState('')
 
+  const queryKey = searchParams.toString()
+
   useEffect(() => {
     if (currentUser?.role !== 'ROLE_ADMIN') {
       return
     }
-    Promise.all([getAdminUsage(), getAdminCourses()])
-      .then(([usage, courses]) => {
-        setReport(usage)
+    setLoadError('')
+    setReport(null)
+    getAdminUsage({
+      from: searchParams.get('from') || undefined,
+      to: searchParams.get('to') || undefined,
+      user: searchParams.get('user') || undefined,
+      role: searchParams.get('role') || undefined,
+      scene: searchParams.get('scene') || undefined,
+      model: searchParams.get('model') || undefined,
+      call_status: searchParams.get('call_status') || undefined,
+      page: Number(searchParams.get('page')) || 1,
+      pageSize: Number(searchParams.get('pageSize')) || 20,
+    })
+      .then(setReport)
+      .catch((error: Error) => setLoadError(error.message))
+  }, [currentUser?.role, queryKey])
+
+  useEffect(() => {
+    if (currentUser?.role !== 'ROLE_ADMIN') {
+      return
+    }
+    getAdminCourses()
+      .then((courses) => {
         setCourseTotal(courses.total)
         setPublishedCount(courses.publishedCount)
       })
@@ -56,6 +87,28 @@ export function AdminSystemPage() {
   }
 
   const loading = report === null && !loadError
+
+  function updateQuery(changes: Record<string, string | number | undefined>, resetPage = true) {
+    const next = new URLSearchParams(searchParams)
+    Object.entries(changes).forEach(([key, value]) => {
+      if (value === undefined || value === '') {
+        next.delete(key)
+      } else {
+        next.set(key, String(value))
+      }
+    })
+    if (resetPage) {
+      next.delete('page')
+    }
+    setSearchParams(next, { replace: true })
+  }
+
+  function quickRange(days: number) {
+    const to = new Date()
+    const from = new Date(to)
+    from.setDate(from.getDate() - days + 1)
+    updateQuery({ from: dateValue(from), to: dateValue(to) })
+  }
 
   return (
     <>
@@ -85,12 +138,83 @@ export function AdminSystemPage() {
           ) : null}
         </Col>
       </Row>
-      <Typography.Title level={4}>Teachers and students</Typography.Title>
+      <Typography.Title level={4}>AI usage</Typography.Title>
+      <Space wrap style={{ marginBottom: 16 }}>
+        <Button onClick={() => quickRange(1)}>Today</Button>
+        <Button onClick={() => quickRange(7)}>7 days</Button>
+        <Button onClick={() => quickRange(30)}>30 days</Button>
+        <Input
+          type="date"
+          aria-label="From date"
+          value={searchParams.get('from') ?? ''}
+          onChange={(event) => updateQuery({ from: event.target.value })}
+          style={{ width: 145 }}
+        />
+        <Input
+          type="date"
+          aria-label="To date"
+          value={searchParams.get('to') ?? ''}
+          onChange={(event) => updateQuery({ to: event.target.value })}
+          style={{ width: 145 }}
+        />
+        <Input
+          allowClear
+          placeholder="User"
+          value={searchParams.get('user') ?? ''}
+          onChange={(event) => updateQuery({ user: event.target.value })}
+          style={{ width: 150 }}
+        />
+        <Select
+          allowClear
+          placeholder="Role"
+          value={searchParams.get('role') || undefined}
+          onChange={(value) => updateQuery({ role: value })}
+          style={{ width: 130 }}
+          options={[
+            { value: 'ROLE_ADMIN', label: 'Admin' },
+            { value: 'ROLE_TEACHER', label: 'Teacher' },
+            { value: 'ROLE_STUDENT', label: 'Student' },
+          ]}
+        />
+        <Select
+          allowClear
+          placeholder="Scene"
+          value={searchParams.get('scene') || undefined}
+          onChange={(value) => updateQuery({ scene: value })}
+          style={{ width: 180 }}
+          options={Object.entries(sceneLabel).map(([value, label]) => ({ value, label }))}
+        />
+        <Input
+          allowClear
+          placeholder="Model"
+          value={searchParams.get('model') ?? ''}
+          onChange={(event) => updateQuery({ model: event.target.value })}
+          style={{ width: 150 }}
+        />
+        <Select
+          allowClear
+          placeholder="Status"
+          value={searchParams.get('call_status') || undefined}
+          onChange={(value) => updateQuery({ call_status: value })}
+          style={{ width: 130 }}
+          options={[
+            { value: 'success', label: 'Success' },
+            { value: 'failed', label: 'Failed' },
+          ]}
+        />
+        <Button onClick={() => setSearchParams({}, { replace: true })}>Reset</Button>
+      </Space>
       <Table<AdminUsageUser>
         rowKey="userId"
         loading={loading}
         dataSource={report?.users ?? []}
-        pagination={false}
+        pagination={{
+          current: report?.page ?? 1,
+          pageSize: report?.pageSize ?? 20,
+          total: report?.total ?? 0,
+          showSizeChanger: true,
+          onChange: (page, pageSize) => updateQuery({ page, pageSize }, false),
+        }}
         expandable={{
           rowExpandable: (user) => user.calls.length > 0,
           expandedRowRender: (user) => (

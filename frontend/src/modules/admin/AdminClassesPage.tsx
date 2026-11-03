@@ -1,5 +1,5 @@
 // 管理员班级：新建班级，把教师和学生分进去。一个人可以在多个班。
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Alert, Button, Checkbox, Form, Input, Modal, Space, Table, Typography } from 'antd'
 import { Navigate } from 'react-router-dom'
 
@@ -18,6 +18,10 @@ export function AdminClassesPage() {
   const currentUser = useAuthStore((state) => state.currentUser)
   const [classes, setClasses] = useState<AdminClass[] | null>(null)
   const [people, setPeople] = useState<AdminUser[]>([])
+  const [keyword, setKeyword] = useState('')
+  const [memberKeyword, setMemberKeyword] = useState('')
+  const [page, setPage] = useState(1)
+  const [pageSize, setPageSize] = useState(10)
   const [loadError, setLoadError] = useState('')
   const [createOpen, setCreateOpen] = useState(false)
   const [editing, setEditing] = useState<AdminClass | null>(null)
@@ -28,7 +32,7 @@ export function AdminClassesPage() {
   const [editForm] = Form.useForm<{ name: string }>()
 
   function reload() {
-    return Promise.all([getAdminClasses(), getAdminUsers()])
+    return Promise.all([getAdminClasses(), getAdminUsers({ pageSize: 100 })])
       .then(([classItems, users]) => {
         setClasses(classItems)
         setPeople(users.items.filter((user) => user.role === 'ROLE_TEACHER' || user.role === 'ROLE_STUDENT'))
@@ -69,9 +73,28 @@ export function AdminClassesPage() {
   function openMembers(item: AdminClass) {
     setFormError('')
     setEditing(item)
+    setMemberKeyword('')
     setMemberIds(item.members.map((member) => member.userId))
     editForm.setFieldsValue({ name: item.name })
   }
+
+  const filteredClasses = useMemo(() => {
+    const normalized = keyword.trim().toLowerCase()
+    if (!normalized) {
+      return classes ?? []
+    }
+    return (classes ?? []).filter(
+      (item) =>
+        item.name.toLowerCase().includes(normalized) ||
+        item.members.some((member) => `${member.username} ${member.nickname}`.toLowerCase().includes(normalized)),
+    )
+  }, [classes, keyword])
+  const visiblePeople = useMemo(() => {
+    const normalized = memberKeyword.trim().toLowerCase()
+    return normalized
+      ? people.filter((person) => `${person.username} ${person.nickname}`.toLowerCase().includes(normalized))
+      : people
+  }, [people, memberKeyword])
 
   async function saveMembers() {
     if (!editing) {
@@ -112,12 +135,31 @@ export function AdminClassesPage() {
           New class
         </Button>
       </Space>
+      <Input.Search
+        allowClear
+        placeholder="Search class or member"
+        value={keyword}
+        onChange={(event) => {
+          setKeyword(event.target.value)
+          setPage(1)
+        }}
+        style={{ width: 280, marginBottom: 16 }}
+      />
       {loadError ? <Alert type="error" showIcon message={loadError} style={{ marginBottom: 16 }} /> : null}
       <Table<AdminClass>
         rowKey="id"
         loading={classes === null && !loadError}
-        dataSource={classes ?? []}
-        pagination={false}
+        dataSource={filteredClasses}
+        pagination={{
+          current: page,
+          pageSize,
+          total: filteredClasses.length,
+          showSizeChanger: true,
+          onChange: (nextPage, nextPageSize) => {
+            setPage(nextPageSize === pageSize ? nextPage : 1)
+            setPageSize(nextPageSize)
+          },
+        }}
         locale={{ emptyText: 'No classes yet.' }}
         columns={[
           { title: 'Class', dataIndex: 'name' },
@@ -187,10 +229,17 @@ export function AdminClassesPage() {
           </Form.Item>
         </Form>
         <Typography.Paragraph type="secondary">Teachers and students. One person can belong to more than one class.</Typography.Paragraph>
+        <Input.Search
+          allowClear
+          placeholder="Search people"
+          value={memberKeyword}
+          onChange={(event) => setMemberKeyword(event.target.value)}
+          style={{ marginBottom: 12 }}
+        />
         <Checkbox.Group
           style={{ display: 'flex', flexDirection: 'column', gap: 8 }}
           value={memberIds}
-          options={people.map((person) => ({
+          options={visiblePeople.map((person) => ({
             label: `${person.nickname || person.username} (${person.role === 'ROLE_TEACHER' ? 'Teacher' : 'Student'})`,
             value: person.id,
           }))}

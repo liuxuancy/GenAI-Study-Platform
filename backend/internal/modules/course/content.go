@@ -44,6 +44,23 @@ func (service *Service) chapterQuestions(ctx context.Context, courseID int64) (m
 	return ids, nil
 }
 
+func chapterTitleFromJSON(contentJSON, chapterKey string) string {
+	chapterKey = strings.TrimSpace(chapterKey)
+	if chapterKey == "" {
+		return ""
+	}
+	var course aicourse.StandardCourse
+	if json.Unmarshal([]byte(contentJSON), &course) != nil {
+		return ""
+	}
+	for _, chapter := range course.Chapters {
+		if chapter.Key == chapterKey {
+			return chapter.Title
+		}
+	}
+	return ""
+}
+
 // SaveCourseContent 把正文入库。必须先通过 parse.ParseCourseJSON，不改课程名、所有者和是否放出。
 func (service *Service) SaveCourseContent(ctx context.Context, principal *access.Principal, courseID int64, raw string) error {
 	if principal.Role != access.RoleStudent && principal.Role != access.RoleTeacher {
@@ -69,7 +86,13 @@ func (service *Service) SaveCourseContent(ctx context.Context, principal *access
 	if result.RowsAffected == 0 {
 		return errs.NotFound("course not found")
 	}
-	return nil
+	var contentJSON string
+	if err := service.database.WithContext(ctx).Raw(
+		"SELECT COALESCE(content_json, '') FROM course WHERE id = ?", courseID,
+	).Scan(&contentJSON).Error; err != nil {
+		return err
+	}
+	return SyncCourseStructureFromJSON(ctx, service.database, courseID, contentJSON)
 }
 
 func invalidContent(err error) error {

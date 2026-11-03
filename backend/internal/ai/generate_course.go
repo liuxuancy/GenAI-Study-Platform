@@ -22,6 +22,7 @@ type GenerateCourseInput struct {
 	ChapterCountHint  int
 	Model             string
 	TemplateID        string
+	OutlineOnly       bool
 }
 
 // GenerateCourse 校验入参，渲染 full_course_v1，调用模型，再解析并校验课程。
@@ -46,8 +47,14 @@ func (service *Service) GenerateCourse(ctx context.Context, input GenerateCourse
 		return course.StandardCourse{}, Meta{}, err
 	}
 	if checked.TemplateID == "" {
-		checked.TemplateID = prompt.FullCourseV1
-	} else if checked.TemplateID != prompt.FullCourseV1 {
+		if input.OutlineOnly {
+			checked.TemplateID = prompt.CourseOutlineV1
+		} else {
+			checked.TemplateID = prompt.FullCourseV1
+		}
+	} else if input.OutlineOnly && checked.TemplateID != prompt.CourseOutlineV1 {
+		return course.StandardCourse{}, Meta{}, aierr.InvalidInput(nil, "templateId")
+	} else if !input.OutlineOnly && checked.TemplateID != prompt.FullCourseV1 {
 		return course.StandardCourse{}, Meta{}, aierr.InvalidInput(nil, "templateId")
 	}
 	response, meta, err := service.runModel(ctx, SceneFullCourse, checked.TemplateID, checked.Model, prompt.FullCourseData{

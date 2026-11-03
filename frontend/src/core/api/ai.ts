@@ -21,4 +21,21 @@ export interface GenerateCourseRequest {
   language?: string
   extraRequirements?: string
   chapterCountHint?: number
+  outlineOnly?: boolean
+}
+
+export interface AiGenerationMeta {
+  scene: string
+  templateId: string
+  templateVersion: string
+  modelRequested: string
+  modelUsed: string
+  fallbackUsed: boolean
+  latencyMs: number
+  warnings: string[]
+}
+
+export interface AiGenerationResult<T> {
+  course: T
+  meta: AiGenerationMeta
 }

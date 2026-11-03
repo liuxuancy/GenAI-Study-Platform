@@ -2,10 +2,12 @@ package course
 
 import (
 	"context"
+	"encoding/json"
 	"time"
 
 	"gorm.io/gorm"
 
+	aicourse "caveclass/internal/ai/course"
 	"caveclass/internal/framework/access"
 	"caveclass/internal/platform/errs"
 )
@@ -43,15 +45,18 @@ type TeacherClassItem struct {
 
 // TeacherCourseDetail 教师看到的一门课，含发布到哪些班和气泡树。
 type TeacherCourseDetail struct {
-	ID          int64       `json:"id"`
-	Title       string      `json:"title"`
-	Description string      `json:"description"`
-	CourseType  string      `json:"courseType"`
-	Audience    string      `json:"audience"`
-	Language    string      `json:"language"`
-	Published   bool        `json:"published"`
-	ClassIDs    []int64     `json:"classIds"`
-	Tree        *BubbleNode `json:"tree"`
+	ID           int64                    `json:"id"`
+	Title        string                   `json:"title"`
+	Description  string                   `json:"description"`
+	CourseType   string                   `json:"courseType"`
+	Audience     string                   `json:"audience"`
+	Language     string                   `json:"language"`
+	Published    bool                     `json:"published"`
+	ClassIDs     []int64                  `json:"classIds"`
+	ChapterCount int                      `json:"chapterCount"`
+	HasContent   bool                     `json:"hasContent"`
+	Tree         *BubbleNode              `json:"tree"`
+	Content      *aicourse.StandardCourse `json:"content"`
 }
 
 // PublishClassesInput 发布到这些班。空数组表示撤回：is_publish 改为 0，并删掉该课全部 course_class。
@@ -282,7 +287,8 @@ func (service *Service) GetTeacherCourseList(ctx context.Context, principal *acc
 	var rows []storedCourse
 	err := service.database.WithContext(ctx).Raw(
 		`SELECT id, title, COALESCE(description, '') AS description, COALESCE(course_type, '') AS course_type,
-		        COALESCE(audience, '') AS audience, COALESCE(language, '') AS language, is_publish
+		        COALESCE(audience, '') AS audience, COALESCE(language, '') AS language,
+		        COALESCE(content_json, '') AS content_json, is_publish
 		 FROM course
 		 WHERE owner_id = ?
 		 ORDER BY id`,
@@ -302,14 +308,16 @@ func (service *Service) GetTeacherCourseList(ctx context.Context, principal *acc
 			ids = []int64{}
 		}
 		items = append(items, TeacherCourseDetail{
-			ID:          row.ID,
-			Title:       row.Title,
-			Description: row.Description,
-			CourseType:  row.CourseType,
-			Audience:    row.Audience,
-			Language:    shownLanguage(row.Language),
-			Published:   row.IsPublish == PublishOn,
-			ClassIDs:    ids,
+			ID:           row.ID,
+			Title:        row.Title,
+			Description:  row.Description,
+			CourseType:   row.CourseType,
+			Audience:     row.Audience,
+			Language:     shownLanguage(row.Language),
+			Published:    row.IsPublish == PublishOn,
+			ClassIDs:     ids,
+			ChapterCount: courseChapterCount(row.ContentJSON),
+			HasContent:   row.ContentJSON != "",
 		})
 	}
 	return items, nil
@@ -473,16 +481,26 @@ func (service *Service) teacherDetail(ctx context.Context, row storedCourse) (*T
 	if err != nil {
 		return nil, err
 	}
+	var content *aicourse.StandardCourse
+	if row.ContentJSON != "" {
+		content = &aicourse.StandardCourse{}
+		if err := json.Unmarshal([]byte(row.ContentJSON), content); err != nil {
+			return nil, errs.Internal(err)
+		}
+	}
 	return &TeacherCourseDetail{
-		ID:          row.ID,
-		Title:       row.Title,
-		Description: row.Description,
-		CourseType:  row.CourseType,
-		Audience:    row.Audience,
-		Language:    shownLanguage(row.Language),
-		Published:   row.IsPublish == PublishOn,
-		ClassIDs:    classIDs,
-		Tree:        tree,
+		ID:           row.ID,
+		Title:        row.Title,
+		Description:  row.Description,
+		CourseType:   row.CourseType,
+		Audience:     row.Audience,
+		Language:     shownLanguage(row.Language),
+		Published:    row.IsPublish == PublishOn,
+		ClassIDs:     classIDs,
+		ChapterCount: courseChapterCount(row.ContentJSON),
+		HasContent:   row.ContentJSON != "",
+		Tree:         tree,
+		Content:      content,
 	}, nil
 }
 

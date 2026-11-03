@@ -18,6 +18,7 @@ export interface RoleHomeShellProps {
   navItems: RoleNavItem[]
   pageLabel: string
   onSignOut: () => void
+  contentFlush?: boolean
   children?: ReactNode
 }
 
@@ -29,10 +30,11 @@ export function RoleHomeShell({
   navItems,
   pageLabel,
   onSignOut,
+  contentFlush = false,
   children,
 }: RoleHomeShellProps) {
   return (
-    <div className={styles.app}>
+    <div className={`${styles.app} ${contentFlush ? styles.appFlush : ''}`}>
       <aside className={styles.side}>
         <div className={styles.sideBrand}>
           <Link className={styles.brand} to={homePath} aria-label="CaveClass home">
@@ -80,9 +82,25 @@ export function RoleHomeShell({
             <span className={styles.sep}>/</span>
             <strong>{pageLabel}</strong>
           </div>
+          <nav className={styles.mobileNav} aria-label={`${navAriaLabel} mobile`}>
+            {navItems.map((item) => (
+              <button
+                key={item.label}
+                type="button"
+                className={item.active ? styles.mobileNavOn : undefined}
+                onClick={item.onSelect}
+              >
+                {item.label}
+              </button>
+            ))}
+            <button type="button" onClick={onSignOut}>退出</button>
+          </nav>
         </header>
 
-        <main className={styles.content} aria-label={navAriaLabel}>
+        <main
+          className={`${styles.content} ${contentFlush ? styles.contentFlush : ''}`}
+          aria-label={navAriaLabel}
+        >
           {children}
         </main>
       </div>

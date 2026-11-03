@@ -6,15 +6,22 @@ import { AppLayout } from '@/core/layout/AppLayout'
 import { HomePage } from '@/core/pages/HomePage'
 import { LoginPage } from '@/core/pages/LoginPage'
 import { NotFoundPage } from '@/core/pages/NotFoundPage'
-import { AccountPage } from '@/modules/account/AccountPage'
+import { AccountRoute, StudentAccountPage, TeacherAccountPage } from '@/modules/account/RoleAccountPage'
 import { AdminClassesPage } from '@/modules/admin/AdminClassesPage'
 import { AdminCoursesPage } from '@/modules/admin/AdminCoursesPage'
 import { AdminSystemPage } from '@/modules/admin/AdminSystemPage'
 import { AdminUsersPage } from '@/modules/admin/AdminUsersPage'
 import { CourseBubblePage } from '@/modules/student/CourseBubblePage'
 import { QuestionDetailPage } from '@/modules/student/QuestionDetailPage'
-import { StudentHomePage } from '@/modules/student/StudentHomePage'
+import { LearningDashboard } from '@/modules/student/learning/LearningDashboard'
+import { MyCoursesPage } from '@/modules/student/learning/MyCoursesPage'
+import { StudentLayout } from '@/modules/student/layout/StudentLayout'
+import { QuizDashboard } from '@/modules/student/quiz/QuizDashboard'
+import { StudentAiPage } from '@/modules/student/learning/StudentAiPage'
+import { TeacherLayout } from '@/modules/teacher/layout/TeacherLayout'
+import { TeacherAiPage } from '@/modules/teacher/TeacherAiPage'
 import { TeacherHomePage } from '@/modules/teacher/TeacherHomePage'
+import { TeacherCourseWorkspacePage } from '@/modules/teacher/TeacherCourseWorkspacePage'
 
 export const appRouter = createBrowserRouter([
   { path: '/login', element: <LoginPage /> },
@@ -22,9 +29,17 @@ export const appRouter = createBrowserRouter([
     path: '/student',
     element: (
       <RequireAuth>
-        <StudentHomePage />
+        <StudentLayout />
       </RequireAuth>
     ),
+    children: [
+      { index: true, element: <LearningDashboard /> },
+      { path: 'courses', element: <MyCoursesPage /> },
+      { path: 'ai', element: <StudentAiPage /> },
+      { path: 'quizzes', element: <QuizDashboard /> },
+      { path: 'account', element: <StudentAccountPage /> },
+      { path: 'questions/:questionId', element: <QuestionDetailPage /> },
+    ],
   },
   {
     path: '/student/courses/:courseId',
@@ -35,10 +50,23 @@ export const appRouter = createBrowserRouter([
     ),
   },
   {
-    path: '/student/questions/:questionId',
+    path: '/teacher',
     element: (
       <RequireAuth>
-        <QuestionDetailPage />
+        <TeacherLayout />
+      </RequireAuth>
+    ),
+    children: [
+      { index: true, element: <TeacherHomePage /> },
+      { path: 'ai', element: <TeacherAiPage /> },
+      { path: 'account', element: <TeacherAccountPage /> },
+    ],
+  },
+  {
+    path: '/teacher/courses/:courseId',
+    element: (
+      <RequireAuth>
+        <TeacherCourseWorkspacePage />
       </RequireAuth>
     ),
   },
@@ -51,8 +79,7 @@ export const appRouter = createBrowserRouter([
     ),
     children: [
       { index: true, element: <HomePage /> },
-      { path: 'teacher', element: <TeacherHomePage /> },
-      { path: 'account', element: <AccountPage /> },
+      { path: 'account', element: <AccountRoute /> },
       { path: 'admin', element: <AdminUsersPage /> },
       { path: 'admin/classes', element: <AdminClassesPage /> },
       { path: 'admin/courses', element: <AdminCoursesPage /> },

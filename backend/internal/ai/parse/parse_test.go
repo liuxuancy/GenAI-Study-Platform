@@ -68,6 +68,18 @@ func TestParsePureJSONAndCodeFence(t *testing.T) {
 	}
 }
 
+func TestParseTrailingComma(t *testing.T) {
+	raw := strings.TrimSpace(miniCourseJSON(t))
+	raw = strings.TrimSuffix(raw, "}") + ",}"
+	parsed, _, err := parse.ParseCourseJSON(raw, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if parsed.Title == "" {
+		t.Fatal("expected title")
+	}
+}
+
 func TestExtractJSONIgnoresFenceInsideObject(t *testing.T) {
 	raw := "{\"markdown\":\"运行\\n```\\ngit status\\n```\\n\"}"
 	got, err := parse.ExtractJSON(raw)

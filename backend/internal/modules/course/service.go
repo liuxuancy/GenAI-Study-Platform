@@ -4,6 +4,7 @@ package course
 
 import (
 	"context"
+	"encoding/json"
 	"strings"
 	"time"
 
@@ -12,17 +13,22 @@ import (
 	"caveclass/internal/ai"
 	"caveclass/internal/ai/llm"
 	"caveclass/internal/framework/access"
+	"caveclass/internal/platform/cos"
 	"caveclass/internal/platform/errs"
 )
 
 type Service struct {
-	database *gorm.DB
-	ai       *ai.Service
-	aiBase   llm.Config
+	database  *gorm.DB
+	ai        *ai.Service
+	aiBase    llm.Config
+	cosClient *cos.Client
+	cosLimits cos.Limits
 }
 
 // NewService 全局只初始化一次：启动时在路由表里创建。
 func NewService(database *gorm.DB) *Service {
+	_ = EnsureQuizIndexes(database)
+	_ = ensureOptionalConversationCourse(database)
 	return &Service{database: database}
 }
 
@@ -34,16 +40,23 @@ func (service *Service) UseAI(aiService *ai.Service) {
 	}
 }
 
+// UseCOS 注入腾讯云 COS 客户端；未配置时上传接口返回明确错误。
+func (service *Service) UseCOS(client *cos.Client, limits cos.Limits) {
+	service.cosClient = client
+	service.cosLimits = limits
+}
+
 // CourseListItem 一门课在学生列表里的样子。
 // Visibility：private 仅自己，class 同班可见，assigned 教师发到自己所在的班。
 type CourseListItem struct {
-	ID          int64  `json:"id"`
-	Title       string `json:"title"`
-	CourseType  string `json:"courseType"`
-	Description string `json:"description"`
-	Percent     int    `json:"percent"`
-	Visibility  string `json:"visibility"`
-	Owned       bool   `json:"owned"`
+	ID           int64  `json:"id"`
+	Title        string `json:"title"`
+	CourseType   string `json:"courseType"`
+	Description  string `json:"description"`
+	Percent      int    `json:"percent"`
+	Visibility   string `json:"visibility"`
+	Owned        bool   `json:"owned"`
+	ChapterCount int    `json:"chapterCount"`
 }
 
 type storedCourse struct {
@@ -69,7 +82,7 @@ func (service *Service) GetCourseList(ctx context.Context, principal *access.Pri
 	var rows []storedCourse
 	err := service.database.WithContext(ctx).Raw(
 		`SELECT c.id, c.title, COALESCE(c.course_type, '') AS course_type, COALESCE(c.description, '') AS description,
-		        COALESCE(p.percent, 0) AS percent, c.is_publish, c.owner_id,
+		        COALESCE(c.content_json, '') AS content_json, COALESCE(p.percent, 0) AS percent, c.is_publish, c.owner_id,
 		        (SELECT COUNT(*) FROM course_class cc WHERE cc.course_id = c.id) AS class_count
 		 FROM course c
 		 LEFT JOIN student_course_progress p ON p.course_id = c.id AND p.user_id = ?
@@ -83,36 +96,77 @@ func (service *Service) GetCourseList(ctx context.Context, principal *access.Pri
 	items := make([]CourseListItem, 0, len(rows))
 	for _, row := range rows {
 		items = append(items, CourseListItem{
-			ID:          row.ID,
-			Title:       row.Title,
-			CourseType:  row.CourseType,
-			Description: row.Description,
-			Percent:     row.Percent,
-			Visibility:  visibilityLabel(row.IsPublish, row.ClassCount),
-			Owned:       row.OwnerID == principal.UserID,
+			ID:           row.ID,
+			Title:        row.Title,
+			CourseType:   row.CourseType,
+			Description:  row.Description,
+			Percent:      row.Percent,
+			Visibility:   visibilityLabel(row.IsPublish, row.ClassCount),
+			Owned:        row.OwnerID == principal.UserID,
+			ChapterCount: courseChapterCount(row.ContentJSON),
 		})
 	}
 	return items, nil
 }
 
+func courseChapterCount(contentJSON string) int {
+	if strings.TrimSpace(contentJSON) == "" {
+		return 0
+	}
+	var content struct {
+		Chapters []json.RawMessage `json:"chapters"`
+	}
+	if json.Unmarshal([]byte(contentJSON), &content) != nil {
+		return 0
+	}
+	return len(content.Chapters)
+}
+
 // QuestionListItem 一套题在答题列表里的样子。Percent 是已作答题数除以 question_count。
 type QuestionListItem struct {
-	ID            int64  `json:"id"`
-	Title         string `json:"title"`
-	CourseTitle   string `json:"courseTitle"`
-	Difficulty    string `json:"difficulty"`
-	Answered      int    `json:"answered"`
-	QuestionCount int    `json:"questionCount"`
-	Percent       int    `json:"percent"`
+	ID             int64   `json:"id"`
+	Title          string  `json:"title"`
+	CourseTitle    string  `json:"courseTitle"`
+	Difficulty     string  `json:"difficulty"`
+	Answered       int     `json:"answered"`
+	QuestionCount  int     `json:"questionCount"`
+	Percent        int     `json:"percent"`
+	CourseID       int64   `json:"courseId"`
+	ChapterKey     string  `json:"chapterKey,omitempty"`
+	ChapterName    string  `json:"chapterName,omitempty"`
+	CreatorID      int64   `json:"creatorId"`
+	CreatorName    string  `json:"creatorName"`
+	CreatorRole    string  `json:"creatorRole"`
+	IsSubmit       bool    `json:"isSubmit"`
+	Score          *int    `json:"score,omitempty"`
+	CreatedAt      *string `json:"createdAt,omitempty"`
+	CreationMethod string  `json:"creationMethod,omitempty"`
+	PublishStatus  string  `json:"publishStatus,omitempty"`
+	SectionKey     string  `json:"sectionKey,omitempty"`
+	SectionName    string  `json:"sectionName,omitempty"`
+	AttemptID      *int64  `json:"attemptId,omitempty"`
 }
 
 type questionProgressRow struct {
-	ID            int64
-	Title         string
-	CourseTitle   string
-	Difficulty    string
-	QuestionCount int
-	Answered      int
+	ID             int64
+	Title          string
+	CourseTitle    string
+	Difficulty     string
+	QuestionCount  int
+	Answered       int
+	CourseID       int64
+	ChapterKey     string
+	ContentJSON    string
+	CreatorID      int64
+	CreatorName    string
+	CreatorRole    string
+	IsSubmit       int
+	Score          *int
+	CreationMethod string
+	PublishStatus  string
+	SectionKey     string
+	SectionName    string
+	AttemptID      *int64
 }
 
 // GetQuestionList 当前学生能看见所属课程的套题，以及自己创建的套题。进度是答题进度，对错不计入。
@@ -124,15 +178,35 @@ func (service *Service) GetQuestionList(ctx context.Context, principal *access.P
 	var rows []questionProgressRow
 	err := service.database.WithContext(ctx).Raw(
 		`SELECT q.id, q.title, c.title AS course_title, COALESCE(q.difficulty, '') AS difficulty, q.question_count,
-		        SUM(CASE WHEN p.user_option <> '' THEN 1 ELSE 0 END) AS answered
+		        SUM(CASE WHEN p.user_option <> '' THEN 1 ELSE 0 END) AS answered,
+		        q.course_id, COALESCE(q.chapter_key, '') AS chapter_key, COALESCE(c.content_json, '') AS content_json,
+		        q.creator_id, COALESCE(u.nickname, u.username, '') AS creator_name, COALESCE(u.role, '') AS creator_role,
+		        COALESCE(r.is_submit, 0) AS is_submit,
+		        COALESCE(q.creation_method, '') AS creation_method,
+		        COALESCE(q.publish_status, '') AS publish_status,
+		        COALESCE(cs.section_key, q.section_key, '') AS section_key,
+		        COALESCE(cs.title, '') AS section_name,
+		        (SELECT id FROM quiz_attempt qa WHERE qa.quiz_id = q.id AND qa.student_id = ? AND qa.attempt_no = 1 LIMIT 1) AS attempt_id,
+		        CASE WHEN COALESCE(r.is_submit, 0) = ?
+		             THEN (SELECT CAST(ROUND(100.0 * SUM(CASE WHEN sp.user_option = qc2.correct_answer AND sp.user_option <> '' THEN 1 ELSE 0 END) / NULLIF(COUNT(*), 0)) AS SIGNED)
+		                   FROM course_question_content qc2
+		                   LEFT JOIN student_question_progress sp ON sp.content_id = qc2.id AND sp.user_id = ?
+		                   WHERE qc2.question_id = q.id)
+		             ELSE NULL END AS score
 		 FROM course_question q
 		 JOIN course_question_content qc ON qc.question_id = q.id
 		 JOIN course c ON c.id = q.course_id
+		 JOIN sys_user u ON u.id = q.creator_id
+		 LEFT JOIN course_section cs ON cs.id = q.section_id
 		 LEFT JOIN student_question_progress p ON p.content_id = qc.id AND p.user_id = ?
-		 WHERE q.creator_id = ? OR `+studentVisibleCourseSQL("c")+`
-		 GROUP BY q.id, q.title, c.title, q.difficulty, q.question_count
+		 LEFT JOIN student_question_record r ON r.question_id = q.id AND r.user_id = ?
+		 WHERE (q.creator_id = ? OR `+studentVisibleCourseSQL("c")+`)
+		   AND (q.creator_id = ? OR (`+effectivePublishStatusSQL+` = '`+PublishStatusPublished+`' AND COALESCE(q.publish_status, '') <> '`+PublishStatusArchived+`'))
+		 GROUP BY q.id, q.title, c.title, q.difficulty, q.question_count, q.course_id, q.chapter_key, c.content_json,
+		          q.creator_id, u.nickname, u.username, u.role, r.is_submit, q.creation_method, q.publish_status,
+		          cs.section_key, cs.title, q.section_key
 		 ORDER BY q.id`,
-		append([]any{principal.UserID, principal.UserID}, studentVisibleCourseArgs(principal.UserID)...)...,
+		append(append([]any{principal.UserID, SubmitOn, principal.UserID, principal.UserID, principal.UserID, principal.UserID}, studentVisibleCourseArgs(principal.UserID)...), principal.UserID)...,
 	).Scan(&rows).Error
 	if err != nil {
 		return nil, err
@@ -140,14 +214,28 @@ func (service *Service) GetQuestionList(ctx context.Context, principal *access.P
 
 	items := make([]QuestionListItem, 0, len(rows))
 	for _, row := range rows {
+		chapterName := chapterTitleFromJSON(row.ContentJSON, row.ChapterKey)
 		items = append(items, QuestionListItem{
-			ID:            row.ID,
-			Title:         row.Title,
-			CourseTitle:   row.CourseTitle,
-			Difficulty:    row.Difficulty,
-			Answered:      row.Answered,
-			QuestionCount: row.QuestionCount,
-			Percent:       answerPercent(row.Answered, row.QuestionCount),
+			ID:             row.ID,
+			Title:          row.Title,
+			CourseTitle:    row.CourseTitle,
+			Difficulty:     row.Difficulty,
+			Answered:       row.Answered,
+			QuestionCount:  row.QuestionCount,
+			Percent:        answerPercent(row.Answered, row.QuestionCount),
+			CourseID:       row.CourseID,
+			ChapterKey:     row.ChapterKey,
+			ChapterName:    chapterName,
+			CreatorID:      row.CreatorID,
+			CreatorName:    row.CreatorName,
+			CreatorRole:    row.CreatorRole,
+			IsSubmit:       row.IsSubmit == SubmitOn,
+			Score:          row.Score,
+			CreationMethod: row.CreationMethod,
+			PublishStatus:  row.PublishStatus,
+			SectionKey:     row.SectionKey,
+			SectionName:    row.SectionName,
+			AttemptID:      row.AttemptID,
 		})
 	}
 	return items, nil
@@ -175,6 +263,7 @@ type CourseDetail struct {
 	Shared         bool        `json:"shared"`
 	ClassmateCount int         `json:"classmateCount"`
 	Owned          bool        `json:"owned"`
+	Percent        int         `json:"percent"`
 	Tree           *BubbleNode `json:"tree"`
 }
 
@@ -216,6 +305,13 @@ func (service *Service) studentCourseDetail(ctx context.Context, viewerID int64,
 	if err != nil {
 		return nil, err
 	}
+	var percent int
+	if err := service.database.WithContext(ctx).Raw(
+		`SELECT COALESCE((SELECT percent FROM student_course_progress WHERE user_id = ? AND course_id = ?), 0)`,
+		viewerID, row.ID,
+	).Scan(&percent).Error; err != nil {
+		return nil, err
+	}
 	return &CourseDetail{
 		ID:             row.ID,
 		Title:          row.Title,
@@ -226,6 +322,7 @@ func (service *Service) studentCourseDetail(ctx context.Context, viewerID int64,
 		Shared:         row.IsPublish == PublishOn && row.ClassCount == 0,
 		ClassmateCount: classmates,
 		Owned:          row.OwnerID == viewerID,
+		Percent:        percent,
 		Tree:           tree,
 	}, nil
 }
@@ -263,6 +360,8 @@ func (service *Service) UpdateCourseProgress(ctx context.Context, principal *acc
 			return nil, result.Error
 		}
 	}
+	courseRef := courseID
+	service.recordLearningEvent(ctx, principal.UserID, EventCourseProgress, &courseRef, nil, "", 0)
 	return &CourseProgress{Percent: percent}, nil
 }
 
@@ -317,8 +416,9 @@ func (service *Service) GetQuestion(ctx context.Context, principal *access.Princ
 		 JOIN course c ON c.id = q.course_id
 		 LEFT JOIN student_question_progress p ON p.content_id = qc.id AND p.user_id = ?
 		 WHERE q.id = ? AND (q.creator_id = ? OR `+studentVisibleCourseSQL("c")+`)
+		   AND (q.creator_id = ? OR (`+effectivePublishStatusSQL+` = '`+PublishStatusPublished+`' AND COALESCE(q.publish_status, '') <> '`+PublishStatusArchived+`'))
 		 GROUP BY q.id, q.title, c.title, q.difficulty, q.question_count`,
-		append([]any{principal.UserID, questionID, principal.UserID}, studentVisibleCourseArgs(principal.UserID)...)...,
+		append(append([]any{principal.UserID, questionID, principal.UserID}, studentVisibleCourseArgs(principal.UserID)...), principal.UserID)...,
 	).Scan(&row)
 	if result.Error != nil {
 		return nil, result.Error
@@ -383,8 +483,9 @@ func (service *Service) AnswerQuestion(ctx context.Context, principal *access.Pr
 		 JOIN course_question q ON q.id = qc.question_id
 		 JOIN course c ON c.id = q.course_id
 		 WHERE qc.id = ? AND qc.question_id = ?
-		   AND (q.creator_id = ? OR `+studentVisibleCourseSQL("c")+`)`,
-		append([]any{contentID, questionID, principal.UserID}, studentVisibleCourseArgs(principal.UserID)...)...,
+		   AND (q.creator_id = ? OR `+studentVisibleCourseSQL("c")+`)
+		   AND (q.creator_id = ? OR (`+effectivePublishStatusSQL+` = '`+PublishStatusPublished+`' AND COALESCE(q.publish_status, '') <> '`+PublishStatusArchived+`'))`,
+		append(append([]any{contentID, questionID, principal.UserID}, studentVisibleCourseArgs(principal.UserID)...), principal.UserID)...,
 	).Scan(&content)
 	if result.Error != nil {
 		return nil, result.Error
@@ -404,6 +505,10 @@ func (service *Service) AnswerQuestion(ctx context.Context, principal *access.Pr
 			return nil, err
 		}
 	}
+	if err := syncQuizAttemptFromLegacy(ctx, service.database, principal.UserID, questionID); err != nil {
+		return nil, err
+	}
+	service.recordQuizLearningEvents(ctx, principal.UserID, questionID, submit)
 	return service.GetQuestion(ctx, principal, questionID)
 }
 
@@ -505,6 +610,9 @@ func (service *Service) CreateQuestion(ctx context.Context, principal *access.Pr
 		Answered:      0,
 		QuestionCount: len(input.Questions),
 		Percent:       0,
+		CourseID:      course.ID,
+		CreatorID:     principal.UserID,
+		CreatorRole:   principal.Role,
 	}, nil
 }
 
@@ -560,10 +668,12 @@ func questionSetTitle(courseTitle string, difficulty string, now time.Time) stri
 }
 
 func insertQuestionSet(tx *gorm.DB, title string, courseID int64, creatorID int64, difficulty string, items []CreateQuestionItem) (int64, error) {
+	now := time.Now().UTC()
 	result := tx.Exec(
-		`INSERT INTO course_question (title, course_id, creator_id, question_count, is_publish, difficulty)
-		 VALUES (?, ?, ?, ?, ?, ?)`,
-		title, courseID, creatorID, len(items), PublishOff, difficulty,
+		`INSERT INTO course_question
+		 (title, course_id, creator_id, question_count, is_publish, difficulty, creation_method, publish_status, created_at, updated_at)
+		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		title, courseID, creatorID, len(items), PublishOff, difficulty, CreationMethodManual, PublishStatusDraft, now, now,
 	)
 	if result.Error != nil {
 		return 0, result.Error
@@ -576,12 +686,14 @@ func insertQuestionSet(tx *gorm.DB, title string, courseID int64, creatorID int6
 	if found.RowsAffected == 0 {
 		return 0, errs.NotFound("question not found")
 	}
-	for _, item := range items {
+	for index, item := range items {
+		sortOrder := index + 1
 		inserted := tx.Exec(
 			`INSERT INTO course_question_content
-			 (question_id, content, options, correct_answer, explanation)
-			 VALUES (?, ?, ?, ?, ?)`,
+			 (question_id, content, options, correct_answer, explanation, question_type, sort_order, score, created_at, updated_at)
+			 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 			questionID, item.Content, strings.Join(item.Options, "|"), item.CorrectAnswer, "",
+			QuestionTypeSingleChoice, sortOrder, 1, now, now,
 		)
 		if inserted.Error != nil {
 			return 0, inserted.Error

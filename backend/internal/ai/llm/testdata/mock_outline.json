@@ -1,0 +1,56 @@
+{
+  "schemaVersion": "1.0",
+  "title": "Introduction to Git for Beginners",
+  "description": "Outline only.",
+  "audience": "NON_CS",
+  "language": "zh-CN",
+  "estimatedMinutes": 45,
+  "chapters": [
+    {
+      "key": "ch-1",
+      "title": "What is Version Control",
+      "summary": "Concepts of VC and Git.",
+      "order": 1,
+      "activities": [
+        {
+          "key": "act-1-1",
+          "type": "rich_text",
+          "title": "Read: Git Basics",
+          "order": 1,
+          "payload": {
+            "markdown": "（待生成）",
+            "highlights": []
+          }
+        },
+        {
+          "key": "act-1-2",
+          "type": "rich_text",
+          "title": "Practice: First Repo",
+          "order": 2,
+          "payload": {
+            "markdown": "（待生成）",
+            "highlights": []
+          }
+        }
+      ]
+    },
+    {
+      "key": "ch-2",
+      "title": "Branching",
+      "summary": "Branches and merges.",
+      "order": 2,
+      "activities": [
+        {
+          "key": "act-2-1",
+          "type": "rich_text",
+          "title": "Branch workflow",
+          "order": 1,
+          "payload": {
+            "markdown": "（待生成）",
+            "highlights": []
+          }
+        }
+      ]
+    }
+  ]
+}

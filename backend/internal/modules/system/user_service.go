@@ -154,7 +154,7 @@ func (service *UserService) CreateUser(ctx context.Context, input CreateUserInpu
 type UpdateUserInput struct {
 	Nickname string  `json:"nickname" binding:"max=64"`
 	Email    string  `json:"email" binding:"omitempty,email,max=128"`
-	Major    *string `json:"major" binding:"omitempty,max=64"` // 不传则不改专业
+	Major    *string `json:"major" binding:"omitempty,max=64"`    // 不传则不改专业
 	Status   *int    `json:"status" binding:"required,oneof=0 1"` // 用指针才能区分"没传"和"传了 0（禁用）"
 }
 

@@ -18,8 +18,8 @@ type ProviderStatus struct {
 
 // GenerateProviderOptions 供前端展示可选模型与默认项。
 type GenerateProviderOptions struct {
-	Default   string          `json:"default"`
-	Providers ProviderStatus  `json:"providers"`
+	Default   string         `json:"default"`
+	Providers ProviderStatus `json:"providers"`
 }
 
 // ConfigForProvider 按请求选择厂商，不修改进程里的 AI_PROVIDER。

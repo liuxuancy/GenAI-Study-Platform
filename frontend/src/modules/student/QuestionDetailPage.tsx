@@ -1,19 +1,14 @@
 // 套题详情：点选只改本页进度，提交才写入。查看答案在右侧打开内容栏。
 import { useEffect, useState } from 'react'
-import { Navigate, useNavigate, useParams } from 'react-router-dom'
+import { Link, Navigate, useParams } from 'react-router-dom'
 
-import { studentHomePath } from '@/core/auth/homePath'
 import { useAuthStore } from '@/core/auth/store'
-import type { RoleNavItem } from '@/core/layout/RoleHomeShell'
-import { RoleHomeShell } from '@/core/layout/RoleHomeShell'
 import { answerStudentQuestion, getStudentQuestion, type StudentQuestionContent, type StudentQuestionDetail } from '@/modules/student/api'
 import styles from '@/modules/student/QuestionDetailPage.module.css'
 
 export function QuestionDetailPage() {
   const { questionId } = useParams()
-  const navigate = useNavigate()
   const currentUser = useAuthStore((state) => state.currentUser)
-  const logout = useAuthStore((state) => state.logout)
   const [detail, setDetail] = useState<StudentQuestionDetail | null>(null)
   const [errorMessage, setErrorMessage] = useState('')
   const [index, setIndex] = useState(0)
@@ -53,10 +48,6 @@ export function QuestionDetailPage() {
     return <Navigate to="/" replace />
   }
 
-  const navItems: RoleNavItem[] = [
-    { label: 'Course list', onSelect: () => navigate('/student') },
-    { label: 'Answer list', active: true, onSelect: () => navigate('/student') },
-  ]
   const questions = detail?.questions ?? []
   const current = questions[index]
   const questionNumber = questions.length === 0 ? 0 : index + 1
@@ -85,17 +76,10 @@ export function QuestionDetailPage() {
   }
 
   return (
-    <RoleHomeShell
-      roleLabel="Student"
-      homePath={studentHomePath}
-      navTitle="Learn"
-      navAriaLabel="Student workspace"
-      navItems={navItems}
-      pageLabel={label?.title ?? 'Answer'}
-      onSignOut={() => {
-        void logout()
-      }}
-    >
+    <>
+      <p className={styles.backLine}>
+        <Link to="/student/quizzes">← 返回我的测验</Link>
+      </p>
       {errorMessage ? <p className={styles.error}>{errorMessage}</p> : null}
       {detail && current && label ? (
         <article className={answerOpen ? styles.withAnswer : undefined}>
@@ -175,7 +159,7 @@ export function QuestionDetailPage() {
           <AnswerChat />
         </aside>
       ) : null}
-    </RoleHomeShell>
+    </>
   )
 }
 
