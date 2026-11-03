@@ -6,15 +6,16 @@ import type { AppLocale } from '@/core/i18n/types'
 
 const storageKey = 'caveclass.locale'
 
+/** Default UI is English; Chinese only after explicit switch (see caveclass.locale). */
 function readInitialLocale(): AppLocale {
   if (typeof window === 'undefined') {
-    return 'zh'
+    return 'en'
   }
   const stored = window.localStorage.getItem(storageKey)
   if (stored === 'en' || stored === 'zh') {
     return stored
   }
-  return 'zh'
+  return 'en'
 }
 
 interface LocaleState {

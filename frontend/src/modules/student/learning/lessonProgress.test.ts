@@ -28,23 +28,23 @@ const activities = [
 
 describe('lessonPrimaryAction', () => {
   it('未完成的普通小节先保存再进入下一节', () => {
-    expect(lessonPrimaryAction('r.0.0', activities, false).label).toBe('完成并学习下一节 →')
+    expect(lessonPrimaryAction('r.0.0', activities, false).label).toBe('Mark done & next section →')
     expect(shouldAdvanceAfterComplete('r.0.0', activities)).toBe(true)
   })
 
   it('已完成的普通小节直接显示下一节', () => {
-    expect(lessonPrimaryAction('r.0.0', activities, true)).toMatchObject({ label: '下一节 →', action: 'next' })
+    expect(lessonPrimaryAction('r.0.0', activities, true)).toMatchObject({ label: 'Next section →', action: 'next' })
   })
 
   it('本章最后一节未完成时不自动跳到下一节', () => {
-    expect(lessonPrimaryAction('r.0.1', activities, false).label).toBe('完成本章')
+    expect(lessonPrimaryAction('r.0.1', activities, false).label).toBe('Finish chapter')
     expect(shouldAdvanceAfterComplete('r.0.1', activities)).toBe(false)
     expect(firstActivityOfNextChapter('r.0.1', activities)).toBe('r.1.0')
   })
 
   it('已完成且还有下一章时进入下一章，课程末尾则停住', () => {
-    expect(lessonPrimaryAction('r.0.1', activities, true)).toMatchObject({ label: '进入下一章', action: 'next-chapter' })
-    expect(lessonPrimaryAction('r.1.0', activities, true)).toMatchObject({ label: '已学完', disabled: true })
+    expect(lessonPrimaryAction('r.0.1', activities, true)).toMatchObject({ label: 'Next chapter', action: 'next-chapter' })
+    expect(lessonPrimaryAction('r.1.0', activities, true)).toMatchObject({ label: 'All done', disabled: true })
   })
 })
 
