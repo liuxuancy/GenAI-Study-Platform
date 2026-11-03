@@ -361,19 +361,6 @@ export function TeacherCourseWorkspacePage() {
     }
   }, [activityIndex, chapterIndex, content])
 
-  useEffect(() => {
-    if (bankTarget || !content) {
-      return
-    }
-    for (const chapter of content.chapters) {
-      const quiz = chapter.activities.find((activity) => activity.type === 'quiz_game')
-      if (quiz) {
-        setBankTarget({ chapterKey: chapter.key, sectionKey: quiz.key })
-        return
-      }
-    }
-  }, [bankTarget, content])
-
   const fillProgress = useMemo(
     () => (content ? contentFillProgress(content) : { total: 0, pending: 0, filled: 0 }),
     [content],
@@ -777,10 +764,15 @@ export function TeacherCourseWorkspacePage() {
         sectionTitle: activity.title,
       })),
   )
-  const activeQuiz = quizSections.find((section) =>
-    section.chapterKey === bankTarget?.chapterKey && section.sectionKey === bankTarget?.sectionKey,
-  ) ?? quizSections[0] ?? null
-  const looseQuestions = questions.filter((item) => !item.sectionKey)
+  const bankFilterAll = '__all__'
+  const activeQuiz = bankTarget
+    ? quizSections.find((section) =>
+      section.chapterKey === bankTarget.chapterKey && section.sectionKey === bankTarget.sectionKey,
+    ) ?? null
+    : null
+  const bankQuestionCount = bankTarget && activeQuiz
+    ? questions.filter((item) => item.chapterKey === activeQuiz.chapterKey && item.sectionKey === activeQuiz.sectionKey).length
+    : questions.length
 
   const difficultyOptions = [
     { value: 'easy', label: t('teacher.workspace.difficultyEasy') },
@@ -814,12 +806,19 @@ export function TeacherCourseWorkspacePage() {
             <Space wrap>
               <Select
                 style={{ minWidth: 280 }}
-                value={activeQuiz ? `${activeQuiz.chapterKey}::${activeQuiz.sectionKey}` : undefined}
-                options={quizSections.map((section) => ({
-                  value: `${section.chapterKey}::${section.sectionKey}`,
-                  label: `${section.chapterTitle} / ${section.sectionTitle}`,
-                }))}
+                value={activeQuiz ? `${activeQuiz.chapterKey}::${activeQuiz.sectionKey}` : bankFilterAll}
+                options={[
+                  { value: bankFilterAll, label: t('teacher.workspace.allQuizSections') },
+                  ...quizSections.map((section) => ({
+                    value: `${section.chapterKey}::${section.sectionKey}`,
+                    label: `${section.chapterTitle} / ${section.sectionTitle}`,
+                  })),
+                ]}
                 onChange={(value) => {
+                  if (value === bankFilterAll) {
+                    setBankTarget(null)
+                    return
+                  }
                   const [chapterKey, sectionKey] = String(value).split('::')
                   setBankTarget({ chapterKey, sectionKey })
                 }}
@@ -834,19 +833,24 @@ export function TeacherCourseWorkspacePage() {
               </Upload>
               <Button disabled={!activeQuiz} onClick={() => { setAiOpen(true); aiForm.setFieldsValue({ count: 5, difficulty: 'medium' }) }}>{t('teacher.workspace.aiGenerateQuestions')}</Button>
             </Space>
-            <span>{t('teacher.workspace.currentSectionQuestionCount', {
-              count: questions.filter((item) => item.chapterKey === activeQuiz?.chapterKey && item.sectionKey === activeQuiz?.sectionKey).length,
-            })}</span>
+            <span>{activeQuiz
+              ? t('teacher.workspace.currentSectionQuestionCount', { count: bankQuestionCount })
+              : t('teacher.workspace.allQuestionCount', { count: bankQuestionCount })}</span>
           </div>
           {content.chapters.map((chapter) => {
+            if (bankTarget && chapter.key !== bankTarget.chapterKey) return null
             const sections = chapter.activities.filter((activity) => activity.type === 'quiz_game')
             if (sections.length === 0) return null
+            const visibleSections = bankTarget
+              ? sections.filter((section) => section.key === bankTarget.sectionKey)
+              : sections
+            if (visibleSections.length === 0) return null
             return (
               <section key={chapter.key} style={{ marginBottom: 28 }}>
                 <h3 style={{ marginBottom: 12 }}>{chapter.title}</h3>
-                {sections.map((section) => {
+                {visibleSections.map((section) => {
                   const rows = questions.filter((item) => item.chapterKey === chapter.key && item.sectionKey === section.key)
-                  const selected = activeQuiz?.chapterKey === chapter.key && activeQuiz.sectionKey === section.key
+                  const selected = Boolean(activeQuiz && activeQuiz.chapterKey === chapter.key && activeQuiz.sectionKey === section.key)
                   return (
                     <div key={section.key} style={{ marginBottom: 16, padding: 12, borderRadius: 12, background: selected ? '#fff7f4' : '#fff' }}>
                       <button
@@ -882,26 +886,6 @@ export function TeacherCourseWorkspacePage() {
               </section>
             )
           })}
-          {looseQuestions.length > 0 ? (
-            <section>
-              <h3>{t('teacher.workspace.looseQuestionsTitle')}</h3>
-              <Table<TeacherQuestion>
-                rowKey="id"
-                dataSource={looseQuestions}
-                pagination={false}
-                columns={[
-                  { title: t('teacher.workspace.colStem'), dataIndex: 'content' },
-                  { title: t('teacher.workspace.colDifficulty'), dataIndex: 'difficulty', width: 100, render: (value: string) => <Tag>{value}</Tag> },
-                  { title: t('teacher.workspace.colCorrectAnswer'), dataIndex: 'correctAnswer', width: 180 },
-                  { title: t('teacher.workspace.colActions'), width: 90, render: (_, item) => (
-                    <Popconfirm title={t('teacher.workspace.deleteQuestionConfirm')} okText={t('common.delete')} cancelText={t('common.cancel')} onConfirm={() => { void removeQuestion(item) }}>
-                      <Button type="link" danger>{t('common.delete')}</Button>
-                    </Popconfirm>
-                  ) },
-                ]}
-              />
-            </section>
-          ) : null}
         </>
       )}
     </div>

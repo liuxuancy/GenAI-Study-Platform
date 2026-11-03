@@ -310,7 +310,7 @@ func TestClassMembership(t *testing.T) {
 	if err != nil {
 		t.Fatalf("seed progress: %v", err)
 	}
-	if len(progress.Students) != 1 || progress.Students[0].Username != "student1" || progress.Students[0].Percent != 35 {
+	if len(progress.Students) != 1 || progress.Students[0].Username != "student1" || progress.Students[0].Percent != 0 {
 		t.Fatalf("seed progress = %+v", progress.Students)
 	}
 }

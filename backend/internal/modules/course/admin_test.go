@@ -25,6 +25,11 @@ func TestAdminUnpublishKeepsOwnerClassAndProgress(t *testing.T) {
 	}
 
 	gitID := courseIDByTitle(t, database, "Introduction to Git")
+	studentID := testutil.GetUserID(t, database, "student1")
+	testutil.MustExec(t, database,
+		"INSERT INTO student_course_progress (user_id, course_id, percent) VALUES (?, ?, 35)",
+		studentID, gitID,
+	)
 	testutil.MustExec(t, database, "UPDATE course SET content_json = ? WHERE id = ?", sampleContent, gitID)
 	student := studentPrincipal(t, database, "student1")
 	teacher := teacherPrincipal(t, database, "teacher1")

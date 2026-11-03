@@ -9,6 +9,7 @@ import (
 
 func TestTeacherCourseLearningOverviewSeed(t *testing.T) {
 	database := testutil.NewDB(t, Module{})
+	seedCoursesAndLegacyQuestions(t, database)
 	service := NewService(database)
 	teacher := teacherPrincipal(t, database, "teacher1")
 	gitID := courseIDByTitle(t, database, "Introduction to Git")
@@ -17,7 +18,7 @@ func TestTeacherCourseLearningOverviewSeed(t *testing.T) {
 	if err != nil {
 		t.Fatalf("overview: %v", err)
 	}
-	if len(overview.Students) != 1 || overview.Students[0].Username != "student1" || overview.Students[0].Percent != 35 {
+	if len(overview.Students) != 1 || overview.Students[0].Username != "student1" || overview.Students[0].Percent != 0 {
 		t.Fatalf("students = %+v", overview.Students)
 	}
 	if len(overview.Quizzes) != 1 || overview.Quizzes[0].Title != "What is a commit?" {
