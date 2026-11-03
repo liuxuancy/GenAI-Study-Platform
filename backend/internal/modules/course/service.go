@@ -365,7 +365,7 @@ func (service *Service) UpdateCourseProgress(ctx context.Context, principal *acc
 	return &CourseProgress{Percent: percent}, nil
 }
 
-// QuestionDetail 一套题的标题、所属课程、进度，以及按 id 排序的题目。含已保存的选项，不含正确答案和解析。
+// QuestionDetail 一套题的标题、所属课程、进度，以及按 id 排序的题目。未交卷时不返回答案与解析。
 type QuestionDetail struct {
 	ID            int64                 `json:"id"`
 	Title         string                `json:"title"`
@@ -373,15 +373,18 @@ type QuestionDetail struct {
 	Difficulty    string                `json:"difficulty"`
 	QuestionCount int                   `json:"questionCount"`
 	Percent       int                   `json:"percent"`
+	IsSubmit      bool                  `json:"isSubmit"`
+	Score         *int                  `json:"score,omitempty"`
 	Questions     []QuestionContentItem `json:"questions"`
 }
 
-// QuestionContentItem 一道题的内容、选项、已保存选项，以及查看答案时用的正确答案和解析。
+// QuestionContentItem 一道题的内容、选项、已保存选项；交卷后含对错、正确答案与解析。
 type QuestionContentItem struct {
 	ID            int64    `json:"id"`
 	Content       string   `json:"content"`
 	Options       []string `json:"options"`
 	UserOption    string   `json:"userOption"`
+	IsCorrect     bool     `json:"isCorrect,omitempty"`
 	CorrectAnswer string   `json:"correctAnswer"`
 	Explanation   string   `json:"explanation"`
 }
@@ -401,24 +404,43 @@ type questionContentRow struct {
 	Explanation   string
 }
 
+type questionDetailHeaderRow struct {
+	ID            int64
+	Title         string
+	CourseTitle   string
+	Difficulty    string
+	QuestionCount int
+	Answered      int
+	IsSubmit      int
+	Score         *int
+}
+
 // GetQuestion 可见范围与列表相同：能看见所属课程，或这套题是自己创建的。否则 404。
 func (service *Service) GetQuestion(ctx context.Context, principal *access.Principal, questionID int64) (*QuestionDetail, error) {
 	if principal.Role != access.RoleStudent {
 		return nil, errs.Forbidden("only students can view questions")
 	}
 
-	var row questionProgressRow
+	var row questionDetailHeaderRow
 	result := service.database.WithContext(ctx).Raw(
 		`SELECT q.id, q.title, c.title AS course_title, COALESCE(q.difficulty, '') AS difficulty, q.question_count,
-		        SUM(CASE WHEN p.user_option <> '' THEN 1 ELSE 0 END) AS answered
+		        SUM(CASE WHEN p.user_option <> '' THEN 1 ELSE 0 END) AS answered,
+		        COALESCE(r.is_submit, 0) AS is_submit,
+		        CASE WHEN COALESCE(r.is_submit, 0) = ?
+		             THEN (SELECT CAST(ROUND(100.0 * SUM(CASE WHEN sp.user_option = qc2.correct_answer AND sp.user_option <> '' THEN 1 ELSE 0 END) / NULLIF(COUNT(*), 0)) AS SIGNED)
+		                   FROM course_question_content qc2
+		                   LEFT JOIN student_question_progress sp ON sp.content_id = qc2.id AND sp.user_id = ?
+		                   WHERE qc2.question_id = q.id)
+		             ELSE NULL END AS score
 		 FROM course_question q
 		 JOIN course_question_content qc ON qc.question_id = q.id
 		 JOIN course c ON c.id = q.course_id
 		 LEFT JOIN student_question_progress p ON p.content_id = qc.id AND p.user_id = ?
+		 LEFT JOIN student_question_record r ON r.question_id = q.id AND r.user_id = ?
 		 WHERE q.id = ? AND (q.creator_id = ? OR `+studentVisibleCourseSQL("c")+`)
 		   AND (q.creator_id = ? OR (`+effectivePublishStatusSQL+` = '`+PublishStatusPublished+`' AND COALESCE(q.publish_status, '') <> '`+PublishStatusArchived+`'))
-		 GROUP BY q.id, q.title, c.title, q.difficulty, q.question_count`,
-		append(append([]any{principal.UserID, questionID, principal.UserID}, studentVisibleCourseArgs(principal.UserID)...), principal.UserID)...,
+		 GROUP BY q.id, q.title, c.title, q.difficulty, q.question_count, r.is_submit`,
+		append(append([]any{SubmitOn, principal.UserID, principal.UserID, principal.UserID, questionID, principal.UserID}, studentVisibleCourseArgs(principal.UserID)...), principal.UserID)...,
 	).Scan(&row)
 	if result.Error != nil {
 		return nil, result.Error
@@ -441,16 +463,21 @@ func (service *Service) GetQuestion(ctx context.Context, principal *access.Princ
 		return nil, err
 	}
 
+	submitted := row.IsSubmit == SubmitOn
 	questions := make([]QuestionContentItem, 0, len(contents))
 	for _, content := range contents {
-		questions = append(questions, QuestionContentItem{
-			ID:            content.ID,
-			Content:       content.Content,
-			Options:       splitOptions(content.Options),
-			UserOption:    content.UserOption,
-			CorrectAnswer: content.CorrectAnswer,
-			Explanation:   content.Explanation,
-		})
+		item := QuestionContentItem{
+			ID:         content.ID,
+			Content:    content.Content,
+			Options:    splitOptions(content.Options),
+			UserOption: content.UserOption,
+		}
+		if submitted {
+			item.CorrectAnswer = content.CorrectAnswer
+			item.Explanation = content.Explanation
+			item.IsCorrect = content.UserOption != "" && content.UserOption == content.CorrectAnswer
+		}
+		questions = append(questions, item)
 	}
 	return &QuestionDetail{
 		ID:            row.ID,
@@ -459,6 +486,8 @@ func (service *Service) GetQuestion(ctx context.Context, principal *access.Princ
 		Difficulty:    row.Difficulty,
 		QuestionCount: row.QuestionCount,
 		Percent:       answerPercent(row.Answered, row.QuestionCount),
+		IsSubmit:      submitted,
+		Score:         row.Score,
 		Questions:     questions,
 	}, nil
 }

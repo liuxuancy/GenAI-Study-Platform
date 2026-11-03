@@ -5,6 +5,7 @@ import * as pdfjs from 'pdfjs-dist'
 import type { PDFDocumentProxy, PDFPageProxy } from 'pdfjs-dist'
 
 import type { ResourcePreviewResult } from '@/modules/courseResources/api'
+import { useI18n } from '@/core/i18n/useI18n'
 import styles from './FilePreview.module.css'
 
 pdfjs.GlobalWorkerOptions.workerSrc = new URL(
@@ -27,8 +28,6 @@ export interface FilePreviewProps {
   onClose: () => void
   onDownload: () => void
 }
-
-const UNSUPPORTED_HINT = '当前文件暂不支持在线预览，请下载查看'
 
 function outputScaleForCanvas(): number {
   return Math.min(window.devicePixelRatio || 1, PDF_MAX_OUTPUT_SCALE)
@@ -78,6 +77,7 @@ export function FilePreview({
   onClose,
   onDownload,
 }: FilePreviewProps) {
+  const { t } = useI18n()
   const [pdfReady, setPdfReady] = useState(false)
   const [pdfError, setPdfError] = useState('')
   const [imageError, setImageError] = useState(false)
@@ -119,6 +119,11 @@ export function FilePreview({
       })
       const host = containerRef.current
       if (!host || cancelled) return
+
+      const scrollRoot = host.closest(`.${styles.body}`)
+      if (scrollRoot instanceof HTMLElement) {
+        scrollRoot.scrollTop = 0
+      }
 
       try {
         const loadingTask = pdfjs.getDocument({
@@ -170,12 +175,11 @@ export function FilePreview({
             shell.el.classList.remove(styles.pdfPagePending)
           } catch {
             shell.el.classList.add(styles.pdfPageError)
-            shell.el.replaceChildren(document.createTextNode('该页渲染失败'))
+            shell.el.replaceChildren(document.createTextNode(t('filePreview.pageRenderFailed')))
           }
         }
 
         if (numPages > 1) {
-          const scrollRoot = host.closest(`.${styles.body}`)
           observer = new IntersectionObserver(
             (entries) => {
               for (const entry of entries) {
@@ -196,7 +200,7 @@ export function FilePreview({
         }
       } catch {
         if (!cancelled) {
-          setPdfError('PDF 加载失败，可能是链接已过期或浏览器无法访问存储地址，请下载查看')
+          setPdfError(t('filePreview.pdfLoadFailed'))
           setPdfReady(false)
         }
       }
@@ -207,12 +211,13 @@ export function FilePreview({
       observer?.disconnect()
       void pdfDoc?.destroy()
     }
-  }, [open, preview?.kind, preview?.url])
+  }, [open, preview?.kind, preview?.url, t])
 
   if (!open) {
     return null
   }
 
+  const isPdfPreview = preview?.kind === 'pdf' && Boolean(preview.url)
   const typeLabel = (fileType || 'file').toUpperCase()
 
   function renderBody() {
@@ -225,7 +230,7 @@ export function FilePreview({
           <FileExclamationOutlined className={styles.stateIcon} />
           <p className={styles.message}>{error}</p>
           <Button type="primary" icon={<DownloadOutlined />} onClick={onDownload}>
-            下载文件
+            {t('filePreview.downloadFile')}
           </Button>
         </div>
       )
@@ -244,9 +249,9 @@ export function FilePreview({
       if (imageError) {
         return (
           <div className={styles.stateBlock}>
-            <p className={styles.message}>图片加载失败，请下载查看</p>
+            <p className={styles.message}>{t('filePreview.imageLoadFailed')}</p>
             <Button type="primary" onClick={onDownload}>
-              下载
+              {t('filePreview.download')}
             </Button>
           </div>
         )
@@ -266,32 +271,37 @@ export function FilePreview({
           <div className={styles.stateBlock}>
             <p className={styles.message}>{pdfError}</p>
             <Button type="primary" onClick={onDownload}>
-              下载 PDF
+              {t('filePreview.downloadPdf')}
             </Button>
           </div>
         )
       }
       return (
         <div className={styles.pdfWrap}>
-          {!pdfReady ? <Spin className={styles.pdfSpinner} size="large" tip="正在加载 PDF…" /> : null}
+          {!pdfReady ? <Spin className={styles.pdfSpinner} size="large" tip={t('filePreview.loading')} /> : null}
           <div ref={containerRef} className={styles.pdfPages} aria-busy={!pdfReady} />
         </div>
       )
     }
-    const unsupportedMessage = preview?.message?.trim() || UNSUPPORTED_HINT
+    const unsupportedMessage = preview?.message?.trim() || t('filePreview.unsupported')
     return (
       <div className={styles.stateBlock}>
         <FileExclamationOutlined className={styles.stateIcon} />
         <p className={styles.message}>{unsupportedMessage}</p>
         <Button type="primary" icon={<DownloadOutlined />} onClick={onDownload}>
-          下载查看
+          {t('filePreview.downloadView')}
         </Button>
       </div>
     )
   }
 
   return (
-    <div className={styles.root} role="dialog" aria-modal="true" aria-label={`预览 ${fileName}`}>
+    <div
+      className={styles.root}
+      role="dialog"
+      aria-modal="true"
+      aria-label={t('filePreview.previewAria', { fileName })}
+    >
       <header className={styles.toolbar}>
         <div className={styles.titleWrap}>
           <div className={styles.title}>{fileName}</div>
@@ -299,17 +309,17 @@ export function FilePreview({
         </div>
         <div className={styles.toolbarActions}>
           <Button icon={<DownloadOutlined />} onClick={onDownload}>
-            下载
+            {t('filePreview.download')}
           </Button>
           <Button type="primary" onClick={onClose}>
-            关闭
+            {t('filePreview.close')}
           </Button>
         </div>
       </header>
-      <div className={styles.body}>{renderBody()}</div>
-      <footer className={styles.footer}>
-        预览与下载链接由服务端鉴权后短时签发，仅供本人学习使用，请勿对外转发。
-      </footer>
+      <div className={`${styles.body}${isPdfPreview ? ` ${styles.bodyScrollStart}` : ''}`}>
+        {renderBody()}
+      </div>
+      <footer className={styles.footer}>{t('filePreview.footerNotice')}</footer>
     </div>
   )
 }

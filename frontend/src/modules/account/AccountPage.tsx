@@ -1,11 +1,14 @@
-// 我的账号：改昵称和邮箱，改自己的密码。学生专业只读。角色不可改。
+// 我的账号：改昵称和邮箱，改自己的密码。用户名、学生专业、角色只读。
 import { useState } from 'react'
 import { Alert, Button, Form, Input, Typography } from 'antd'
 
 import { changePassword, updateProfile } from '@/core/api/account'
 import { useAuthStore } from '@/core/auth/store'
+import { localizedRoleName } from '@/core/i18n/roleName'
+import { useI18n } from '@/core/i18n/useI18n'
 
 export function AccountPage() {
+  const { t } = useI18n()
   const currentUser = useAuthStore((state) => state.currentUser)
   const loadCurrentUser = useAuthStore((state) => state.loadCurrentUser)
   const clearSession = useAuthStore((state) => state.clearSession)
@@ -31,7 +34,7 @@ export function AccountPage() {
       await loadCurrentUser()
       setProfileSaved(true)
     } catch (error) {
-      setProfileError(error instanceof Error ? error.message : 'Could not save your profile.')
+      setProfileError(error instanceof Error ? error.message : t('account.saveProfileFailed'))
     } finally {
       setSavingProfile(false)
     }
@@ -45,7 +48,7 @@ export function AccountPage() {
       await changePassword(values)
       clearSession()
     } catch (error) {
-      setPasswordError(error instanceof Error ? error.message : 'Could not change your password.')
+      setPasswordError(error instanceof Error ? error.message : t('account.changePasswordFailed'))
       setSavingPassword(false)
     }
   }
@@ -53,12 +56,14 @@ export function AccountPage() {
   return (
     <>
       <Typography.Title level={3} style={{ marginTop: 0 }}>
-        Account
+        {t('account.title')}
       </Typography.Title>
       <Typography.Paragraph type="secondary">
-        {currentUser.username} · {currentUser.roleName}. Role cannot be changed.
+        {t('account.roleHint', { role: localizedRoleName(currentUser.role) })}
       </Typography.Paragraph>
-      {profileSaved ? <Alert type="success" showIcon message="Profile saved." style={{ marginBottom: 16 }} /> : null}
+      {profileSaved ? (
+        <Alert type="success" showIcon message={t('account.profileSaved')} style={{ marginBottom: 16 }} />
+      ) : null}
       {profileError ? <Alert type="error" showIcon message={profileError} style={{ marginBottom: 16 }} /> : null}
       <Form
         form={profileForm}
@@ -67,50 +72,63 @@ export function AccountPage() {
         initialValues={{ nickname: currentUser.nickname, email: currentUser.email }}
         onFinish={() => void saveProfile()}
       >
-        <Form.Item name="nickname" label="Nickname" rules={[{ max: 64, message: 'Nickname is too long.' }]}>
+        <Form.Item label={t('account.username')}>
+          <Input value={currentUser.username} disabled />
+        </Form.Item>
+        <Form.Item
+          name="nickname"
+          label={t('account.nickname')}
+          rules={[{ max: 64, message: t('account.nicknameTooLong') }]}
+        >
           <Input />
         </Form.Item>
         <Form.Item
           name="email"
-          label="Email"
-          rules={[{ type: 'email', message: 'Enter a valid email.' }, { max: 128, message: 'Email is too long.' }]}
+          label={t('account.email')}
+          rules={[
+            { type: 'email', message: t('account.emailInvalid') },
+            { max: 128, message: t('account.emailTooLong') },
+          ]}
         >
           <Input />
         </Form.Item>
         {currentUser.role === 'ROLE_STUDENT' ? (
-          <Form.Item label="Major">
-            <Input value={currentUser.major || '—'} disabled />
+          <Form.Item label={t('account.major')}>
+            <Input value={currentUser.major || t('common.dash')} disabled />
           </Form.Item>
         ) : null}
         <Button type="primary" htmlType="submit" loading={savingProfile}>
-          Save profile
+          {t('account.saveProfile')}
         </Button>
       </Form>
 
       <Typography.Title level={4} style={{ marginTop: 36 }}>
-        Password
+        {t('account.passwordSection')}
       </Typography.Title>
-      <Typography.Paragraph type="secondary">After this change you need to sign in again.</Typography.Paragraph>
+      <Typography.Paragraph type="secondary">{t('account.passwordHint')}</Typography.Paragraph>
       {passwordError ? <Alert type="error" showIcon message={passwordError} style={{ marginBottom: 16 }} /> : null}
       <Form form={passwordForm} layout="vertical" style={{ maxWidth: 420 }} onFinish={() => void savePassword()}>
-        <Form.Item name="oldPassword" label="Current password" rules={[{ required: true, message: 'Enter your current password.' }]}>
+        <Form.Item
+          name="oldPassword"
+          label={t('account.currentPassword')}
+          rules={[{ required: true, message: t('account.currentPasswordRequired') }]}
+        >
           <Input.Password />
         </Form.Item>
         <Form.Item
           name="newPassword"
-          label="New password"
+          label={t('account.newPassword')}
           rules={[
-            { required: true, message: 'Enter a new password.' },
-            { min: 6, max: 72, message: 'Use 6 to 72 characters.' },
+            { required: true, message: t('account.newPasswordRequired') },
+            { min: 6, max: 72, message: t('account.passwordLength') },
           ]}
         >
           <Input.Password />
         </Form.Item>
         <Button type="primary" htmlType="submit" loading={savingPassword}>
-          Change password
+          {t('account.changePassword')}
         </Button>
       </Form>
     </>
   )
 }
-

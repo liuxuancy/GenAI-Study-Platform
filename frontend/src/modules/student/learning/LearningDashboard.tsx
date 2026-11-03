@@ -13,6 +13,7 @@ import {
 
 import { useAiProviderSelect } from '@/core/ai/useAiProviderSelect'
 import { useAuthStore } from '@/core/auth/store'
+import { useI18n } from '@/core/i18n/useI18n'
 import {
   getLearningDashboard,
   getStudentCourses,
@@ -23,13 +24,23 @@ import {
 } from '@/modules/student/api'
 import { CreateCourseDialog } from '@/modules/student/learning/CreateCourseDialog'
 import {
-  courseSourceLabels,
+  readLearningDashboardAiInsight,
+  writeLearningDashboardAiInsight,
+} from '@/modules/student/learning/learningDashboardAiInsight'
+import {
+  courseSourceLabel,
   courseSourceOf,
   formatStatCount,
   pickContinueCourse,
   pickRecentCourses,
   visibilityText,
 } from '@/modules/student/learning/courseSource'
+import {
+  localizeLearningTaskTitle,
+  localizeLearningTaskType,
+  localizeRecommendedAction,
+  localizeRuleSuggestion,
+} from '@/modules/student/learning/learningDashboardCopy'
 import styles from '@/modules/student/learning/learningDashboard.module.css'
 import {
   mapStudentQuestionsToViews,
@@ -41,6 +52,7 @@ import {
 } from '@/modules/student/studentCourseVisuals'
 
 export function LearningDashboard() {
+  const { t, locale } = useI18n()
   const navigate = useNavigate()
   const currentUser = useAuthStore((state) => state.currentUser)
   const {
@@ -55,14 +67,26 @@ export function LearningDashboard() {
   const [errorMessage, setErrorMessage] = useState('')
   const [createOpen, setCreateOpen] = useState(false)
 
+  const studentUserId = currentUser?.id
+
   const [aiSuggestion, setAiSuggestion] = useState('')
   const [aiAction, setAiAction] = useState({ title: '', detail: '' })
   const [aiFromModel, setAiFromModel] = useState(false)
   const [aiLoading, setAiLoading] = useState(false)
   const [aiError, setAiError] = useState('')
 
+  useEffect(() => {
+    const stored = readLearningDashboardAiInsight(studentUserId)
+    if (!stored) {
+      return
+    }
+    setAiSuggestion(stored.suggestion)
+    setAiAction(stored.recommendedAction)
+    setAiFromModel(true)
+  }, [studentUserId])
+
   const studentName =
-    currentUser?.nickname?.trim() || currentUser?.username?.trim() || '同学'
+    currentUser?.nickname?.trim() || currentUser?.username?.trim() || t('student.defaultName')
 
   const loadData = useCallback(() => {
     return Promise.all([
@@ -75,16 +99,17 @@ export function LearningDashboard() {
         const views = mapStudentQuestionsToViews(questionItems, courseItems)
         setPendingQuizCount(quizStatistics(views).pending)
         setDashboard(dashboardData)
-        if (!aiFromModel) {
+        if (!readLearningDashboardAiInsight(studentUserId)) {
           setAiSuggestion(dashboardData.ruleSuggestion)
           setAiAction(dashboardData.recommendedAction)
+          setAiFromModel(false)
         }
         setErrorMessage('')
       })
       .catch((error: Error) => {
         setErrorMessage(error.message)
       })
-  }, [aiFromModel])
+  }, [studentUserId])
 
   useEffect(() => {
     let cancelled = false
@@ -119,17 +144,26 @@ export function LearningDashboard() {
 
   const tasks = dashboard?.tasks ?? []
   const completedTasks = tasks.filter((task) => task.completed).length
+  const displayedSuggestion = aiFromModel ? aiSuggestion : localizeRuleSuggestion(aiSuggestion, t)
+  const displayedAction = aiFromModel ? aiAction : localizeRecommendedAction(aiAction, t)
 
   async function generateAiInsight() {
     setAiLoading(true)
     setAiError('')
     try {
-      const result = await postLearningInsight({ provider: aiProvider })
+      const result = await postLearningInsight({
+        provider: aiProvider,
+        language: locale === 'zh' ? 'zh-CN' : 'en-US',
+      })
       setAiSuggestion(result.suggestion)
       setAiAction(result.recommendedAction)
       setAiFromModel(true)
+      writeLearningDashboardAiInsight(studentUserId, {
+        suggestion: result.suggestion,
+        recommendedAction: result.recommendedAction,
+      })
     } catch (error) {
-      setAiError(error instanceof Error ? error.message : '生成 AI 建议失败')
+      setAiError(error instanceof Error ? error.message : t('student.dashboard.aiGenerateFailed'))
     } finally {
       setAiLoading(false)
     }
@@ -137,25 +171,29 @@ export function LearningDashboard() {
 
   const statCards = [
     {
-      label: '可学习课程',
+      id: 'courses',
+      label: t('student.dashboard.statCourses'),
       value: stats.courseCount,
       icon: <BookOutlined />,
       tone: 'green' as const,
     },
     {
-      label: '正在学习',
+      id: 'active',
+      label: t('student.dashboard.statActive'),
       value: stats.activeCount,
       icon: <PlayCircleOutlined />,
       tone: 'orange' as const,
     },
     {
-      label: '已完成课程',
+      id: 'completed',
+      label: t('student.dashboard.statCompleted'),
       value: stats.completedCount,
       icon: <CheckCircleOutlined />,
       tone: 'green' as const,
     },
     {
-      label: '待完成测验',
+      id: 'quiz',
+      label: t('student.dashboard.statPendingQuiz'),
       value: stats.pendingQuizCount,
       icon: <FileTextOutlined />,
       tone: 'purple' as const,
@@ -166,7 +204,7 @@ export function LearningDashboard() {
     return (
       <div className={styles.dashboard}>
         <div className={styles.statePanel}>
-          <strong>学习中心加载失败</strong>
+          <strong>{t('student.dashboard.loadFailed')}</strong>
           <p>{errorMessage}</p>
         </div>
       </div>
@@ -176,7 +214,7 @@ export function LearningDashboard() {
   if (!courses || !dashboard) {
     return (
       <div className={styles.dashboard}>
-        <div className={styles.skeletonBlock} aria-label="正在加载学习中心" />
+        <div className={styles.skeletonBlock} aria-label={t('student.dashboard.loadingAria')} />
       </div>
     )
   }
@@ -185,14 +223,15 @@ export function LearningDashboard() {
     <div className={styles.dashboard}>
       <header className={styles.welcome}>
         <div>
-          <div className={styles.eyebrow}>YOUR LEARNING SPACE</div>
+          <div className={styles.eyebrow}>{t('student.dashboard.eyebrow')}</div>
           <h1>
-            每一天，都有新的收获<span>.</span>
+            {t('student.dashboard.title')}
+            <span>.</span>
           </h1>
-          <p>你好，{studentName}。让我们继续今天的学习旅程。</p>
+          <p>{t('student.dashboard.greeting', { name: studentName })}</p>
         </div>
         <button className={styles.primaryButton} type="button" onClick={() => setCreateOpen(true)}>
-          <PlusOutlined /> 创建课程
+          <PlusOutlined /> {t('student.dashboard.createCourse')}
         </button>
       </header>
 
@@ -200,13 +239,13 @@ export function LearningDashboard() {
 
       <section className={styles.statsGrid}>
         {statCards.map((stat) => (
-          <div className={styles.statCard} key={stat.label}>
+          <div className={styles.statCard} key={stat.id}>
             <div className={styles.statTop}>
               <span>{stat.label}</span>
               <span className={styles[stat.tone]}>{stat.icon}</span>
             </div>
             <strong>{formatStatCount(stat.value)}</strong>
-            <small>基于当前课程与测验数据</small>
+            <small>{t('student.dashboard.statHint')}</small>
           </div>
         ))}
       </section>
@@ -214,19 +253,19 @@ export function LearningDashboard() {
       <section className={styles.mainGrid}>
         <article className={styles.featured}>
           <div className={styles.featuredContent}>
-            <div className={styles.featuredEyebrow}>✦ PICK UP WHERE YOU LEFT OFF</div>
-            <h2>{continueCourse?.title ?? '开始你的学习旅程'}</h2>
+            <div className={styles.featuredEyebrow}>{t('student.dashboard.continueEyebrow')}</div>
+            <h2>{continueCourse?.title ?? t('student.dashboard.continueDefaultTitle')}</h2>
             <p>
               {continueCourse?.description ||
                 (continueCourse
-                  ? '继续探索知识的脉络，巩固已学习的内容'
-                  : '从课程库中选择一门课程，开启学习。')}
+                  ? t('student.dashboard.continueDesc')
+                  : t('student.dashboard.continueEmpty'))}
             </p>
 
             {continueCourse ? (
               <div className={styles.courseTags}>
-                <span>{courseTopicLabel(continueCourse.title, continueCourse.description)}</span>
-                <span>{courseSourceLabels[courseSourceOf(continueCourse)]}</span>
+                <span>{courseTopicLabel(continueCourse.title, continueCourse.description, locale, continueCourse.id)}</span>
+                <span>{courseSourceLabel(courseSourceOf(continueCourse))}</span>
                 <span>{visibilityText(continueCourse.visibility)}</span>
               </div>
             ) : null}
@@ -236,7 +275,7 @@ export function LearningDashboard() {
             {continueCourse ? (
               <div className={styles.featuredProgress}>
                 <div className={styles.progressMeta}>
-                  <span>课程学习进度</span>
+                  <span>{t('student.dashboard.progressLabel')}</span>
                   <b>{continueCourse.percent}%</b>
                 </div>
                 <div className={styles.progressTrack}>
@@ -255,7 +294,11 @@ export function LearningDashboard() {
                   : navigate('/student/courses')
               }
             >
-              {continueCourse ? (continueCourse.percent > 0 ? '继续学习' : '开始学习') : '探索课程'}
+              {continueCourse
+                ? continueCourse.percent > 0
+                  ? t('student.dashboard.continueLearning')
+                  : t('student.dashboard.startLearning')
+                : t('student.dashboard.exploreCourses')}
               <ArrowRightOutlined />
             </button>
           </div>
@@ -283,29 +326,43 @@ export function LearningDashboard() {
           <div className={styles.tasksPanelBody}>
             <div className={styles.panelHeader}>
               <div>
-                <h3>今日学习计划</h3>
-                <p>系统根据你的课程与测验进度自动生成，可在此浏览全部待办</p>
+                <h3>{t('student.dashboard.tasksTitle')}</h3>
+                <p>{t('student.dashboard.tasksSub')}</p>
               </div>
               <span className={styles.accentText}>
-                {completedTasks}/{tasks.length} 已完成
+                {t('student.dashboard.tasksDone', {
+                  done: completedTasks,
+                  total: tasks.length,
+                })}
               </span>
             </div>
 
             {tasks.length === 0 ? (
               <div className={styles.placeholderBox}>
-                <p>暂无待办。继续课程学习或完成测验后，计划会出现在这里。</p>
+                <p>{t('student.dashboard.tasksEmpty')}</p>
               </div>
             ) : (
-              <div className={styles.tasksScroll} tabIndex={0} aria-label="今日待办列表，可滚动查看">
+              <div
+                className={styles.tasksScroll}
+                tabIndex={0}
+                aria-label={t('student.dashboard.tasksListAria')}
+              >
                 <div className={styles.tasks}>
                   {tasks.map((task) => (
                     <div className={styles.task} key={task.id}>
-                      <input type="checkbox" checked={task.completed} readOnly aria-label="完成状态" />
+                      <input
+                        type="checkbox"
+                        checked={task.completed}
+                        readOnly
+                        aria-label={t('student.dashboard.taskCompleteAria')}
+                      />
                       <div>
-                        <strong className={task.completed ? styles.done : ''}>{task.title}</strong>
+                        <strong className={task.completed ? styles.done : ''}>
+                          {localizeLearningTaskTitle(task.title, t)}
+                        </strong>
                         <small>{task.course}</small>
                       </div>
-                      <span className={styles.taskType}>{task.type}</span>
+                      <span className={styles.taskType}>{localizeLearningTaskType(task.type, t)}</span>
                     </div>
                   ))}
                 </div>
@@ -315,8 +372,8 @@ export function LearningDashboard() {
             <div className={styles.taskTip}>
               <FireOutlined />
               {completedTasks === tasks.length && tasks.length > 0
-                ? '今天的任务全部完成，做得很好！'
-                : '完成一项任务，就离目标更近一步。'}
+                ? t('student.dashboard.tasksAllDone')
+                : t('student.dashboard.taskTip')}
             </div>
           </div>
         </article>
@@ -326,26 +383,26 @@ export function LearningDashboard() {
         <article className={styles.panel}>
           <div className={styles.panelHeader}>
             <div>
-              <h3>最近在学</h3>
-              <p>继续你的知识探索</p>
+              <h3>{t('student.dashboard.recentTitle')}</h3>
+              <p>{t('student.dashboard.recentSub')}</p>
             </div>
             <button
               className={styles.textButton}
               type="button"
               onClick={() => navigate('/student/courses')}
             >
-              全部课程 <ArrowRightOutlined />
+              {t('student.dashboard.allCourses')} <ArrowRightOutlined />
             </button>
           </div>
 
           {recentCourses.length === 0 ? (
             <div className={styles.placeholderBox}>
-              <p>还没有课程。创建或加入一门课程后，会出现在这里。</p>
+              <p>{t('student.dashboard.recentEmpty')}</p>
             </div>
           ) : (
             <div className={styles.courseList}>
               {recentCourses.map((course) => {
-                const accent = courseDashboardAccent(course.title, course.description)
+                const accent = courseDashboardAccent(course.title, course.description, course.id)
                 return (
                   <button
                     className={styles.courseRow}
@@ -362,7 +419,7 @@ export function LearningDashboard() {
                     <div className={styles.courseInfo}>
                       <strong>{course.title}</strong>
                       <span>
-                        {course.description || courseTopicLabel(course.title, course.description)}
+                        {course.description || courseTopicLabel(course.title, course.description, locale, course.id)}
                       </span>
                       <div className={styles.smallTrack}>
                         <div style={{ width: `${course.percent}%` }} />
@@ -383,9 +440,9 @@ export function LearningDashboard() {
           <div className={styles.panelHeader}>
             <div>
               <h3>
-                <RobotOutlined /> AI 学习建议
+                <RobotOutlined /> {t('student.dashboard.aiTitle')}
               </h3>
-              <p>{aiFromModel ? '由模型根据你的学习摘要生成' : '基于当前进度与测验状态'}</p>
+              <p>{aiFromModel ? t('student.dashboard.aiSubModel') : t('student.dashboard.aiSubRule')}</p>
             </div>
             <button
               className={styles.aiGenerate}
@@ -393,17 +450,17 @@ export function LearningDashboard() {
               disabled={aiLoading}
               onClick={() => void generateAiInsight()}
             >
-              {aiLoading ? '生成中…' : '生成建议'}
+              {aiLoading ? t('student.dashboard.aiGenerating') : t('student.dashboard.aiGenerate')}
             </button>
           </div>
 
-          <p className={styles.aiText}>{aiSuggestion}</p>
+          <p className={styles.aiText}>{displayedSuggestion}</p>
 
           <div className={styles.aiAction}>
             <div>
-              <span className={styles.aiActionLabel}>今日推荐</span>
-              <strong>{aiAction.title}</strong>
-              <p>{aiAction.detail}</p>
+              <span className={styles.aiActionLabel}>{t('student.dashboard.aiTodayPick')}</span>
+              <strong>{displayedAction.title}</strong>
+              <p>{displayedAction.detail}</p>
             </div>
           </div>
 
@@ -414,7 +471,7 @@ export function LearningDashboard() {
               type="button"
               onClick={() => navigate('/student/quizzes')}
             >
-              前往测验中心 <ArrowRightOutlined />
+              {t('student.dashboard.goQuizzes')} <ArrowRightOutlined />
             </button>
           </div>
           {aiProviderError ? <p className={styles.aiError}>{aiProviderError}</p> : null}
@@ -423,8 +480,8 @@ export function LearningDashboard() {
       </section>
 
       <footer className={styles.footer}>
-        <span>© CaveClass · Learn with intention.</span>
-        <span>Student Workspace</span>
+        <span>{t('student.dashboard.footerCopy')}</span>
+        <span>{t('student.dashboard.footerTag')}</span>
       </footer>
     </div>
   )

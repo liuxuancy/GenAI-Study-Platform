@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { ReadOutlined } from '@ant-design/icons'
 
+import { useI18n } from '@/core/i18n/useI18n'
 import {
   createStudentQuestions,
   getStudentCourse,
@@ -35,13 +36,9 @@ import type {
 import styles from '@/modules/student/quiz/quizDashboard.module.css'
 
 const questionCountChoices = [2, 5, 10]
-const difficultyChoices = [
-  { value: 'easy', label: 'Easy' },
-  { value: 'medium', label: 'Medium' },
-  { value: 'hard', label: 'Hard' },
-]
 
 export function QuizDashboard() {
+  const { t } = useI18n()
   const [courses, setCourses] = useState<StudentCourse[] | null>(null)
   const [questions, setQuestions] = useState<StudentQuestion[] | null>(null)
   const [courseTrees, setCourseTrees] = useState<Map<number, BubbleNode | null>>(new Map())
@@ -149,9 +146,9 @@ export function QuizDashboard() {
   return (
     <div>
       <header className={styles.pageHeading}>
-        <p className={styles.eyebrow}>YOUR ASSESSMENTS</p>
-        <h1>我的测验</h1>
-        <p>按课程、章节和小节查找测验，跟踪你的答题进度。</p>
+        <p className={styles.eyebrow}>{t('student.quiz.eyebrow')}</p>
+        <h1>{t('student.quiz.title')}</h1>
+        <p>{t('student.quiz.subtitle')}</p>
       </header>
 
       <QuizStatistics stats={stats} />
@@ -159,21 +156,21 @@ export function QuizDashboard() {
       <div className={styles.toolbar}>
         <select
           value={viewMode}
-          aria-label="展示模式"
+          aria-label={t('student.quiz.viewModeAria')}
           onChange={(event) => setViewMode(event.target.value as QuizViewMode)}
         >
-          <option value="grouped">按课程分组</option>
-          <option value="flat">全部测验列表</option>
+          <option value="grouped">{t('student.quiz.viewGrouped')}</option>
+          <option value="flat">{t('student.quiz.viewFlat')}</option>
         </select>
         <select
           value={courseFilter}
-          aria-label="课程筛选"
+          aria-label={t('student.quiz.courseFilterAria')}
           onChange={(event) => {
             setCourseFilter(event.target.value)
             setChapterFilter('all')
           }}
         >
-          <option value="all">全部课程</option>
+          <option value="all">{t('student.quiz.allCourses')}</option>
           {courseOptions.map((course) => (
             <option key={course.value} value={course.value}>
               {course.label}
@@ -182,7 +179,7 @@ export function QuizDashboard() {
         </select>
         <select
           value={chapterFilter}
-          aria-label="章节筛选"
+          aria-label={t('student.quiz.chapterFilterAria')}
           onChange={(event) => setChapterFilter(event.target.value)}
         >
           {chapterOptions.map((option) => (
@@ -193,24 +190,24 @@ export function QuizDashboard() {
         </select>
         <select
           value={creationFilter}
-          aria-label="创建方式筛选"
+          aria-label={t('student.quiz.creationFilterAria')}
           onChange={(event) => setCreationFilter(event.target.value as QuizCreationFilter)}
         >
-          <option value="all">全部创建方式</option>
-          <option value="manual">手动创建</option>
-          <option value="excel">Excel 导入</option>
-          <option value="ai">AI 生成</option>
+          <option value="all">{t('student.quiz.allCreation')}</option>
+          <option value="manual">{t('student.quiz.manual')}</option>
+          <option value="excel">{t('student.quiz.excel')}</option>
+          <option value="ai">{t('student.quiz.ai')}</option>
         </select>
         <CreateQuizDialog courses={courses} onCreated={reload} />
       </div>
 
-      <div className={styles.filterTabs} role="tablist" aria-label="测验状态">
+      <div className={styles.filterTabs} role="tablist" aria-label={t('student.quiz.statusFilterAria')}>
         {(
           [
-            ['all', '全部测验'],
-            ['pending', '待完成'],
-            ['in_progress', '进行中'],
-            ['completed', '已完成'],
+            ['all', t('student.quiz.statusTab.all')],
+            ['pending', t('student.quiz.statusTab.pending')],
+            ['in_progress', t('student.quiz.statusTab.in_progress')],
+            ['completed', t('student.quiz.statusTab.completed')],
           ] as const
         ).map(([value, label]) => (
           <button
@@ -228,11 +225,11 @@ export function QuizDashboard() {
 
       {errorMessage ? (
         <div className={styles.empty}>
-          <strong>测验加载失败</strong>
+          <strong>{t('student.quiz.loadFailed')}</strong>
           <p>{errorMessage}</p>
         </div>
       ) : !questions || !courses ? (
-        <div className={styles.skeletonBlock} aria-label="正在加载测验" />
+        <div className={styles.skeletonBlock} aria-label={t('student.quiz.loadingAria')} />
       ) : viewMode === 'flat' ? (
         <FlatQuizList views={filteredViews} />
       ) : (
@@ -247,34 +244,36 @@ function QuizStatistics({
 }: {
   stats: { total: number; pending: number; inProgress: number; completed: number }
 }) {
+  const { t } = useI18n()
   return (
-    <section className={styles.stats} aria-label="测验概览">
+    <section className={styles.stats} aria-label={t('student.quiz.statsAria')}>
       <article className={styles.statCard}>
         <strong>{stats.total}</strong>
-        <span>全部测验</span>
+        <span>{t('student.quiz.statTotal')}</span>
       </article>
       <article className={styles.statCard}>
         <strong>{stats.pending}</strong>
-        <span>待完成</span>
+        <span>{t('student.quiz.statPending')}</span>
       </article>
       <article className={styles.statCard}>
         <strong>{stats.inProgress}</strong>
-        <span>进行中</span>
+        <span>{t('student.quiz.statInProgress')}</span>
       </article>
       <article className={styles.statCard}>
         <strong>{stats.completed}</strong>
-        <span>已完成</span>
+        <span>{t('student.quiz.statCompleted')}</span>
       </article>
     </section>
   )
 }
 
 function CourseQuizList({ groups }: { groups: ReturnType<typeof buildCourseQuizGroups> }) {
+  const { t } = useI18n()
   if (groups.length === 0) {
     return (
       <div className={styles.empty}>
-        <strong>暂无测验</strong>
-        <p>当前筛选下没有测验，请调整条件或创建新测验。</p>
+        <strong>{t('student.quiz.emptyTitle')}</strong>
+        <p>{t('student.quiz.emptyBody')}</p>
       </div>
     )
   }
@@ -285,7 +284,7 @@ function CourseQuizList({ groups }: { groups: ReturnType<typeof buildCourseQuizG
         <section key={group.courseId} className={styles.courseGroup}>
           <CourseHeader group={group} />
           {group.quizTotal === 0 ? (
-            <p className={styles.courseEmpty}>这门课程暂时没有测验</p>
+            <p className={styles.courseEmpty}>{t('student.quiz.courseEmpty')}</p>
           ) : (
             group.chapters.map((chapter) => (
               <ChapterPanel key={`${group.courseId}-${chapter.chapterKey}`} chapter={chapter} />
@@ -298,7 +297,8 @@ function CourseQuizList({ groups }: { groups: ReturnType<typeof buildCourseQuizG
 }
 
 function CourseHeader({ group }: { group: ReturnType<typeof buildCourseQuizGroups>[number] }) {
-  const coverKey = resolveCourseCoverKey(group.courseTitle)
+  const { t } = useI18n()
+  const coverKey = resolveCourseCoverKey(group.courseTitle, '', group.courseId)
   return (
     <header className={styles.courseHeader}>
       <div className={`${styles.courseIcon} ${styles[`cover_${coverKey}`]}`} aria-hidden>
@@ -307,8 +307,12 @@ function CourseHeader({ group }: { group: ReturnType<typeof buildCourseQuizGroup
       <div className={styles.courseHeaderText}>
         <h2>{group.courseTitle}</h2>
         <p>
-          {group.courseSourceLabel} · {group.creatorLabel} · 共 {group.quizTotal} 套测验 · 已完成{' '}
-          {group.completedCount}
+          {t('student.quiz.courseHeaderMeta', {
+            source: group.courseSourceLabel,
+            creator: group.creatorLabel,
+            total: group.quizTotal,
+            completed: group.completedCount,
+          })}
         </p>
       </div>
     </header>
@@ -320,6 +324,7 @@ function ChapterPanel({
 }: {
   chapter: ReturnType<typeof buildCourseQuizGroups>[number]['chapters'][number]
 }) {
+  const { t } = useI18n()
   const [open, setOpen] = useState(true)
   const quizCount =
     chapter.chapterQuizzes.length + chapter.sections.reduce((sum, section) => sum + section.quizzes.length, 0)
@@ -333,7 +338,7 @@ function ChapterPanel({
         onClick={() => setOpen((value) => !value)}
       >
         <span className={styles.chapterTitle}>{chapter.chapterTitle}</span>
-        <span className={styles.chapterMeta}>{quizCount} 套测验</span>
+        <span className={styles.chapterMeta}>{t('student.quiz.quizSetCount', { count: quizCount })}</span>
       </button>
       {open ? (
         <div className={styles.chapterBody}>
@@ -361,11 +366,12 @@ function ChapterPanel({
 }
 
 function FlatQuizList({ views }: { views: StudentQuizView[] }) {
+  const { t } = useI18n()
   if (views.length === 0) {
     return (
       <div className={styles.empty}>
-        <strong>暂无测验</strong>
-        <p>当前筛选下没有测验。</p>
+        <strong>{t('student.quiz.emptyTitle')}</strong>
+        <p>{t('student.quiz.emptyFlatBody')}</p>
       </div>
     )
   }
@@ -379,6 +385,7 @@ function FlatQuizList({ views }: { views: StudentQuizView[] }) {
 }
 
 function QuizItemRow({ quiz, showCourse }: { quiz: StudentQuizView; showCourse?: boolean }) {
+  const { t } = useI18n()
   const progress =
     quiz.questionCount > 0
       ? Math.min(100, Math.floor((quiz.attempt.completedCount * 100) / quiz.questionCount))
@@ -398,8 +405,13 @@ function QuizItemRow({ quiz, showCourse }: { quiz: StudentQuizView; showCourse?:
         </div>
         <p className={styles.quizRowSub}>
           {showCourse ? `${quiz.courseName} · ` : ''}
-          {nodePathLabel(quiz)} · {quiz.questionCount} 题 · 难度 {difficultyLabel(quiz.difficulty)} · 进度{' '}
-          {quiz.attempt.completedCount}/{quiz.attempt.totalCount}
+          {t('student.quiz.rowMeta', {
+            path: nodePathLabel(quiz),
+            count: quiz.questionCount,
+            difficulty: difficultyLabel(quiz.difficulty),
+            done: quiz.attempt.completedCount,
+            total: quiz.attempt.totalCount,
+          })}
         </p>
         <div className={styles.quizRowProgress} aria-hidden="true">
           <span className={styles.progressTrack}>
@@ -414,7 +426,7 @@ function QuizItemRow({ quiz, showCourse }: { quiz: StudentQuizView; showCourse?:
             : '—'}
         </span>
         <Link className={styles.actionLink} to={`/student/questions/${quiz.id}`}>
-          {quiz.attempt.status === 'completed' ? '查看' : '开始'}
+          {quiz.attempt.status === 'completed' ? t('student.quiz.viewAction') : t('student.quiz.startAction')}
         </Link>
       </div>
     </li>
@@ -428,6 +440,7 @@ function CreateQuizDialog({
   courses: StudentCourse[] | null
   onCreated: () => void
 }) {
+  const { t } = useI18n()
   const dialogRef = useRef<HTMLDialogElement>(null)
   const [dialogOpen, setDialogOpen] = useState(false)
   const [courseId, setCourseId] = useState('')
@@ -462,7 +475,7 @@ function CreateQuizDialog({
   function generatePreview() {
     const course = (courses ?? []).find((item) => String(item.id) === courseId)
     if (!course) {
-      setFormError('请选择课程。')
+      setFormError(t('student.quiz.create.pickCourseError'))
       setPreview(null)
       return
     }
@@ -473,7 +486,7 @@ function CreateQuizDialog({
   function confirmPreview() {
     const course = (courses ?? []).find((item) => String(item.id) === courseId)
     if (!course || !preview || saving) {
-      setFormError('请选择课程。')
+      setFormError(t('student.quiz.create.pickCourseError'))
       return
     }
     setSaving(true)
@@ -498,7 +511,7 @@ function CreateQuizDialog({
   return (
     <>
       <button className={styles.createButton} type="button" onClick={openDialog}>
-        创建测验
+        {t('student.quiz.create.button')}
       </button>
       <dialog ref={dialogRef} className={homeStyles.dialog} onClose={() => setDialogOpen(false)}>
         <form
@@ -512,9 +525,9 @@ function CreateQuizDialog({
             generatePreview()
           }}
         >
-          <h2 className={homeStyles.dialogTitle}>创建测验</h2>
+          <h2 className={homeStyles.dialogTitle}>{t('student.quiz.create.title')}</h2>
           <label className={homeStyles.field}>
-            题目数量
+            {t('student.quiz.create.countLabel')}
             <select
               value={questionCount}
               onChange={(event) => {
@@ -530,7 +543,7 @@ function CreateQuizDialog({
             </select>
           </label>
           <label className={homeStyles.field}>
-            难度
+            {t('student.quiz.create.difficultyLabel')}
             <select
               value={difficulty}
               onChange={(event) => {
@@ -538,15 +551,15 @@ function CreateQuizDialog({
                 setPreview(null)
               }}
             >
-              {difficultyChoices.map((item) => (
-                <option key={item.value} value={item.value}>
-                  {item.label}
+              {(['easy', 'medium', 'hard'] as const).map((level) => (
+                <option key={level} value={level}>
+                  {difficultyLabel(level)}
                 </option>
               ))}
             </select>
           </label>
           <label className={homeStyles.field}>
-            课程
+            {t('student.quiz.create.courseLabel')}
             <select
               value={courseId}
               onChange={(event) => {
@@ -554,7 +567,7 @@ function CreateQuizDialog({
                 setPreview(null)
               }}
             >
-              <option value="">选择课程</option>
+              <option value="">{t('student.quiz.create.selectCourse')}</option>
               {(courses ?? []).map((course) => (
                 <option key={course.id} value={course.id}>
                   {course.title}
@@ -575,15 +588,15 @@ function CreateQuizDialog({
           ) : null}
           <div className={homeStyles.dialogActions}>
             <button className={homeStyles.cancel} type="button" onClick={() => setDialogOpen(false)}>
-              取消
+              {t('student.quiz.create.cancel')}
             </button>
             {preview ? (
               <button className={homeStyles.create} type="submit" disabled={saving}>
-                确认创建
+                {t('student.quiz.create.confirmCreate')}
               </button>
             ) : (
               <button className={homeStyles.create} type="submit">
-                生成预览
+                {t('student.quiz.create.generatePreview')}
               </button>
             )}
           </div>

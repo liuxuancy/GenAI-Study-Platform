@@ -12,6 +12,7 @@ import {
   type CourseResourceItem,
 } from '@/modules/courseResources/api'
 import { mapCourseResourceError } from '@/modules/courseResources/errors'
+import { useI18n } from '@/core/i18n/useI18n'
 import styles from './studentResources.module.css'
 
 interface Props {
@@ -20,6 +21,7 @@ interface Props {
 }
 
 export function StudentCourseResourcesPanel({ courseId, content = null }: Props) {
+  const { t } = useI18n()
   const [items, setItems] = useState<CourseResourceItem[]>([])
   const [loading, setLoading] = useState(false)
   const [typeFilter, setTypeFilter] = useState('all')
@@ -40,7 +42,7 @@ export function StudentCourseResourcesPanel({ courseId, content = null }: Props)
       })
       setItems(result.items)
     } catch (error) {
-      message.error(mapCourseResourceError(error, '加载失败'))
+      message.error(mapCourseResourceError(error, t('courseResources.studentPanel.loadFailed')))
     } finally {
       setLoading(false)
     }
@@ -58,7 +60,7 @@ export function StudentCourseResourcesPanel({ courseId, content = null }: Props)
     try {
       setPreview(await getCourseResourcePreview(courseId, record.id))
     } catch (error) {
-      setPreviewError(mapCourseResourceError(error, '预览失败'))
+      setPreviewError(mapCourseResourceError(error, t('courseResources.studentPanel.previewFailed')))
     } finally {
       setPreviewLoading(false)
     }
@@ -69,14 +71,14 @@ export function StudentCourseResourcesPanel({ courseId, content = null }: Props)
       const result = await getCourseResourceDownload(courseId, record.id)
       window.open(result.url, '_blank', 'noopener,noreferrer')
     } catch (error) {
-      message.error(mapCourseResourceError(error, '下载失败'))
+      message.error(mapCourseResourceError(error, t('courseResources.studentPanel.downloadFailed')))
     }
   }
 
   if (!loading && items.length === 0 && !search && typeFilter === 'all' && chapterFilter === 'all') {
     return (
       <div className={styles.emptyWrap}>
-        <Empty description="教师暂未发布课程资料" />
+        <Empty description={t('courseResources.studentPanel.notPublished')} />
       </div>
     )
   }
@@ -89,7 +91,7 @@ export function StudentCourseResourcesPanel({ courseId, content = null }: Props)
           style={{ width: 120 }}
           onChange={setTypeFilter}
           options={[
-            { value: 'all', label: '全部类型' },
+            { value: 'all', label: t('courseResources.studentPanel.allTypes') },
             { value: 'pdf', label: 'PDF' },
             { value: 'pptx', label: 'PPTX' },
             { value: 'docx', label: 'DOCX' },
@@ -101,14 +103,14 @@ export function StudentCourseResourcesPanel({ courseId, content = null }: Props)
           style={{ width: 160 }}
           onChange={setChapterFilter}
           options={[
-            { value: 'all', label: '全部章节' },
+            { value: 'all', label: t('courseResources.studentPanel.allChapters') },
             ...(content?.chapters ?? []).map((ch: CourseContent['chapters'][number]) => ({
               value: ch.key,
               label: ch.title,
             })),
           ]}
         />
-        <Input.Search placeholder="搜索资料" allowClear onSearch={setSearch} style={{ width: 220 }} />
+        <Input.Search placeholder={t('courseResources.studentPanel.searchPlaceholder')} allowClear onSearch={setSearch} style={{ width: 220 }} />
       </div>
       <div className={styles.tableWrap}>
       <Table
@@ -116,10 +118,10 @@ export function StudentCourseResourcesPanel({ courseId, content = null }: Props)
         loading={loading}
         dataSource={items}
         pagination={{ pageSize: 10 }}
-        locale={{ emptyText: '暂无已发布资料' }}
+        locale={{ emptyText: t('courseResources.studentPanel.emptyPublished') }}
         columns={[
           {
-            title: '名称',
+            title: t('courseResources.studentPanel.colName'),
             render: (_: unknown, r: CourseResourceItem) => (
               <Space>
                 <Tag>{r.fileExtension.toUpperCase()}</Tag>
@@ -127,18 +129,18 @@ export function StudentCourseResourcesPanel({ courseId, content = null }: Props)
               </Space>
             ),
           },
-          { title: '大小', width: 100, render: (_: unknown, r: CourseResourceItem) => formatFileSize(r.fileSize) },
-          { title: '关联', render: (_: unknown, r: CourseResourceItem) => scopeLabel(r, content) },
+          { title: t('courseResources.studentPanel.colSize'), width: 100, render: (_: unknown, r: CourseResourceItem) => formatFileSize(r.fileSize) },
+          { title: t('courseResources.studentPanel.colScope'), render: (_: unknown, r: CourseResourceItem) => scopeLabel(r, content) },
           {
-            title: '操作',
+            title: t('courseResources.studentPanel.colActions'),
             width: 160,
             render: (_: unknown, r: CourseResourceItem) => (
               <Space>
                 <Button size="small" onClick={() => void openPreview(r)}>
-                  预览
+                  {t('courseResources.studentPanel.preview')}
                 </Button>
                 <Button size="small" onClick={() => void download(r)}>
-                  下载
+                  {t('courseResources.studentPanel.download')}
                 </Button>
               </Space>
             ),
@@ -148,9 +150,9 @@ export function StudentCourseResourcesPanel({ courseId, content = null }: Props)
       </div>
       <div className={styles.mobileList}>
         {loading ? (
-          <p className={styles.mobileLoading}>加载中…</p>
+          <p className={styles.mobileLoading}>{t('courseResources.studentPanel.loading')}</p>
         ) : items.length === 0 ? (
-          <p className={styles.mobileEmpty}>暂无已发布资料</p>
+          <p className={styles.mobileEmpty}>{t('courseResources.studentPanel.emptyPublished')}</p>
         ) : (
           items.map((r) => (
           <div key={r.id} className={styles.mobileCard}>
@@ -163,10 +165,10 @@ export function StudentCourseResourcesPanel({ courseId, content = null }: Props)
             </div>
             <div className={styles.mobileActions}>
               <Button size="small" block onClick={() => void openPreview(r)}>
-                预览
+                {t('courseResources.studentPanel.preview')}
               </Button>
               <Button size="small" block onClick={() => void download(r)}>
-                下载
+                {t('courseResources.studentPanel.download')}
               </Button>
             </div>
           </div>

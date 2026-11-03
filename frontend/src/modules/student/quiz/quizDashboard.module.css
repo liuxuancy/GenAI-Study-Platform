@@ -152,6 +152,12 @@
 .cover_java { background: #dceaf1; }
 .cover_sort { background: #ddebdd; }
 .cover_introdb { background: #f4e9c9; }
+.cover_spark { background: #f9ecc4; }
+.cover_horizon { background: #dceefb; }
+.cover_meadow { background: #dff2e6; }
+.cover_dusk { background: #e8dff8; }
+.cover_citrus { background: #ffefcc; }
+.cover_iris { background: #dde4fb; }
 
 .courseHeaderText h2 {
   margin: 0;

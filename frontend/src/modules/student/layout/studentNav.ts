@@ -1,47 +1,48 @@
 export interface StudentNavItem {
   to: string
-  label: string
+  labelKey: string
   end?: boolean
   icon: 'dashboard' | 'book' | 'clipboard' | 'user' | 'spark'
 }
 
 export interface StudentNavSection {
-  title: string
+  titleKey: string
   items: StudentNavItem[]
 }
 
 export const studentNavSections: StudentNavSection[] = [
   {
-    title: 'LEARNING',
+    titleKey: 'nav.student.sectionLearning',
     items: [
-      { to: '/student', label: '学习中心', end: true, icon: 'dashboard' },
-      { to: '/student/courses', label: '我的课程', icon: 'book' },
-      { to: '/student/ai', label: 'AI 学习工作台', icon: 'spark' },
-      { to: '/student/quizzes', label: '我的测验', icon: 'clipboard' },
+      { to: '/student', labelKey: 'nav.student.dashboard', end: true, icon: 'dashboard' },
+      { to: '/student/courses', labelKey: 'nav.student.myCourses', icon: 'book' },
+      { to: '/student/ai', labelKey: 'nav.student.aiWorkspace', icon: 'spark' },
+      { to: '/student/quizzes', labelKey: 'nav.student.quizzes', icon: 'clipboard' },
     ],
   },
   {
-    title: 'PERSONAL',
-    items: [{ to: '/student/account', label: '我的账号', icon: 'user' }],
+    titleKey: 'nav.student.sectionPersonal',
+    items: [{ to: '/student/account', labelKey: 'nav.student.account', icon: 'user' }],
   },
 ]
 
-export const studentPageTitles: Record<string, string> = {
-  '/student': '学习中心',
-  '/student/courses': '我的课程',
-  '/student/ai': 'AI 学习工作台',
-  '/student/quizzes': '我的测验',
-  '/student/account': '我的账号',
+const studentPageTitleKeys: Record<string, string> = {
+  '/student': 'nav.student.dashboard',
+  '/student/courses': 'nav.student.myCourses',
+  '/student/ai': 'nav.student.aiWorkspace',
+  '/student/quizzes': 'nav.student.quizzes',
+  '/student/account': 'nav.student.account',
 }
 
-export function studentPageTitle(pathname: string) {
+export function studentPageTitle(pathname: string, t: (key: string) => string) {
   if (pathname.startsWith('/student/questions/')) {
-    return '测验答题'
+    return t('nav.student.quizAttempt')
   }
   if (pathname.startsWith('/student/courses/')) {
-    return '课程学习'
+    return t('nav.student.courseStudy')
   }
-  return studentPageTitles[pathname] ?? '学习中心'
+  const key = studentPageTitleKeys[pathname] ?? 'nav.student.dashboard'
+  return t(key)
 }
 
 export function isStudentNavActive(pathname: string, item: StudentNavItem) {

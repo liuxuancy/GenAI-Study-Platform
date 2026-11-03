@@ -1,5 +1,4 @@
-// 首页：显示当前用户的角色和权限码，方便核对三个测试账号拿到的权限是否不同。学生改去学生首页。
-import { Card, Descriptions, Tag, Typography } from 'antd'
+// 根路径：按角色进入对应工作台，不再停留于旧的权限调试页。
 import { Navigate } from 'react-router-dom'
 
 import { homePathFor } from '@/core/auth/homePath'
@@ -10,28 +9,5 @@ export function HomePage() {
   if (!currentUser) {
     return null
   }
-  if (currentUser.role === 'ROLE_STUDENT' || currentUser.role === 'ROLE_ADMIN') {
-    return <Navigate to={homePathFor(currentUser.role)} replace />
-  }
-
-  const permissionTags = currentUser.isAdmin ? (
-    <Tag color="#c0442c">All permissions (admin)</Tag>
-  ) : (
-    currentUser.permissions.map((code) => <Tag key={code}>{code}</Tag>)
-  )
-
-  return (
-    <Card>
-      <Typography.Title level={3} style={{ marginTop: 0 }}>
-        Welcome, {currentUser.nickname || currentUser.username}
-      </Typography.Title>
-      <Descriptions column={1} bordered size="small">
-        <Descriptions.Item label="Username">{currentUser.username}</Descriptions.Item>
-        <Descriptions.Item label="Role">
-          {currentUser.roleName}（{currentUser.role}）
-        </Descriptions.Item>
-        <Descriptions.Item label="Permissions">{permissionTags}</Descriptions.Item>
-      </Descriptions>
-    </Card>
-  )
+  return <Navigate to={homePathFor(currentUser.role)} replace />
 }

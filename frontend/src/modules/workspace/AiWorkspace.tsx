@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { Popconfirm } from 'antd'
 
 import { useAiProviderSelect } from '@/core/ai/useAiProviderSelect'
+import { useI18n } from '@/core/i18n/useI18n'
 import { CourseMarkdownBody } from '@/modules/student/courseContentView'
 import {
   deleteWorkspaceConversation,
@@ -15,32 +16,50 @@ import {
   type WorkspaceSkill,
 } from '@/modules/workspace/api'
 import { buildSkillDefaults, normalizeSkillParams } from '@/modules/workspace/skillParams'
+import {
+  localizedSkillDescription,
+  localizedSkillName,
+  localizedSkillParamLabel,
+  localizedSkillSelectOption,
+} from '@/modules/workspace/workspaceSkillI18n'
 import styles from '@/modules/workspace/AiWorkspace.module.css'
 
 const SKILL_ICONS = ['◇', '▤', '☑', '✦', '▦', '☑']
 
-function dayGroup(value: string) {
+type DayBucket = 'today' | 'yesterday' | 'earlier'
+
+function dayBucket(value: string): DayBucket {
   const date = new Date(value)
   if (Number.isNaN(date.getTime())) {
-    return '更早'
+    return 'earlier'
   }
   const start = new Date()
   start.setHours(0, 0, 0, 0)
   const diff = start.getTime() - new Date(date.getFullYear(), date.getMonth(), date.getDate()).getTime()
   if (diff <= 0) {
-    return '今天'
+    return 'today'
   }
   if (diff <= 86400000) {
-    return '昨天'
+    return 'yesterday'
   }
-  return '更早'
+  return 'earlier'
 }
 
-function courseLabel(courses: Array<{ id: number; title: string }>, courseId: number | null) {
+function dayBucketLabel(bucket: DayBucket, t: (key: string) => string) {
+  if (bucket === 'today') return t('workspace.dayToday')
+  if (bucket === 'yesterday') return t('workspace.dayYesterday')
+  return t('workspace.dayEarlier')
+}
+
+function courseLabel(
+  courses: Array<{ id: number; title: string }>,
+  courseId: number | null,
+  t: (key: string, params?: Record<string, string | number>) => string,
+) {
   if (!courseId) {
-    return '不关联课程'
+    return t('workspace.noCourse')
   }
-  return courses.find((course) => course.id === courseId)?.title ?? `课程 #${courseId}`
+  return courses.find((course) => course.id === courseId)?.title ?? t('workspace.courseFallback', { id: courseId })
 }
 
 export function AiWorkspace({
@@ -54,6 +73,7 @@ export function AiWorkspace({
   initialConversationId?: number | null
   initialCourseId?: number | null
 }) {
+  const { t, locale } = useI18n()
   const { provider, selector } = useAiProviderSelect()
   const [conversations, setConversations] = useState<WorkspaceConversation[]>([])
   const [skills, setSkills] = useState<WorkspaceSkill[]>([])
@@ -78,23 +98,31 @@ export function AiWorkspace({
   const promptRef = useRef<HTMLTextAreaElement>(null)
   const composerAnchorRef = useRef<HTMLFormElement>(null)
 
-  const welcomeTitle = role === 'teacher' ? '今天想准备哪一节课？' : '今天想探索什么？'
-  const eyebrow = role === 'teacher' ? 'YOUR PERSONAL TEACHING COMPANION' : 'YOUR PERSONAL LEARNING COMPANION'
-  const modeTag = role === 'teacher' ? '✧  教学模式' : '✧  学习模式'
-  const workspaceLabel = role === 'teacher' ? 'AI 工作台' : 'AI 学习工作台'
+  const welcomeTitle = role === 'teacher' ? t('workspace.welcomeTeacher') : t('workspace.welcomeStudent')
+  const eyebrow = role === 'teacher' ? t('workspace.eyebrowTeacher') : t('workspace.eyebrowStudent')
+  const modeTag = role === 'teacher' ? t('workspace.modeTeacher') : t('workspace.modeStudent')
+  const workspaceLabel = role === 'teacher' ? t('workspace.labelTeacher') : t('workspace.labelStudent')
+  const welcomeMeta = role === 'teacher' ? t('workspace.metaTeacher') : t('workspace.metaStudent')
+  const welcomeSkills = useMemo(
+    () => (role === 'teacher' ? skills.slice(0, 3) : skills),
+    [role, skills],
+  )
 
-  const examples =
-    role === 'teacher'
-      ? [
-          { label: '✧ 备课提纲', prompt: '请帮我设计下一节课的导入、讲解与练习环节提纲：' },
-          { label: '◇ 课堂讨论', prompt: '请围绕本节课主题生成 5 个有深度的课堂讨论问题：' },
-          { label: '✦ 教学目标', prompt: '请帮我整理本单元的教学目标与评价要点：' },
-        ]
-      : [
-          { label: '✧ 制定学习计划', prompt: '帮我制定一份本周学习计划' },
-          { label: '◇ 梳理思维导图', prompt: '帮我梳理一个复杂概念的思维导图' },
-          { label: '✦ 高效复习建议', prompt: '给我一些高效复习的建议' },
-        ]
+  const examples = useMemo(
+    () =>
+      role === 'teacher'
+        ? [
+            { label: t('workspace.exampleLessonPlan'), prompt: t('workspace.exampleLessonPlanPrompt') },
+            { label: t('workspace.exampleDiscussion'), prompt: t('workspace.exampleDiscussionPrompt') },
+            { label: t('workspace.exampleObjectives'), prompt: t('workspace.exampleObjectivesPrompt') },
+          ]
+        : [
+            { label: t('workspace.exampleStudyPlan'), prompt: t('workspace.exampleStudyPlanPrompt') },
+            { label: t('workspace.exampleMindMap'), prompt: t('workspace.exampleMindMapPrompt') },
+            { label: t('workspace.exampleReview'), prompt: t('workspace.exampleReviewPrompt') },
+          ],
+    [role, t],
+  )
 
   async function refresh() {
     setConversations(await listWorkspaceConversations())
@@ -155,13 +183,17 @@ export function AiWorkspace({
       }
       return !needle || item.title.toLowerCase().includes(needle)
     })
-    const buckets = new Map<string, WorkspaceConversation[]>()
+    const buckets = new Map<DayBucket, WorkspaceConversation[]>()
     for (const item of filtered) {
-      const key = dayGroup(item.updatedAt)
-      buckets.set(key, [...(buckets.get(key) ?? []), item])
+      const bucket = dayBucket(item.updatedAt)
+      buckets.set(bucket, [...(buckets.get(bucket) ?? []), item])
     }
-    return ['今天', '昨天', '更早'].flatMap((key) => (buckets.get(key) ? [{ key, items: buckets.get(key) ?? [] }] : []))
-  }, [conversations, courseFilter, query])
+    return (['today', 'yesterday', 'earlier'] as const).flatMap((bucket) =>
+      buckets.has(bucket)
+        ? [{ key: dayBucketLabel(bucket, t), items: buckets.get(bucket) ?? [] }]
+        : [],
+    )
+  }, [conversations, courseFilter, query, t])
 
   async function openConversation(id: number) {
     const summary = conversations.find((item) => item.id === id)
@@ -197,7 +229,7 @@ export function AiWorkspace({
     }
     let submitParams = params
     if (skillId && skill) {
-      const normalized = normalizeSkillParams(skill, params ?? {})
+      const normalized = normalizeSkillParams(skill, params ?? {}, locale)
       if ('error' in normalized) {
         setError(normalized.error)
         return
@@ -225,14 +257,14 @@ export function AiWorkspace({
       setSkill(null)
       await refresh()
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : '发送失败，请重试。')
+      setError(reason instanceof Error ? reason.message : t('workspace.sendFailed'))
     } finally {
       setSending(false)
     }
   }
 
   async function rename(item: WorkspaceConversation) {
-    const next = window.prompt('重命名会话', item.title)
+    const next = window.prompt(t('workspace.renamePrompt'), item.title)
     if (!next || next.trim() === item.title) {
       return
     }
@@ -280,27 +312,27 @@ export function AiWorkspace({
         aria-hidden={!sidebarOpen}
       >
         <div className={styles.sessionInner}>
-          <div className={styles.sessionHeading}>历史对话</div>
+          <div className={styles.sessionHeading}>{t('workspace.historyHeading')}</div>
           <button className={styles.newChat} type="button" onClick={startNew}>
-            ＋ &nbsp; 新建对话
+            {t('workspace.newChat')}
           </button>
           <label className={styles.search}>
             ⌕
             <input
-              aria-label="搜索历史对话"
-              placeholder="搜索历史对话"
+              aria-label={t('workspace.searchHistory')}
+              placeholder={t('workspace.searchHistory')}
               value={query}
               onChange={(event) => setQuery(event.target.value)}
             />
           </label>
           <select
             className={styles.filter}
-            aria-label="筛选会话"
+            aria-label={t('workspace.filterSessions')}
             value={courseFilter}
             onChange={(event) => setCourseFilter(event.target.value)}
           >
-            <option value="">全部会话</option>
-            <option value="0">未关联课程</option>
+            <option value="">{t('workspace.filterAll')}</option>
+            <option value="0">{t('workspace.filterNoCourse')}</option>
             {courses.map((course) => (
               <option key={course.id} value={course.id}>
                 {course.title}
@@ -319,12 +351,12 @@ export function AiWorkspace({
                       onClick={() => void openConversation(item.id)}
                     >
                       {item.title}
-                      <small>{item.courseTitle || '未关联课程'}</small>
+                      <small>{item.courseTitle || t('workspace.filterNoCourse')}</small>
                     </button>
                     <button
                       className={styles.more}
                       type="button"
-                      aria-label="更多操作"
+                      aria-label={t('workspace.moreActions')}
                       onClick={() => setMenuId(menuId === item.id ? null : item.id)}
                     >
                       ···
@@ -332,10 +364,15 @@ export function AiWorkspace({
                     {menuId === item.id ? (
                       <div className={styles.menu}>
                         <button type="button" onClick={() => void rename(item)}>
-                          重命名
+                          {t('workspace.rename')}
                         </button>
-                        <Popconfirm title="删除这个会话？" okText="删除" cancelText="取消" onConfirm={() => remove(item)}>
-                          <button type="button">删除</button>
+                        <Popconfirm
+                          title={t('workspace.deleteConfirm')}
+                          okText={t('workspace.delete')}
+                          cancelText={t('workspace.cancel')}
+                          onConfirm={() => remove(item)}
+                        >
+                          <button type="button">{t('workspace.delete')}</button>
                         </Popconfirm>
                       </div>
                     ) : null}
@@ -344,7 +381,7 @@ export function AiWorkspace({
               </section>
             ))}
           </div>
-          <div className={styles.sidebarFoot}>✦ 让每一次提问都成为进步</div>
+          <div className={styles.sidebarFoot}>{t('workspace.sidebarFoot')}</div>
         </div>
       </aside>
 
@@ -354,7 +391,7 @@ export function AiWorkspace({
             <button
               className={`${styles.iconBtn} ${styles.sidebarToggle}`}
               type="button"
-              aria-label={sidebarOpen ? '收起历史对话' : '展开历史对话'}
+              aria-label={sidebarOpen ? t('workspace.collapseHistory') : t('workspace.expandHistory')}
               aria-expanded={sidebarOpen}
               aria-controls="workspace-sessions"
               onClick={() => setSidebarOpen((open) => !open)}
@@ -368,7 +405,7 @@ export function AiWorkspace({
           <div className={styles.topRight}>
             <span className={styles.headerStatus}>
               <span className={styles.statusDot} aria-hidden="true" />
-              AI 助手已就绪
+              {t('workspace.aiReady')}
             </span>
             <span className={`${styles.tag} ${styles.tagPill}`}>{modeTag}</span>
             <div className={styles.modelTag}>{selector}</div>
@@ -385,10 +422,10 @@ export function AiWorkspace({
                 {eyebrow}
               </div>
               <h1>{welcomeTitle}</h1>
-              <p className={styles.subtitle}>从一个问题开始，让 AI 帮你学习、思考与创造。</p>
-              <p className={styles.welcomeMeta}>✦ &nbsp; 从下面选择一个学习场景，或者直接开始提问</p>
+              <p className={styles.subtitle}>{t('workspace.subtitle')}</p>
+              <p className={styles.welcomeMeta}>{welcomeMeta}</p>
               <div className={styles.cards}>
-                {skills.map((item, index) => (
+                {welcomeSkills.map((item, index) => (
                   <button
                     key={item.id}
                     type="button"
@@ -402,15 +439,15 @@ export function AiWorkspace({
                     <span className={styles.skillIcon} aria-hidden="true">
                       {SKILL_ICONS[index % SKILL_ICONS.length]}
                     </span>
-                    <strong>{item.name}</strong>
-                    <span>{item.description}</span>
+                    <strong>{localizedSkillName(locale, item.id, item.name)}</strong>
+                    <span>{localizedSkillDescription(locale, item.id, item.description)}</span>
                     <span className={styles.skillArrow} aria-hidden="true">
                       ↗
                     </span>
                   </button>
                 ))}
               </div>
-              <p className={styles.tipsTitle}>试试这样提问</p>
+              <p className={styles.tipsTitle}>{t('workspace.tipsTitle')}</p>
               <div className={styles.examples}>
                 {examples.map((item) => (
                   <button key={item.label} type="button" className={styles.example} onClick={() => chooseExample(item.prompt)}>
@@ -429,7 +466,11 @@ export function AiWorkspace({
                       <CourseMarkdownBody source={item.content} />
                     </div>
                     <button type="button" className={styles.copy} onClick={() => void copyAnswer(item.id, item.content)}>
-                      {copyId === item.id ? '已复制' : copyId === -item.id ? '复制失败' : '复制内容'}
+                      {copyId === item.id
+                        ? t('workspace.copied')
+                        : copyId === -item.id
+                          ? t('workspace.copyFailed')
+                          : t('workspace.copyContent')}
                     </button>
                   </div>
                 ) : (
@@ -438,12 +479,12 @@ export function AiWorkspace({
                   </div>
                 ),
               )}
-              {sending ? <p className={styles.pending}>正在回答…</p> : null}
+              {sending ? <p className={styles.pending}>{t('workspace.answering')}</p> : null}
               {error ? (
                 <p className={styles.error}>
                   {error}
                   <button type="button" onClick={() => void send(draft, skill?.id, skillValues)}>
-                    重试
+                    {t('workspace.retry')}
                   </button>
                 </p>
               ) : null}
@@ -461,8 +502,8 @@ export function AiWorkspace({
             }}
           >
             {skillPopupOpen ? (
-              <div className={styles.popup} role="dialog" aria-label="选择 AI 技能">
-                <h3 className={styles.popupTitle}>选择 AI 技能</h3>
+              <div className={styles.popup} role="dialog" aria-label={t('workspace.pickSkillAria')}>
+                <h3 className={styles.popupTitle}>{t('workspace.pickSkillTitle')}</h3>
                 <div className={styles.popupList}>
                   {skills.map((item, index) => (
                     <button
@@ -471,21 +512,23 @@ export function AiWorkspace({
                       className={styles.popupItem}
                       onClick={() => {
                         setSkill(item)
-                        setSkillValues(buildSkillDefaults(item))
+                        setSkillValues(buildSkillDefaults(item, locale))
                         setSkillPopupOpen(false)
                         promptRef.current?.focus()
                       }}
                     >
-                      {SKILL_ICONS[index % SKILL_ICONS.length]} {item.name}
-                      <span className={styles.popupItemDesc}>{item.description}</span>
+                      {SKILL_ICONS[index % SKILL_ICONS.length]} {localizedSkillName(locale, item.id, item.name)}
+                      <span className={styles.popupItemDesc}>
+                        {localizedSkillDescription(locale, item.id, item.description)}
+                      </span>
                     </button>
                   ))}
                 </div>
               </div>
             ) : null}
             {coursePopupOpen ? (
-              <div className={styles.popup} role="dialog" aria-label="关联课程">
-                <h3 className={styles.popupTitle}>关联课程</h3>
+              <div className={styles.popup} role="dialog" aria-label={t('workspace.linkCourseAria')}>
+                <h3 className={styles.popupTitle}>{t('workspace.linkCourseTitle')}</h3>
                 <div className={styles.popupList}>
                   <button
                     type="button"
@@ -496,7 +539,7 @@ export function AiWorkspace({
                       setCoursePopupOpen(false)
                     }}
                   >
-                    不关联课程
+                    {t('workspace.noCourse')}
                   </button>
                   {courses.map((course) => (
                     <button
@@ -518,29 +561,32 @@ export function AiWorkspace({
             <div className={styles.composerBox}>
               {skill ? (
                 <div className={styles.skillForm}>
-                  <strong>{skill.name}</strong>
-                  {skill.params.map((param) =>
-                    param.type === 'select' ? (
+                  <strong>{localizedSkillName(locale, skill.id, skill.name)}</strong>
+                  {skill.params.map((param) => {
+                    const paramLabel = localizedSkillParamLabel(locale, skill.id, param.key, param.label)
+                    return param.type === 'select' ? (
                       <select
                         key={param.key}
-                        aria-label={param.label}
+                        aria-label={paramLabel}
                         value={skillValues[param.key] ?? ''}
                         onChange={(event) => setSkillValues((current) => ({ ...current, [param.key]: event.target.value }))}
                       >
-                        <option value="">{param.label}</option>
-                        {param.options?.map((option) => (
-                          <option key={option}>{option}</option>
+                        <option value="">{paramLabel}</option>
+                        {param.options?.map((option, optionIndex) => (
+                          <option key={option} value={option}>
+                            {localizedSkillSelectOption(locale, skill.id, param.key, optionIndex, option)}
+                          </option>
                         ))}
                       </select>
                     ) : param.type === 'number' ? (
                       <input
                         key={param.key}
                         type="number"
-                        aria-label={param.label}
+                        aria-label={paramLabel}
                         placeholder={
                           param.min != null && param.max != null
-                            ? `${param.label}（${param.min}–${param.max}）`
-                            : param.label
+                            ? t('workspace.skillParamRangeHint', { label: paramLabel, min: param.min, max: param.max })
+                            : paramLabel
                         }
                         min={param.min}
                         max={param.max}
@@ -552,24 +598,24 @@ export function AiWorkspace({
                     ) : (
                       <input
                         key={param.key}
-                        aria-label={param.label}
-                        placeholder={param.label}
+                        aria-label={paramLabel}
+                        placeholder={paramLabel}
                         value={skillValues[param.key] ?? ''}
                         onChange={(event) => setSkillValues((current) => ({ ...current, [param.key]: event.target.value }))}
                       />
-                    ),
-                  )}
+                    )
+                  })}
                   <button type="button" onClick={() => setSkill(null)}>
-                    取消技能
+                    {t('workspace.clearSkill')}
                   </button>
                 </div>
               ) : null}
               <textarea
                 ref={promptRef}
-                aria-label="向 CaveClass AI 提问"
+                aria-label={t('workspace.askAria')}
                 rows={2}
                 value={draft}
-                placeholder="向 CaveClass AI 提问，或选择一个技能开始…"
+                placeholder={t('workspace.askPlaceholder')}
                 disabled={sending || !accessible}
                 onChange={(event) => setDraft(event.target.value)}
                 onKeyDown={(event) => {
@@ -581,7 +627,7 @@ export function AiWorkspace({
               />
               <div className={styles.composerBottom}>
                 <div className={styles.tools}>
-                  <button className={`${styles.tool} ${styles.toolAttach}`} type="button" title="暂不支持上传" disabled>
+                  <button className={`${styles.tool} ${styles.toolAttach}`} type="button" title={t('workspace.attachUnsupported')} disabled>
                     ＋
                   </button>
                   <button
@@ -595,7 +641,7 @@ export function AiWorkspace({
                     }}
                   >
                     <span aria-hidden="true">✧</span>
-                    <span className={styles.toolLabel}>技能</span>
+                    <span className={styles.toolLabel}>{t('workspace.skillTool')}</span>
                     <span className={styles.toolCaret} aria-hidden="true">
                       ⌄
                     </span>
@@ -612,19 +658,19 @@ export function AiWorkspace({
                     }}
                   >
                     <span aria-hidden="true">▤</span>
-                    <span className={styles.toolLabel}>{courseLabel(courses, courseId)}</span>
+                    <span className={styles.toolLabel}>{courseLabel(courses, courseId, t)}</span>
                     <span className={styles.toolCaret} aria-hidden="true">
                       ⌄
                     </span>
                   </button>
                 </div>
-                <button className={styles.send} type="submit" disabled={!canSend} aria-label="发送消息">
+                <button className={styles.send} type="submit" disabled={!canSend} aria-label={t('workspace.sendAria')}>
                   ↑
                 </button>
               </div>
             </div>
           </form>
-          <p className={styles.hint}>CaveClass AI 可能产生不准确的信息，请核对重要内容</p>
+          <p className={styles.hint}>{t('workspace.disclaimer')}</p>
         </div>
       </section>
     </div>

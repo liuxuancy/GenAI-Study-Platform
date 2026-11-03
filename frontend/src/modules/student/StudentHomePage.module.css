@@ -560,6 +560,12 @@
 .coverJava { background: #dce4fb; color: #3c558d; }
 .coverSort { background: #dff2e9; color: #2c7561; }
 .coverIntrodb { background: #f5e5d4; color: #995e37; }
+.coverSpark { background: #f9ecc4; color: #9a6b1a; }
+.coverHorizon { background: #dceefb; color: #2f6f94; }
+.coverMeadow { background: #dff2e6; color: #2d7654; }
+.coverDusk { background: #e8dff8; color: #5b4690; }
+.coverCitrus { background: #ffefcc; color: #b8741a; }
+.coverIris { background: #dde4fb; color: #4459a8; }
 
 .cardBody {
   display: flex;

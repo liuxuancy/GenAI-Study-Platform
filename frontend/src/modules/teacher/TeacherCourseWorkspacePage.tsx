@@ -27,6 +27,10 @@ import * as XLSX from 'xlsx'
 
 import { homePathFor } from '@/core/auth/homePath'
 import { useAiProviderSelect } from '@/core/ai/useAiProviderSelect'
+import { getAppLocale } from '@/core/i18n/store'
+import { translateApp } from '@/core/i18n/translateApp'
+import type { AppLocale } from '@/core/i18n/types'
+import { useI18n } from '@/core/i18n/useI18n'
 import type { AiGenerationMeta, GenerateCourseRequest } from '@/core/api/ai'
 import { useAuthStore } from '@/core/auth/store'
 import { ApiError } from '@/core/http'
@@ -39,7 +43,6 @@ import {
   generateTeacherChapter,
   generateTeacherCourse,
   generateTeacherQuestions,
-  getCourseMermaid,
   getCourseQualityReport,
   getTeacherCourse,
   getTeacherQuestions,
@@ -55,6 +58,8 @@ import {
   type TeacherQuestion,
   type TeacherQuestionInput,
 } from '@/modules/teacher/api'
+import { CourseBubbleMap } from '@/modules/student/CourseBubbleMap'
+import { contentToBubbleTree } from '@/modules/student/contentToBubbleTree'
 import { activityLabel, CourseMarkdownBody } from '@/modules/student/courseContentView'
 import { TeacherCourseResourcesTab } from '@/modules/teacher/resources/TeacherCourseResourcesTab'
 import styles from '@/modules/teacher/TeacherCourseWorkspacePage.module.css'
@@ -67,9 +72,61 @@ const emptyQuestion: TeacherQuestionInput = {
   difficulty: 'medium',
 }
 
-const CONTENT_PENDING_MARK = '（待生成）'
+const LEGACY_CONTENT_PENDING_MARK = '（待生成）'
+const LEGACY_FILL_PREFIX = '请填写'
 
-function newContent(course: TeacherCourse): CourseContent {
+const LEGACY_IMPORT_COLS = {
+  stem: '题干',
+  options: ['选项A', '选项B', '选项C', '选项D', '选项E', '选项F'],
+  correctAnswer: '正确答案',
+  explanation: '解析',
+  difficulty: '难度',
+} as const
+
+function contentPendingMark(locale = getAppLocale()) {
+  return translateApp(locale, 'teacher.workspace.pendingMark')
+}
+
+function importColKeys(locale: AppLocale) {
+  return {
+    stem: translateApp(locale, 'teacher.workspace.importColStem'),
+    options: (['A', 'B', 'C', 'D', 'E', 'F'] as const).map((letter) =>
+      translateApp(locale, `teacher.workspace.importColOption${letter}`),
+    ),
+    correctAnswer: translateApp(locale, 'teacher.workspace.importColCorrectAnswer'),
+    explanation: translateApp(locale, 'teacher.workspace.importColExplanation'),
+    difficulty: translateApp(locale, 'teacher.workspace.importColDifficulty'),
+  }
+}
+
+function importField(record: Record<string, unknown>, keys: string[]) {
+  for (const key of keys) {
+    const value = record[key]
+    if (value !== undefined && String(value).trim() !== '') {
+      return String(value)
+    }
+  }
+  return ''
+}
+
+function parseImportRecord(record: Record<string, unknown>, index: number, locale: AppLocale): ImportQuestionRow {
+  const cols = importColKeys(locale)
+  const options = cols.options
+    .map((key, optionIndex) => importField(record, [key, LEGACY_IMPORT_COLS.options[optionIndex]]))
+    .filter(Boolean)
+  const rawAnswer = importField(record, [cols.correctAnswer, LEGACY_IMPORT_COLS.correctAnswer]).trim()
+  const answerIndex = /^[A-F]$/i.test(rawAnswer) ? rawAnswer.toUpperCase().charCodeAt(0) - 65 : -1
+  return {
+    row: index + 2,
+    content: importField(record, [cols.stem, LEGACY_IMPORT_COLS.stem]),
+    options,
+    correctAnswer: answerIndex >= 0 ? options[answerIndex] ?? rawAnswer : rawAnswer,
+    explanation: importField(record, [cols.explanation, LEGACY_IMPORT_COLS.explanation]),
+    difficulty: (importField(record, [cols.difficulty, LEGACY_IMPORT_COLS.difficulty]) || 'medium').toLowerCase() as TeacherQuestionInput['difficulty'],
+  }
+}
+
+function newContent(course: TeacherCourse, locale = getAppLocale()): CourseContent {
   return {
     schemaVersion: '1.0',
     title: course.title,
@@ -79,15 +136,15 @@ function newContent(course: TeacherCourse): CourseContent {
     estimatedMinutes: 30,
     chapters: [{
       key: `chapter-${Date.now()}`,
-      title: '新章节',
+      title: translateApp(locale, 'teacher.workspace.newChapter'),
       summary: '',
       order: 1,
       activities: [{
         key: `activity-${Date.now()}`,
         type: 'rich_text',
-        title: '学习内容',
+        title: translateApp(locale, 'teacher.workspace.learningContent'),
         order: 1,
-        payload: { markdown: CONTENT_PENDING_MARK, highlights: [] },
+        payload: { markdown: contentPendingMark(locale), highlights: [] },
       }],
     }],
   }
@@ -111,27 +168,57 @@ function withActivityText(activity: CourseActivity, value: string): CourseActivi
   return { ...activity, payload: { ...activity.payload, [field]: value } }
 }
 
-function defaultPayload(type: CourseActivity['type']): Record<string, unknown> {
-  if (type === 'coding') return { language: 'python', promptMarkdown: '请填写编程任务。', starterCode: '', solutionHint: '', testCases: [] }
-  if (type === 'mock_interview') return {
-    role: '面试官',
-    scenarioMarkdown: '请填写面试场景。',
-    questions: [{ question: '请填写面试问题。', followUpHints: [] }],
-    evaluationRubricMarkdown: '根据准确性与表达评分。',
+function defaultPayload(type: CourseActivity['type'], locale = getAppLocale()): Record<string, unknown> {
+  if (type === 'coding') {
+    return {
+      language: 'python',
+      promptMarkdown: translateApp(locale, 'teacher.workspace.defaultCodingPrompt'),
+      starterCode: '',
+      solutionHint: '',
+      testCases: [],
+    }
   }
-  if (type === 'quiz_game') return {
-    instructionsMarkdown: '请选择正确答案。',
-    questions: [{ question: '示例题目', options: ['选项 A', '选项 B'], correctIndex: 0, explanation: '请填写解析。' }],
+  if (type === 'mock_interview') {
+    return {
+      role: translateApp(locale, 'teacher.workspace.defaultInterviewRole'),
+      scenarioMarkdown: translateApp(locale, 'teacher.workspace.defaultInterviewScenario'),
+      questions: [{ question: translateApp(locale, 'teacher.workspace.defaultInterviewQuestion'), followUpHints: [] }],
+      evaluationRubricMarkdown: translateApp(locale, 'teacher.workspace.defaultInterviewRubric'),
+    }
   }
-  return { markdown: CONTENT_PENDING_MARK, highlights: [] }
+  if (type === 'quiz_game') {
+    return {
+      instructionsMarkdown: translateApp(locale, 'teacher.workspace.defaultQuizInstructions'),
+      questions: [{
+        question: translateApp(locale, 'teacher.workspace.defaultQuizSampleQuestion'),
+        options: [
+          translateApp(locale, 'teacher.workspace.defaultQuizOptionA'),
+          translateApp(locale, 'teacher.workspace.defaultQuizOptionB'),
+        ],
+        correctIndex: 0,
+        explanation: translateApp(locale, 'teacher.workspace.defaultQuizExplanation'),
+      }],
+    }
+  }
+  return { markdown: contentPendingMark(locale), highlights: [] }
 }
 
-function isPendingActivityContent(activity: CourseActivity) {
-  const text = activityText(activity).trim()
-  if (!text) {
+function isPendingFillText(text: string, locale = getAppLocale()) {
+  const trimmed = text.trim()
+  if (!trimmed) {
     return true
   }
-  return text === CONTENT_PENDING_MARK || text.startsWith('请填写')
+  const fillPrefix = translateApp(locale, 'teacher.workspace.fillPrefix')
+  return (
+    trimmed === contentPendingMark(locale)
+    || trimmed === LEGACY_CONTENT_PENDING_MARK
+    || trimmed.startsWith(LEGACY_FILL_PREFIX)
+    || trimmed.startsWith(fillPrefix)
+  )
+}
+
+function isPendingActivityContent(activity: CourseActivity, locale = getAppLocale()) {
+  return isPendingFillText(activityText(activity), locale)
 }
 
 function contentFillProgress(content: CourseContent) {
@@ -205,6 +292,7 @@ function listPendingActivities(content: CourseContent) {
 }
 
 export function TeacherCourseWorkspacePage() {
+  const { t, locale } = useI18n()
   const { courseId } = useParams()
   const id = Number(courseId)
   const navigate = useNavigate()
@@ -229,7 +317,6 @@ export function TeacherCourseWorkspacePage() {
   const [quality, setQuality] = useState<CourseQualityReport | null>(null)
   const [qualityLoading, setQualityLoading] = useState(false)
   const [qualityRubric, setQualityRubric] = useState('')
-  const [mermaid, setMermaid] = useState('')
   const [chapterIndex, setChapterIndex] = useState(0)
   const [activityIndex, setActivityIndex] = useState(0)
   const [editPhase, setEditPhase] = useState<'structure' | 'content'>('structure')
@@ -248,12 +335,11 @@ export function TeacherCourseWorkspacePage() {
     Promise.all([getTeacherCourse(id), getTeacherQuestions(id)])
       .then(([nextCourse, nextQuestions]) => {
         setCourse(nextCourse)
-        setContent(nextCourse.content ?? newContent(nextCourse))
+        setContent(nextCourse.content ?? newContent(nextCourse, getAppLocale()))
         setQuestions(nextQuestions)
       })
       .catch((reason: Error) => setError(reason.message))
     getCourseQualityReport(id).then(setQuality).catch(() => undefined)
-    getCourseMermaid(id).then((result) => setMermaid(result.source)).catch(() => undefined)
   }, [currentUser?.role, id])
 
   useEffect(() => {
@@ -293,6 +379,8 @@ export function TeacherCourseWorkspacePage() {
     [content],
   )
 
+  const bubbleTree = useMemo(() => (content ? contentToBubbleTree(content) : null), [content])
+
   if (!currentUser) return null
   if (currentUser.role !== 'ROLE_TEACHER') return <Navigate to={homePathFor(currentUser.role)} replace />
   if (!Number.isInteger(id) || id <= 0) return <Navigate to="/teacher" replace />
@@ -326,11 +414,10 @@ export function TeacherCourseWorkspacePage() {
       const saved = await saveTeacherCourseContent(id, normalized)
       setCourse(saved)
       setContent(saved.content ?? normalized)
-      setMermaid((await getCourseMermaid(id)).source)
       setQuestions(await getTeacherQuestions(id))
-      message.success('课程内容已保存')
+      message.success(t('teacher.workspace.contentSaved'))
     } catch (reason) {
-      setError(reason instanceof ApiError ? reason.message : '保存失败')
+      setError(reason instanceof ApiError ? reason.message : t('teacher.workspace.saveContentFailed'))
     } finally {
       setSaving(false)
     }
@@ -359,9 +446,9 @@ export function TeacherCourseWorkspacePage() {
       })
       setQuestions(await getTeacherQuestions(id))
       setQuestionOpen(false)
-      message.success(editingQuestion ? '题目已更新' : '题目已新增')
+      message.success(editingQuestion ? t('teacher.workspace.questionUpdated') : t('teacher.workspace.questionCreated'))
     } catch (reason) {
-      message.error(reason instanceof Error ? reason.message : '保存题目失败')
+      message.error(reason instanceof Error ? reason.message : t('teacher.workspace.saveQuestionFailed'))
     } finally {
       setQuestionSaving(false)
     }
@@ -371,27 +458,28 @@ export function TeacherCourseWorkspacePage() {
     try {
       await deleteTeacherQuestion(item.id)
       setQuestions(await getTeacherQuestions(id))
-      message.success('题目已删除')
+      message.success(t('teacher.workspace.questionDeleted'))
     } catch (reason) {
-      message.error(reason instanceof Error ? reason.message : '删除题目失败')
+      message.error(reason instanceof Error ? reason.message : t('teacher.workspace.deleteQuestionFailed'))
     }
   }
 
   function downloadTemplate() {
+    const cols = importColKeys(locale)
     const sheet = XLSX.utils.json_to_sheet([{
-      题干: 'Go 中声明变量使用哪个关键字？',
-      选项A: 'var',
-      选项B: 'func',
-      选项C: 'package',
-      选项D: 'import',
-      正确答案: 'A',
-      解析: 'var 用于变量声明。',
-      难度: 'easy',
+      [cols.stem]: t('teacher.workspace.excelSampleStem'),
+      [cols.options[0]]: 'var',
+      [cols.options[1]]: 'func',
+      [cols.options[2]]: 'package',
+      [cols.options[3]]: 'import',
+      [cols.correctAnswer]: 'A',
+      [cols.explanation]: t('teacher.workspace.excelSampleExplanation'),
+      [cols.difficulty]: 'easy',
     }])
     sheet['!cols'] = [{ wch: 36 }, { wch: 18 }, { wch: 18 }, { wch: 18 }, { wch: 18 }, { wch: 12 }, { wch: 36 }, { wch: 12 }]
     const workbook = XLSX.utils.book_new()
-    XLSX.utils.book_append_sheet(workbook, sheet, '选择题')
-    XLSX.writeFile(workbook, '选择题导入模板.xlsx')
+    XLSX.utils.book_append_sheet(workbook, sheet, t('teacher.workspace.excelSheetName'))
+    XLSX.writeFile(workbook, t('teacher.workspace.excelTemplateFilename'))
   }
 
   async function readImport(file: File) {
@@ -400,24 +488,10 @@ export function TeacherCourseWorkspacePage() {
       const workbook = XLSX.read(await file.arrayBuffer(), { type: 'array' })
       const sheet = workbook.Sheets[workbook.SheetNames[0]]
       const records = XLSX.utils.sheet_to_json<Record<string, unknown>>(sheet, { defval: '' })
-      const rows: ImportQuestionRow[] = records.map((record, index) => {
-        const options = ['选项A', '选项B', '选项C', '选项D', '选项E', '选项F']
-          .map((key) => String(record[key] ?? '').trim())
-          .filter(Boolean)
-        const rawAnswer = String(record.正确答案 ?? '').trim()
-        const answerIndex = /^[A-F]$/i.test(rawAnswer) ? rawAnswer.toUpperCase().charCodeAt(0) - 65 : -1
-        return {
-          row: index + 2,
-          content: String(record.题干 ?? ''),
-          options,
-          correctAnswer: answerIndex >= 0 ? options[answerIndex] ?? rawAnswer : rawAnswer,
-          explanation: String(record.解析 ?? ''),
-          difficulty: (String(record.难度 ?? 'medium').toLowerCase() as TeacherQuestionInput['difficulty']),
-        }
-      })
+      const rows: ImportQuestionRow[] = records.map((record, index) => parseImportRecord(record, index, locale))
       setImportPreview(await previewQuestionImport(id, rows))
     } catch (reason) {
-      message.error(reason instanceof Error ? reason.message : '无法读取 Excel 文件')
+      message.error(reason instanceof Error ? reason.message : t('teacher.workspace.readExcelFailed'))
     } finally {
       setImporting(false)
     }
@@ -435,9 +509,9 @@ export function TeacherCourseWorkspacePage() {
       })
       setQuestions(await getTeacherQuestions(id))
       setImportPreview(null)
-      message.success(`已导入 ${importPreview.validCount} 道题`)
+      message.success(t('teacher.workspace.importedCount', { count: importPreview.validCount }))
     } catch (reason) {
-      message.error(reason instanceof Error ? reason.message : '导入失败')
+      message.error(reason instanceof Error ? reason.message : t('teacher.workspace.importFailed'))
     } finally {
       setImporting(false)
     }
@@ -454,7 +528,7 @@ export function TeacherCourseWorkspacePage() {
       })
       setAiQuestions(result.questions)
     } catch (reason) {
-      message.error(reason instanceof Error ? reason.message : 'AI 生成失败')
+      message.error(reason instanceof Error ? reason.message : t('teacher.workspace.aiGenerateFailed'))
     } finally {
       setAiGenerating(false)
     }
@@ -475,7 +549,7 @@ export function TeacherCourseWorkspacePage() {
     setQuestions(await getTeacherQuestions(id))
     setAiOpen(false)
     setAiQuestions([])
-    message.success(`已采用 ${rows.length} 道 AI 题目`)
+    message.success(t('teacher.workspace.adoptedAiCount', { count: rows.length }))
   }
 
   function openOutlineModal() {
@@ -487,7 +561,7 @@ export function TeacherCourseWorkspacePage() {
       audience: content.audience,
       language: content.language,
       chapterCountHint: content.chapters.length || undefined,
-      extraRequirements: '请规划章节与小节标题，小节类型以图文 rich_text 为主。',
+      extraRequirements: translateApp(locale, 'teacher.workspace.outlineExtraRequirementsDefault'),
     })
     setOutlineOpen(true)
   }
@@ -503,11 +577,9 @@ export function TeacherCourseWorkspacePage() {
       setActivityIndex(0)
       setEditPhase('structure')
       setOutlineOpen(false)
-      const graph = await getCourseMermaid(id)
-      setMermaid(graph.source)
-      message.success('课程大纲已生成，请确认章与小节后进入内容填充')
+      message.success(t('teacher.workspace.outlineGenerated'))
     } catch (reason) {
-      message.error(reason instanceof Error ? reason.message : '大纲生成失败')
+      message.error(reason instanceof Error ? reason.message : t('teacher.workspace.outlineGenerateFailed'))
     } finally {
       setOutlineGenerating(false)
     }
@@ -521,7 +593,7 @@ export function TeacherCourseWorkspacePage() {
     const chapter = courseContent.chapters[targetChapterIndex]
     const activity = chapter?.activities[targetActivityIndex]
     if (!chapter || !activity) {
-      throw new Error('小节不存在')
+      throw new Error(t('teacher.workspace.activityNotFound'))
     }
     const result = await generateTeacherActivity(id, {
       provider,
@@ -532,7 +604,7 @@ export function TeacherCourseWorkspacePage() {
     })
     setCourse(result.course)
     if (!result.course.content) {
-      throw new Error('课程内容为空')
+      throw new Error(t('teacher.workspace.contentEmpty'))
     }
     return result.course.content
   }
@@ -545,12 +617,10 @@ export function TeacherCourseWorkspacePage() {
     try {
       const nextContent = await generateActivityFillAt(content, chapterIndex, activityIndex)
       setContent(nextContent)
-      const graph = await getCourseMermaid(id)
-      setMermaid(graph.source)
       const activity = content.chapters[chapterIndex].activities[activityIndex]
-      message.success(`「${activity.title}」内容已生成`)
+      message.success(t('teacher.workspace.activityGenerated', { title: activity.title }))
     } catch (reason) {
-      message.error(reason instanceof Error ? reason.message : '小节内容生成失败')
+      message.error(reason instanceof Error ? reason.message : t('teacher.workspace.activityFillFailed'))
     } finally {
       setFillGenerating(false)
     }
@@ -566,13 +636,14 @@ export function TeacherCourseWorkspacePage() {
     }
     const queue = listPendingActivities(content)
     if (!queue.length) {
-      message.info('没有待生成的小节')
+      message.info(t('teacher.workspace.noPendingSections'))
       return
     }
     Modal.confirm({
-      title: `一键生成 ${queue.length} 个小节正文？`,
-      content: '将按课程目录顺序依次调用 AI。小节较多时耗时与模型用量都会增加，过程中可点击「停止批量生成」。',
-      okText: '开始批量生成',
+      title: t('teacher.workspace.batchConfirmTitle', { count: queue.length }),
+      content: t('teacher.workspace.batchConfirmContent'),
+      okText: t('teacher.workspace.batchConfirmOk'),
+      cancelText: t('common.cancel'),
       onOk: () => {
         void (async () => {
           fillBatchAbortRef.current = false
@@ -599,20 +670,21 @@ export function TeacherCourseWorkspacePage() {
                 const activity = chapter?.activities[point.activityIndex]
                 message.error(
                   reason instanceof Error
-                    ? `「${activity?.title ?? '小节'}」失败：${reason.message}`
-                    : '批量生成已中断',
+                    ? t('teacher.workspace.batchItemFailed', {
+                      title: activity?.title ?? t('teacher.workspace.batchActivityFallback'),
+                      message: reason.message,
+                    })
+                    : t('teacher.workspace.batchInterrupted'),
                 )
                 break
               }
             }
-            const graph = await getCourseMermaid(id)
-            setMermaid(graph.source)
             if (fillBatchAbortRef.current) {
-              message.warning(`已停止。成功生成 ${succeeded} / ${queue.length} 个小节。`)
+              message.warning(t('teacher.workspace.batchStopped', { succeeded, total: queue.length }))
             } else if (succeeded === queue.length) {
-              message.success(`已全部生成 ${succeeded} 个小节正文`)
+              message.success(t('teacher.workspace.batchAllDone', { count: succeeded }))
             } else if (succeeded > 0) {
-              message.warning(`部分完成：成功 ${succeeded} / ${queue.length} 个小节`)
+              message.warning(t('teacher.workspace.batchPartial', { succeeded, total: queue.length }))
             }
           } finally {
             setFillBatch(null)
@@ -631,7 +703,7 @@ export function TeacherCourseWorkspacePage() {
       ? findNextPending(content, chapterIndex, activityIndex)
       : findPrevPending(content, chapterIndex, activityIndex)
     if (!target) {
-      message.info('没有更多待填充的小节')
+      message.info(t('teacher.workspace.noMorePending'))
       return
     }
     setChapterIndex(target.chapterIndex)
@@ -646,12 +718,13 @@ export function TeacherCourseWorkspacePage() {
   async function runFragmentGeneration() {
     if (!fragmentOpen || !fragmentTarget.chapterKey.trim()) return
     const targetLabel = fragmentOpen === 'chapter'
-      ? `章节 ${fragmentTarget.chapterKey}`
-      : `活动 ${fragmentTarget.activityKey}`
+      ? t('teacher.workspace.fragmentChapterLabel', { key: fragmentTarget.chapterKey })
+      : t('teacher.workspace.fragmentActivityLabel', { key: fragmentTarget.activityKey })
     Modal.confirm({
-      title: `确认替换 ${targetLabel}？`,
-      content: '生成成功后会立即写入并替换同 key 内容；该操作不会只保存为预览。',
-      okText: '确认生成并替换',
+      title: t('teacher.workspace.fragmentConfirmTitle', { target: targetLabel }),
+      content: t('teacher.workspace.fragmentConfirmContent'),
+      okText: t('teacher.workspace.fragmentConfirmOk'),
+      cancelText: t('common.cancel'),
       okButtonProps: { danger: true },
       onOk: async () => {
         setFragmentGenerating(true)
@@ -668,11 +741,9 @@ export function TeacherCourseWorkspacePage() {
           setCourse(result.course)
           setContent(result.course.content)
           setFragmentOpen(null)
-          const graph = await getCourseMermaid(id)
-          setMermaid(graph.source)
-          message.success(`${targetLabel} 已生成并替换`)
+          message.success(t('teacher.workspace.fragmentGenerated', { target: targetLabel }))
         } catch (reason) {
-          message.error(reason instanceof Error ? reason.message : '局部生成失败')
+          message.error(reason instanceof Error ? reason.message : t('teacher.workspace.fragmentGenerateFailed'))
         } finally {
           setFragmentGenerating(false)
         }
@@ -684,9 +755,9 @@ export function TeacherCourseWorkspacePage() {
     setQualityLoading(true)
     try {
       setQuality(await generateCourseQualityReport(id, { provider, rubric: qualityRubric }))
-      message.success('质量报告已生成')
+      message.success(t('teacher.workspace.qualityReportGenerated'))
     } catch (reason) {
-      message.error(reason instanceof Error ? reason.message : '质量评估失败')
+      message.error(reason instanceof Error ? reason.message : t('teacher.workspace.qualityReportFailed'))
     } finally {
       setQualityLoading(false)
     }
@@ -711,14 +782,31 @@ export function TeacherCourseWorkspacePage() {
   ) ?? quizSections[0] ?? null
   const looseQuestions = questions.filter((item) => !item.sectionKey)
 
+  const difficultyOptions = [
+    { value: 'easy', label: t('teacher.workspace.difficultyEasy') },
+    { value: 'medium', label: t('teacher.workspace.difficultyMedium') },
+    { value: 'hard', label: t('teacher.workspace.difficultyHard') },
+  ]
+
+  const audienceOptions = [
+    { value: 'GENERAL', label: t('teacher.workspace.audienceGeneral') },
+    { value: 'CS', label: t('teacher.workspace.audienceCS') },
+    { value: 'NON_CS', label: t('teacher.workspace.audienceNonCS') },
+  ]
+
+  const languageOptions = [
+    { value: 'zh-CN', label: t('teacher.workspace.langZhCN') },
+    { value: 'en-US', label: t('teacher.workspace.langEnUS') },
+  ]
+
   const questionBank = (
     <div>
       {quizSections.length === 0 ? (
         <Alert
           type="info"
           showIcon
-          message="还没有测验小节"
-          description="先在「课程结构」里把某个小节的类型设为「测验」，保存课程后，再来为这个小节维护题库。"
+          message={t('teacher.workspace.noQuizSectionTitle')}
+          description={t('teacher.workspace.noQuizSectionDesc')}
         />
       ) : (
         <>
@@ -739,14 +827,16 @@ export function TeacherCourseWorkspacePage() {
               <Button type="primary" icon={<PlusOutlined />} disabled={!activeQuiz} onClick={() => {
                 if (activeQuiz) setBankTarget({ chapterKey: activeQuiz.chapterKey, sectionKey: activeQuiz.sectionKey })
                 openQuestion()
-              }}>手工新增</Button>
-              <Button icon={<DownloadOutlined />} onClick={downloadTemplate}>下载 Excel 模板</Button>
+              }}>{t('teacher.workspace.addManual')}</Button>
+              <Button icon={<DownloadOutlined />} onClick={downloadTemplate}>{t('teacher.workspace.downloadTemplate')}</Button>
               <Upload accept=".xlsx" showUploadList={false} beforeUpload={(file) => { void readImport(file); return false }}>
-                <Button loading={importing} disabled={!activeQuiz} icon={<UploadOutlined />}>导入 .xlsx</Button>
+                <Button loading={importing} disabled={!activeQuiz} icon={<UploadOutlined />}>{t('teacher.workspace.importXlsx')}</Button>
               </Upload>
-              <Button disabled={!activeQuiz} onClick={() => { setAiOpen(true); aiForm.setFieldsValue({ count: 5, difficulty: 'medium' }) }}>AI 生成题目</Button>
+              <Button disabled={!activeQuiz} onClick={() => { setAiOpen(true); aiForm.setFieldsValue({ count: 5, difficulty: 'medium' }) }}>{t('teacher.workspace.aiGenerateQuestions')}</Button>
             </Space>
-            <span>当前小节 {questions.filter((item) => item.chapterKey === activeQuiz?.chapterKey && item.sectionKey === activeQuiz?.sectionKey).length} 题</span>
+            <span>{t('teacher.workspace.currentSectionQuestionCount', {
+              count: questions.filter((item) => item.chapterKey === activeQuiz?.chapterKey && item.sectionKey === activeQuiz?.sectionKey).length,
+            })}</span>
           </div>
           {content.chapters.map((chapter) => {
             const sections = chapter.activities.filter((activity) => activity.type === 'quiz_game')
@@ -765,22 +855,22 @@ export function TeacherCourseWorkspacePage() {
                         style={{ fontWeight: 700, marginBottom: 8, background: 'none', border: 0, padding: 0, cursor: 'pointer' }}
                       >
                         {section.title}
-                        <span style={{ marginLeft: 8, fontWeight: 500, color: '#8a8178' }}>{rows.length} 题</span>
+                        <span style={{ marginLeft: 8, fontWeight: 500, color: '#8a8178' }}>{t('teacher.workspace.questionCountShort', { count: rows.length })}</span>
                       </button>
                       <Table<TeacherQuestion>
                         rowKey="id"
                         dataSource={rows}
                         pagination={false}
-                        locale={{ emptyText: '这个测验小节还没有题目' }}
+                        locale={{ emptyText: t('teacher.workspace.emptyQuizTable') }}
                         columns={[
-                          { title: '题干', dataIndex: 'content' },
-                          { title: '难度', dataIndex: 'difficulty', width: 100, render: (value: string) => <Tag>{value}</Tag> },
-                          { title: '正确答案', dataIndex: 'correctAnswer', width: 180 },
-                          { title: '操作', width: 140, render: (_, item) => (
+                          { title: t('teacher.workspace.colStem'), dataIndex: 'content' },
+                          { title: t('teacher.workspace.colDifficulty'), dataIndex: 'difficulty', width: 100, render: (value: string) => <Tag>{value}</Tag> },
+                          { title: t('teacher.workspace.colCorrectAnswer'), dataIndex: 'correctAnswer', width: 180 },
+                          { title: t('teacher.workspace.colActions'), width: 140, render: (_, item) => (
                             <Space size={0}>
-                              <Button type="link" onClick={() => openQuestion(item)}>编辑</Button>
-                              <Popconfirm title="删除这道题？" okText="删除" cancelText="取消" onConfirm={() => { void removeQuestion(item) }}>
-                                <Button type="link" danger>删除</Button>
+                              <Button type="link" onClick={() => openQuestion(item)}>{t('teacher.workspace.edit')}</Button>
+                              <Popconfirm title={t('teacher.workspace.deleteQuestionConfirm')} okText={t('common.delete')} cancelText={t('common.cancel')} onConfirm={() => { void removeQuestion(item) }}>
+                                <Button type="link" danger>{t('common.delete')}</Button>
                               </Popconfirm>
                             </Space>
                           ) },
@@ -794,18 +884,18 @@ export function TeacherCourseWorkspacePage() {
           })}
           {looseQuestions.length > 0 ? (
             <section>
-              <h3>未挂到测验小节</h3>
+              <h3>{t('teacher.workspace.looseQuestionsTitle')}</h3>
               <Table<TeacherQuestion>
                 rowKey="id"
                 dataSource={looseQuestions}
                 pagination={false}
                 columns={[
-                  { title: '题干', dataIndex: 'content' },
-                  { title: '难度', dataIndex: 'difficulty', width: 100, render: (value: string) => <Tag>{value}</Tag> },
-                  { title: '正确答案', dataIndex: 'correctAnswer', width: 180 },
-                  { title: '操作', width: 90, render: (_, item) => (
-                    <Popconfirm title="删除这道题？" okText="删除" cancelText="取消" onConfirm={() => { void removeQuestion(item) }}>
-                      <Button type="link" danger>删除</Button>
+                  { title: t('teacher.workspace.colStem'), dataIndex: 'content' },
+                  { title: t('teacher.workspace.colDifficulty'), dataIndex: 'difficulty', width: 100, render: (value: string) => <Tag>{value}</Tag> },
+                  { title: t('teacher.workspace.colCorrectAnswer'), dataIndex: 'correctAnswer', width: 180 },
+                  { title: t('teacher.workspace.colActions'), width: 90, render: (_, item) => (
+                    <Popconfirm title={t('teacher.workspace.deleteQuestionConfirm')} okText={t('common.delete')} cancelText={t('common.cancel')} onConfirm={() => { void removeQuestion(item) }}>
+                      <Button type="link" danger>{t('common.delete')}</Button>
                     </Popconfirm>
                   ) },
                 ]}
@@ -819,26 +909,26 @@ export function TeacherCourseWorkspacePage() {
 
   const qualityReport = (
     <div className={styles.report}>
-      <Card title="AI 课程质量报告" extra={<span>{quality ? new Date(quality.createdAt).toLocaleString() : '尚未生成'}</span>}>
+      <Card title={t('teacher.workspace.qualityCardTitle')} extra={<span>{quality ? new Date(quality.createdAt).toLocaleString() : t('teacher.workspace.notGeneratedYet')}</span>}>
         <div className={styles.reportControls}>
           <div>{selector}</div>
           <Input.TextArea
             rows={2}
             maxLength={1000}
             value={qualityRubric}
-            placeholder="可选：补充评分要求"
+            placeholder={t('teacher.workspace.rubricPlaceholder')}
             onChange={(event) => setQualityRubric(event.target.value)}
           />
           <Button type="primary" loading={qualityLoading} disabled={!content.chapters.length} onClick={() => { void runQualityReport() }}>
-            {quality ? '重新生成报告' : '生成报告'}
+            {quality ? t('teacher.workspace.regenerateReport') : t('teacher.workspace.generateReport')}
           </Button>
         </div>
         {quality ? (
           <>
-            <div className={styles.overallScore}><Progress type="circle" percent={quality.report.overallScore} /><strong>综合评分</strong></div>
+            <div className={styles.overallScore}><Progress type="circle" percent={quality.report.overallScore} /><strong>{t('teacher.workspace.overallScore')}</strong></div>
             <div className={styles.dimensionGrid}>
               {quality.report.dimensions.map((item) => (
-                <Card size="small" title={dimensionLabel(item.name)} key={item.name}>
+                <Card size="small" title={dimensionLabel(item.name, locale)} key={item.name}>
                   <Progress percent={item.score} />
                   <div className={styles.reportMarkdown}>
                     <CourseMarkdownBody source={item.comment} codeClassName={styles.codeBlock} />
@@ -846,11 +936,11 @@ export function TeacherCourseWorkspacePage() {
                 </Card>
               ))}
             </div>
-            <Typography.Title level={4}>摘要</Typography.Title>
+            <Typography.Title level={4}>{t('teacher.workspace.summaryTitle')}</Typography.Title>
             <div className={styles.reportMarkdown}>
               <CourseMarkdownBody source={quality.report.summaryMarkdown} codeClassName={styles.codeBlock} />
             </div>
-            <Typography.Title level={4}>改进建议</Typography.Title>
+            <Typography.Title level={4}>{t('teacher.workspace.suggestionsTitle')}</Typography.Title>
             {quality.report.suggestions.length
               ? (
                 <ol className={styles.suggestionList}>
@@ -861,30 +951,20 @@ export function TeacherCourseWorkspacePage() {
                   ))}
                 </ol>
               )
-              : <Typography.Paragraph type="secondary">暂无建议</Typography.Paragraph>}
+              : <Typography.Paragraph type="secondary">{t('teacher.workspace.noSuggestions')}</Typography.Paragraph>}
             {quality.meta ? <StudentGenerationMetaLike meta={quality.meta} /> : null}
           </>
-        ) : <Alert type="info" showIcon message="生成后将保存并展示最新一份报告" />}
+        ) : <Alert type="info" showIcon message={t('teacher.workspace.afterGenerateHint')} />}
       </Card>
     </div>
   )
 
-  const courseMap = (
-    <div className={styles.report}>
-      <Card title="课程 Mermaid 导图" extra={<Tag color="green">由 content_json 本地生成，不调用模型</Tag>}>
-        <div className={styles.mapGraph}>
-          <div className={styles.mapCourse}>{content.title}</div>
-          {content.chapters.map((chapter) => (
-            <div className={styles.mapChapter} key={chapter.key}>
-              <strong>{chapter.title}</strong>
-              <div>{chapter.activities.map((activity) => <span key={activity.key}>{activity.title}</span>)}</div>
-            </div>
-          ))}
-        </div>
-        <Typography.Title level={5}>Mermaid 源码</Typography.Title>
-        <pre className={styles.mermaidSource}>{mermaid || '保存或生成课程内容后即可生成导图。'}</pre>
-      </Card>
+  const courseMap = bubbleTree ? (
+    <div className={styles.mapTab}>
+      <CourseBubbleMap tree={bubbleTree} />
     </div>
+  ) : (
+    <div className={styles.mapTabEmpty}>{t('teacher.workspace.mapEmpty')}</div>
   )
 
   return (
@@ -892,14 +972,14 @@ export function TeacherCourseWorkspacePage() {
       <header className={styles.topBar}>
         <div className={styles.topLeft}>
           <Button type="link" className={styles.backBtn} icon={<ArrowLeftOutlined />} onClick={() => navigate('/teacher')}>
-            课程中心
+            {t('teacher.workspace.courseHub')}
           </Button>
           <span className={styles.topSep}>/</span>
           <span className={styles.courseTitle}>{course.title}</span>
         </div>
         <div className={styles.topActions}>
           <Button type="primary" loading={saving} onClick={() => { void saveContent() }}>
-            保存课程
+            {t('teacher.workspace.saveCourse')}
           </Button>
         </div>
       </header>
@@ -911,7 +991,7 @@ export function TeacherCourseWorkspacePage() {
           items={[
             {
               key: 'content',
-              label: '课程结构',
+              label: t('teacher.workspace.tabStructure'),
               children: (
                 <TeacherStructureWorkspace
                   content={content}
@@ -938,12 +1018,12 @@ export function TeacherCourseWorkspacePage() {
             },
             {
               key: 'resources',
-              label: '课程资料',
+              label: t('teacher.workspace.tabResources'),
               children: <TeacherCourseResourcesTab courseId={id} content={content} />,
             },
             {
               key: 'preview',
-              label: '学生视角预览',
+              label: t('teacher.workspace.tabPreview'),
               children: (
                 <TeacherPreviewWorkspace
                   content={content}
@@ -954,72 +1034,80 @@ export function TeacherCourseWorkspacePage() {
                 />
               ),
             },
-            { key: 'map', label: '课程导图', children: courseMap },
-            { key: 'quality', label: '质量报告', children: qualityReport },
-            { key: 'questions', label: `题库（${questions.length}）`, children: questionBank },
+            { key: 'map', label: t('teacher.workspace.tabMap'), children: courseMap },
+            { key: 'quality', label: t('teacher.workspace.tabQuality'), children: qualityReport },
+            { key: 'questions', label: t('teacher.workspace.tabQuestionBank', { count: questions.length }), children: questionBank },
           ]}
         />
       </div>
 
-      <Modal title={editingQuestion ? '编辑选择题' : '新增选择题'} open={questionOpen} width={720} okText="保存" confirmLoading={questionSaving} onOk={() => { void saveQuestion() }} onCancel={() => setQuestionOpen(false)}>
+      <Modal title={editingQuestion ? t('teacher.workspace.editQuestion') : t('teacher.workspace.addQuestion')} open={questionOpen} width={720} okText={t('common.save')} confirmLoading={questionSaving} onOk={() => { void saveQuestion() }} onCancel={() => setQuestionOpen(false)}>
         <QuestionEditor value={questionDraft} onChange={setQuestionDraft} />
       </Modal>
 
-      <Modal title="Excel 导入预检" open={importPreview !== null} width={760} okText="确认并事务导入" okButtonProps={{ disabled: Boolean(importPreview?.errors.length) }} confirmLoading={importing} onOk={() => { void confirmImport() }} onCancel={() => setImportPreview(null)}>
+      <Modal title={t('teacher.workspace.importPreviewTitle')} open={importPreview !== null} width={760} okText={t('teacher.workspace.confirmImport')} okButtonProps={{ disabled: Boolean(importPreview?.errors.length) }} confirmLoading={importing} onOk={() => { void confirmImport() }} onCancel={() => setImportPreview(null)}>
         <Alert type={importPreview?.errors.length ? 'error' : 'success'} showIcon message={
-          importPreview?.errors.length ? `发现 ${importPreview.errors.length} 个错误，请修正 Excel 后重新导入` : `${importPreview?.validCount ?? 0} 道题通过预检`
+          importPreview?.errors.length
+            ? t('teacher.workspace.importErrors', { count: importPreview.errors.length })
+            : t('teacher.workspace.importValid', { count: importPreview?.validCount ?? 0 })
         } />
-        {importPreview?.errors.map((item, index) => <p key={`${item.row}-${index}`}>第 {item.row || '—'} 行 · {item.field}：{item.message}</p>)}
+        {importPreview?.errors.map((item, index) => (
+          <p key={`${item.row}-${index}`}>
+            {t('teacher.workspace.importErrorRow', {
+              row: item.row || t('common.dash'),
+              field: item.field,
+              message: item.message,
+            })}
+          </p>
+        ))}
       </Modal>
 
-      <Modal title="AI 生成选择题" open={aiOpen} width={820} okText={aiQuestions.length ? `采用 ${aiQuestions.length} 道题` : '生成预览'} confirmLoading={aiGenerating} onOk={() => { if (aiQuestions.length) void adoptAIQuestions(); else void runAI() }} onCancel={() => { setAiOpen(false); setAiQuestions([]) }}>
+      <Modal title={t('teacher.workspace.aiQuestionsTitle')} open={aiOpen} width={820} okText={aiQuestions.length ? t('teacher.workspace.adoptCount', { count: aiQuestions.length }) : t('teacher.workspace.generatePreview')} confirmLoading={aiGenerating} onOk={() => { if (aiQuestions.length) void adoptAIQuestions(); else void runAI() }} onCancel={() => { setAiOpen(false); setAiQuestions([]) }}>
         <div className={styles.aiProvider}>{selector}</div>
         <Form form={aiForm} layout="vertical">
           <Space size="large" align="start">
-            <Form.Item name="count" label="题目数量" rules={[{ required: true }]}><InputNumber min={1} max={20} /></Form.Item>
-            <Form.Item name="difficulty" label="难度" rules={[{ required: true }]}><Select style={{ width: 140 }} options={[
-              { value: 'easy', label: '简单' }, { value: 'medium', label: '中等' }, { value: 'hard', label: '困难' },
-            ]} /></Form.Item>
+            <Form.Item name="count" label={t('teacher.workspace.questionCount')} rules={[{ required: true }]}><InputNumber min={1} max={20} /></Form.Item>
+            <Form.Item name="difficulty" label={t('teacher.workspace.difficulty')} rules={[{ required: true }]}><Select style={{ width: 140 }} options={difficultyOptions} /></Form.Item>
           </Space>
-          <Form.Item name="extraRequirements" label="补充要求"><Input.TextArea rows={2} /></Form.Item>
+          <Form.Item name="extraRequirements" label={t('teacher.workspace.extraRequirements')}><Input.TextArea rows={2} /></Form.Item>
         </Form>
-        {aiQuestions.map((item, index) => <Card size="small" title={`预览题 ${index + 1}`} key={index} className={styles.aiQuestion}>
+        {aiQuestions.map((item, index) => <Card size="small" title={t('teacher.workspace.previewQuestion', { index: index + 1 })} key={index} className={styles.aiQuestion}>
           <QuestionEditor value={item} onChange={(next) => setAiQuestions(aiQuestions.map((question, current) => current === index ? next : question))} />
         </Card>)}
       </Modal>
 
       <Modal
-        title={fragmentOpen === 'chapter' ? 'AI 生成章节' : 'AI 生成活动'}
+        title={fragmentOpen === 'chapter' ? t('teacher.workspace.aiChapter') : t('teacher.workspace.aiActivity')}
         open={fragmentOpen !== null}
-        okText="下一步：确认替换"
+        okText={t('teacher.workspace.nextConfirmReplace')}
         confirmLoading={fragmentGenerating}
         onOk={() => { void runFragmentGeneration() }}
         onCancel={() => setFragmentOpen(null)}
       >
-        <Alert type="warning" showIcon message="同 key 内容将在确认后被替换；新 key 会追加到课程。" style={{ marginBottom: 16 }} />
+        <Alert type="warning" showIcon message={t('teacher.workspace.fragmentWarning')} style={{ marginBottom: 16 }} />
         <div className={styles.aiProvider}>{selector}</div>
         <Form layout="vertical">
-          <Form.Item label="目标章节 key" required>
+          <Form.Item label={t('teacher.workspace.targetChapterKey')} required>
             <Input value={fragmentTarget.chapterKey} onChange={(event) => setFragmentTarget({ ...fragmentTarget, chapterKey: event.target.value })} />
           </Form.Item>
           {fragmentOpen === 'activity' ? (
-            <Form.Item label="目标活动 key" required>
+            <Form.Item label={t('teacher.workspace.targetActivityKey')} required>
               <Input value={fragmentTarget.activityKey} onChange={(event) => setFragmentTarget({ ...fragmentTarget, activityKey: event.target.value })} />
             </Form.Item>
           ) : null}
-          <Form.Item label="主题">
+          <Form.Item label={t('teacher.workspace.topic')}>
             <Input value={fragmentTarget.topic} onChange={(event) => setFragmentTarget({ ...fragmentTarget, topic: event.target.value })} />
           </Form.Item>
-          <Form.Item label="补充要求">
+          <Form.Item label={t('teacher.workspace.extraRequirements')}>
             <Input.TextArea rows={3} maxLength={2000} showCount value={fragmentTarget.requirements} onChange={(event) => setFragmentTarget({ ...fragmentTarget, requirements: event.target.value })} />
           </Form.Item>
         </Form>
       </Modal>
 
       <Modal
-        title="AI 生成课程大纲"
+        title={t('teacher.workspace.outlineTitle')}
         open={outlineOpen}
-        okText="生成大纲"
+        okText={t('teacher.workspace.generateOutline')}
         confirmLoading={outlineGenerating}
         onOk={() => { void runOutlineGeneration() }}
         onCancel={() => setOutlineOpen(false)}
@@ -1027,27 +1115,25 @@ export function TeacherCourseWorkspacePage() {
         <Alert
           type="info"
           showIcon
-          message="仅生成章节与小节标题，正文留为「待生成」。确认结构后，在「内容填充」阶段逐节生成正文。"
+          message={t('teacher.workspace.outlineInfo')}
           style={{ marginBottom: 16 }}
         />
         <div className={styles.aiProvider}>{selector}</div>
         <Form form={outlineForm} layout="vertical">
-          <Form.Item name="topic" label="课程主题" rules={[{ required: true, whitespace: true, message: '请输入主题' }]}>
+          <Form.Item name="topic" label={t('teacher.workspace.courseTopic')} rules={[{ required: true, whitespace: true, message: t('teacher.workspace.topicRequired') }]}>
             <Input maxLength={200} />
           </Form.Item>
-          <Form.Item name="audience" label="受众">
-            <Select options={[
-              { value: 'GENERAL', label: '通用' }, { value: 'CS', label: '计算机专业' }, { value: 'NON_CS', label: '非计算机专业' },
-            ]} />
+          <Form.Item name="audience" label={t('teacher.workspace.audience')}>
+            <Select options={audienceOptions} />
           </Form.Item>
-          <Form.Item name="language" label="语言">
-            <Select options={[{ value: 'zh-CN', label: '简体中文' }, { value: 'en-US', label: 'English' }]} />
+          <Form.Item name="language" label={t('teacher.workspace.language')}>
+            <Select options={languageOptions} />
           </Form.Item>
-          <Form.Item name="chapterCountHint" label="期望章节数">
+          <Form.Item name="chapterCountHint" label={t('teacher.workspace.chapterCountHint')}>
             <InputNumber min={1} max={20} style={{ width: '100%' }} />
           </Form.Item>
-          <Form.Item name="extraRequirements" label="结构要求">
-            <Input.TextArea rows={3} maxLength={2000} showCount placeholder="例如：每章 3～5 个小节，先概念后练习" />
+          <Form.Item name="extraRequirements" label={t('teacher.workspace.structureRequirements')}>
+            <Input.TextArea rows={3} maxLength={2000} showCount placeholder={t('teacher.workspace.structureRequirementsPlaceholder')} />
           </Form.Item>
         </Form>
       </Modal>
@@ -1096,11 +1182,30 @@ function TeacherStructureWorkspace({
   onOpenFragment: (kind: 'chapter' | 'activity', chapterKey: string, activityKey?: string) => void
   fillGenerating: boolean
 }) {
+  const { t } = useI18n()
   const chapter = content.chapters[chapterIndex]
   const activity = chapter?.activities[activityIndex]
 
+  const activityTypeOptions = [
+    { value: 'rich_text', label: t('teacher.workspace.activityTypeRichText') },
+    { value: 'coding', label: t('teacher.workspace.activityTypeCoding') },
+    { value: 'mock_interview', label: t('teacher.workspace.activityTypeMockInterview') },
+    { value: 'quiz_game', label: t('teacher.workspace.activityTypeQuizGame') },
+  ]
+
+  const audienceOptions = [
+    { value: 'CS', label: t('teacher.workspace.audienceCS') },
+    { value: 'NON_CS', label: t('teacher.workspace.audienceNonCS') },
+    { value: 'GENERAL', label: t('teacher.workspace.audienceGeneral') },
+  ]
+
+  const languageOptions = [
+    { value: 'zh-CN', label: t('teacher.workspace.langZhCN') },
+    { value: 'en-US', label: t('teacher.workspace.langEnUS') },
+  ]
+
   if (!chapter || !activity) {
-    return <Alert type="info" message="请先新增章节与活动" />
+    return <Alert type="info" message={t('teacher.workspace.addChapterSectionFirst')} />
   }
 
   return (
@@ -1110,20 +1215,22 @@ function TeacherStructureWorkspace({
           value={editPhase}
           onChange={(value) => setEditPhase(value as 'structure' | 'content')}
           options={[
-            { label: '① 结构编排', value: 'structure' },
+            { label: t('teacher.workspace.phaseStructure'), value: 'structure' },
             {
-              label: fillProgress.pending > 0 ? `② 内容填充（${fillProgress.pending} 待生成）` : '② 内容填充',
+              label: fillProgress.pending > 0
+                ? t('teacher.workspace.phaseContentPending', { count: fillProgress.pending })
+                : t('teacher.workspace.phaseContent'),
               value: 'content',
             },
           ]}
         />
         {editPhase === 'structure' ? (
           <Button type="primary" onClick={() => setEditPhase('content')}>
-            确认结构，开始填充
+            {t('teacher.workspace.confirmStructureStartFill')}
           </Button>
         ) : (
           <div className={styles.fillMeter}>
-            <span>正文 {fillProgress.filled}/{fillProgress.total}</span>
+            <span>{t('teacher.workspace.bodyProgress', { filled: fillProgress.filled, total: fillProgress.total })}</span>
             <Progress
               percent={fillProgress.total ? Math.round((fillProgress.filled / fillProgress.total) * 100) : 0}
               size="small"
@@ -1137,17 +1244,17 @@ function TeacherStructureWorkspace({
           type="info"
           showIcon
           className={styles.batchAlert}
-          message={`正在批量生成正文（${fillBatch.done}/${fillBatch.total}）`}
+          message={t('teacher.workspace.batchGenerating', { done: fillBatch.done, total: fillBatch.total })}
           action={
             <Button size="small" danger onClick={onCancelFillBatch}>
-              停止批量生成
+              {t('teacher.workspace.stopBatch')}
             </Button>
           }
         />
       ) : null}
       <div className={styles.columns}>
       <aside className={styles.syllabus}>
-        <h2>课程目录</h2>
+        <h2>{t('teacher.workspace.syllabusTitle')}</h2>
         <ul>
           {content.chapters.map((item, index) => {
             const expanded = index === chapterIndex
@@ -1168,7 +1275,7 @@ function TeacherStructureWorkspace({
                   <span className={styles.chapterName}>{item.title}</span>
                 </button>
                 {expanded && item.activities.length > 0 ? (
-                  <ul className={styles.sectionList} aria-label={`${item.title} 小节`}>
+                  <ul className={styles.sectionList} aria-label={t('teacher.workspace.sectionListAria', { title: item.title })}>
                     {item.activities.map((act, actIndex) => (
                       <li key={act.key}>
                         <button
@@ -1180,7 +1287,7 @@ function TeacherStructureWorkspace({
                           <span className={styles.sectionIndex}>{actIndex + 1}</span>
                           <span className={styles.sectionName}>{act.title}</span>
                           {isPendingActivityContent(act) ? (
-                            <span className={styles.sectionPending}>待生成</span>
+                            <span className={styles.sectionPending}>{t('teacher.workspace.pendingBadge')}</span>
                           ) : null}
                         </button>
                       </li>
@@ -1201,13 +1308,13 @@ function TeacherStructureWorkspace({
                 ...content.chapters,
                 {
                   key: `chapter-${Date.now()}`,
-                  title: '新章节',
+                  title: translateApp(getAppLocale(), 'teacher.workspace.newChapter'),
                   summary: '',
                   order: content.chapters.length + 1,
                   activities: [{
                     key: `activity-${Date.now()}-1`,
                     type: 'rich_text',
-                    title: '学习内容',
+                    title: translateApp(getAppLocale(), 'teacher.workspace.learningContent'),
                     order: 1,
                     payload: defaultPayload('rich_text'),
                   }],
@@ -1218,7 +1325,7 @@ function TeacherStructureWorkspace({
             setActivityIndex(0)
           }}
         >
-          ＋ 新增章节
+          {t('teacher.workspace.addChapter')}
         </button>
       </aside>
 
@@ -1228,16 +1335,16 @@ function TeacherStructureWorkspace({
             <Alert
               type="info"
               showIcon
-              message="第一步：确定章名、小节名与活动类型"
-              description="可手工新增，或使用右侧「AI 生成课程大纲」。正文统一在「内容填充」阶段逐节生成或手工编写。"
+              message={t('teacher.workspace.structureStepTitle')}
+              description={t('teacher.workspace.structureStepDesc')}
               style={{ marginBottom: 18 }}
             />
-            <p className={styles.contentKicker}>CHAPTER OUTLINE</p>
+            <p className={styles.contentKicker}>{t('teacher.workspace.kickerChapterOutline')}</p>
             <div className={styles.formGrid}>
-              <label>章节标题<Input value={chapter.title} onChange={(event) => updateChapter(chapterIndex, { title: event.target.value })} /></label>
-              <label>章节摘要<Input value={chapter.summary} onChange={(event) => updateChapter(chapterIndex, { summary: event.target.value })} /></label>
+              <label>{t('teacher.workspace.chapterTitle')}<Input value={chapter.title} onChange={(event) => updateChapter(chapterIndex, { title: event.target.value })} /></label>
+              <label>{t('teacher.workspace.chapterSummary')}<Input value={chapter.summary} onChange={(event) => updateChapter(chapterIndex, { summary: event.target.value })} /></label>
             </div>
-            <p className={styles.contentKicker} style={{ marginTop: 22 }}>本章小节</p>
+            <p className={styles.contentKicker} style={{ marginTop: 22 }}>{t('teacher.workspace.kickerSections')}</p>
             <ul className={styles.sectionOutlineList}>
               {chapter.activities.map((item, index) => (
                 <li
@@ -1245,43 +1352,38 @@ function TeacherStructureWorkspace({
                   className={index === activityIndex ? styles.sectionRowActive : styles.sectionRow}
                 >
                   <button type="button" className={styles.sectionRowSelect} onClick={() => setActivityIndex(index)}>
-                    编辑
+                    {t('teacher.workspace.edit')}
                   </button>
                   <label className={styles.sectionRowTitle}>
-                    小节标题
+                    {t('teacher.workspace.sectionTitle')}
                     <Input
                       value={item.title}
                       onChange={(event) => updateActivity(chapterIndex, index, { ...item, title: event.target.value })}
                     />
                   </label>
                   <label className={styles.sectionRowType}>
-                    类型
+                    {t('teacher.workspace.type')}
                     <Select
                       value={item.type}
-                      options={[
-                        { value: 'rich_text', label: '图文' },
-                        { value: 'coding', label: '编程' },
-                        { value: 'mock_interview', label: '面试' },
-                        { value: 'quiz_game', label: '测验' },
-                      ]}
+                      options={activityTypeOptions}
                       onChange={(type: CourseActivity['type']) => updateActivity(chapterIndex, index, { ...item, type, payload: defaultPayload(type) })}
                     />
                   </label>
-                  {isPendingActivityContent(item) ? <Tag color="orange">待生成正文</Tag> : <Tag color="green">已有正文</Tag>}
+                  {isPendingActivityContent(item) ? <Tag color="orange">{t('teacher.workspace.pendingBodyTag')}</Tag> : <Tag color="green">{t('teacher.workspace.hasBodyTag')}</Tag>}
                 </li>
               ))}
             </ul>
           </>
         ) : (
           <>
-            <p className={styles.contentKicker}>FILL CONTENT</p>
+            <p className={styles.contentKicker}>{t('teacher.workspace.kickerFillContent')}</p>
             <h2 className={styles.contentTitle}>{activity.title}</h2>
             <p className={styles.contentType}>{activityLabel(activity.type)} · {chapter.title}</p>
             {isPendingActivityContent(activity) ? (
-              <Alert type="warning" showIcon message="本节正文尚未生成" style={{ marginBottom: 16 }} />
+              <Alert type="warning" showIcon message={t('teacher.workspace.sectionBodyNotGenerated')} style={{ marginBottom: 16 }} />
             ) : null}
             <label style={{ display: 'grid', gap: 7, fontWeight: 600 }}>
-              小节正文
+              {t('teacher.workspace.sectionBody')}
               <Input.TextArea
                 rows={12}
                 value={activityText(activity)}
@@ -1290,86 +1392,82 @@ function TeacherStructureWorkspace({
             </label>
             <Space wrap style={{ marginTop: 16 }}>
               <Button loading={fillGenerating && !fillBatch} type="primary" onClick={onFillCurrentActivity}>
-                AI 生成本节正文
+                {t('teacher.workspace.aiFillSection')}
               </Button>
               <Button
                 loading={fillGenerating && Boolean(fillBatch)}
                 disabled={fillProgress.pending === 0}
                 onClick={onFillAllPending}
               >
-                一键生成全部待填充（{fillProgress.pending}）
+                {t('teacher.workspace.fillAllPending', { count: fillProgress.pending })}
               </Button>
-              <Button disabled={fillGenerating} onClick={() => onJumpPending('prev')}>上一待填充</Button>
-              <Button disabled={fillGenerating} onClick={() => onJumpPending('next')}>下一待填充</Button>
+              <Button disabled={fillGenerating} onClick={() => onJumpPending('prev')}>{t('teacher.workspace.prevPending')}</Button>
+              <Button disabled={fillGenerating} onClick={() => onJumpPending('next')}>{t('teacher.workspace.nextPending')}</Button>
             </Space>
           </>
         )}
       </section>
 
       <aside className={styles.toolsPane}>
-        <h2>{editPhase === 'structure' ? '结构工具' : '内容工具'}</h2>
+        <h2>{editPhase === 'structure' ? t('teacher.workspace.toolsStructure') : t('teacher.workspace.toolsContent')}</h2>
         <div className={styles.toolBlock}>
-          <h3>课程设置</h3>
+          <h3>{t('teacher.workspace.courseSettings')}</h3>
           <div className={styles.formGrid} style={{ gridTemplateColumns: '1fr' }}>
-            <label>课程简介<Input.TextArea rows={2} value={content.description} onChange={(event) => setContent({ ...content, description: event.target.value })} /></label>
-            <label>面向人群<Select value={content.audience} options={[
-              { value: 'CS', label: '计算机专业' }, { value: 'NON_CS', label: '非计算机专业' }, { value: 'GENERAL', label: '通用' },
-            ]} onChange={(audience) => setContent({ ...content, audience })} /></label>
-            <label>语言<Select value={content.language} options={[
-              { value: 'zh-CN', label: '简体中文' }, { value: 'en-US', label: 'English' },
-            ]} onChange={(language) => setContent({ ...content, language })} /></label>
-            <label>预计分钟<InputNumber min={0} style={{ width: '100%' }} value={content.estimatedMinutes} onChange={(value) => setContent({ ...content, estimatedMinutes: value ?? 0 })} /></label>
+            <label>{t('teacher.workspace.courseDescription')}<Input.TextArea rows={2} value={content.description} onChange={(event) => setContent({ ...content, description: event.target.value })} /></label>
+            <label>{t('teacher.workspace.audience')}<Select value={content.audience} options={audienceOptions} onChange={(audience) => setContent({ ...content, audience })} /></label>
+            <label>{t('teacher.workspace.language')}<Select value={content.language} options={languageOptions} onChange={(language) => setContent({ ...content, language })} /></label>
+            <label>{t('teacher.workspace.estimatedMinutes')}<InputNumber min={0} style={{ width: '100%' }} value={content.estimatedMinutes} onChange={(value) => setContent({ ...content, estimatedMinutes: value ?? 0 })} /></label>
           </div>
         </div>
         {editPhase === 'structure' ? (
           <div className={styles.toolBlock}>
-            <h3>AI 与结构</h3>
+            <h3>{t('teacher.workspace.aiAndStructure')}</h3>
             <div className={styles.toolActions}>
-              <Button block type="primary" onClick={onOpenOutline}>AI 生成课程大纲</Button>
+              <Button block type="primary" onClick={onOpenOutline}>{t('teacher.workspace.aiOutline')}</Button>
               <Button block icon={<PlusOutlined />} onClick={() => updateChapter(chapterIndex, { activities: [...chapter.activities, {
-                key: `activity-${Date.now()}`, type: 'rich_text', title: '新小节', order: chapter.activities.length + 1, payload: defaultPayload('rich_text'),
-              }] })}>新增小节</Button>
+                key: `activity-${Date.now()}`, type: 'rich_text', title: translateApp(getAppLocale(), 'teacher.workspace.newSection'), order: chapter.activities.length + 1, payload: defaultPayload('rich_text'),
+              }] })}>{t('teacher.workspace.addSection')}</Button>
               {chapter.activities.length > 1 ? (
-                <Popconfirm title="删除当前小节？" onConfirm={() => {
+                <Popconfirm title={t('teacher.workspace.deleteSectionConfirm')} onConfirm={() => {
                   updateChapter(chapterIndex, { activities: chapter.activities.filter((_, index) => index !== activityIndex) })
                   setActivityIndex(0)
                 }}>
-                  <Button block danger>删除当前小节</Button>
+                  <Button block danger>{t('teacher.workspace.deleteCurrentSection')}</Button>
                 </Popconfirm>
               ) : null}
               {content.chapters.length > 1 ? (
-                <Popconfirm title="删除当前章节？" onConfirm={() => {
+                <Popconfirm title={t('teacher.workspace.deleteChapterConfirm')} onConfirm={() => {
                   setContent({ ...content, chapters: content.chapters.filter((_, index) => index !== chapterIndex) })
                   setChapterIndex(0)
                   setActivityIndex(0)
                 }}>
-                  <Button block danger>删除当前章节</Button>
+                  <Button block danger>{t('teacher.workspace.deleteCurrentChapter')}</Button>
                 </Popconfirm>
               ) : null}
             </div>
           </div>
         ) : (
           <div className={styles.toolBlock}>
-            <h3>AI 填充</h3>
+            <h3>{t('teacher.workspace.aiFill')}</h3>
             <div className={styles.toolActions}>
-              <Button block type="primary" loading={fillGenerating && !fillBatch} onClick={onFillCurrentActivity}>AI 生成本节正文</Button>
+              <Button block type="primary" loading={fillGenerating && !fillBatch} onClick={onFillCurrentActivity}>{t('teacher.workspace.aiFillSection')}</Button>
               <Button
                 block
                 loading={fillGenerating && Boolean(fillBatch)}
                 disabled={fillProgress.pending === 0}
                 onClick={onFillAllPending}
               >
-                一键生成全部待填充（{fillProgress.pending}）
+                {t('teacher.workspace.fillAllPending', { count: fillProgress.pending })}
               </Button>
-              <Button block disabled={fillGenerating} onClick={() => onJumpPending('next')}>跳到下一待填充</Button>
-              <Button block disabled={fillGenerating} onClick={() => onOpenFragment('activity', chapter.key, activity.key)}>高级：自定义生成参数</Button>
+              <Button block disabled={fillGenerating} onClick={() => onJumpPending('next')}>{t('teacher.workspace.jumpNextPending')}</Button>
+              <Button block disabled={fillGenerating} onClick={() => onOpenFragment('activity', chapter.key, activity.key)}>{t('teacher.workspace.advancedCustomGenerate')}</Button>
             </div>
           </div>
         )}
         <p className={styles.toolHint}>
           {editPhase === 'structure'
-            ? '推荐流程：先定大纲并保存 → 切换到「内容填充」逐节生成正文。'
-            : '按目录顺序逐节或一键批量生成；生成后仍可手工修改，记得保存课程。'}
+            ? t('teacher.workspace.hintStructure')
+            : t('teacher.workspace.hintContent')}
         </p>
       </aside>
       </div>
@@ -1390,92 +1488,110 @@ function TeacherPreviewWorkspace({
   setChapterIndex: (index: number) => void
   setActivityIndex: (index: number) => void
 }) {
+  const { t } = useI18n()
   const chapter = content.chapters[chapterIndex]
   const activity = chapter?.activities[activityIndex]
 
   if (!chapter || !activity) {
-    return <Alert type="info" message="暂无可预览的章节内容" />
+    return <Alert type="info" message={t('teacher.workspace.noPreviewContent')} />
   }
 
   return (
-    <div className={styles.workspace}>
+    <div className={`${styles.workspace} ${styles.previewWorkspace}`}>
       <div className={styles.columns}>
-      <aside className={styles.syllabus}>
-        <h2>课程目录</h2>
-        <ul>
-          {content.chapters.map((item, index) => {
-            const expanded = index === chapterIndex
-            return (
-              <li key={item.key} className={expanded ? styles.chapterGroupOpen : styles.chapterGroup}>
-                <button
-                  type="button"
-                  className={expanded ? styles.chapterOn : styles.chapterBtn}
-                  onClick={() => {
-                    if (index === chapterIndex) {
-                      return
-                    }
-                    setChapterIndex(index)
-                    setActivityIndex(0)
-                  }}
-                >
-                  <span className={styles.chapterIndex}>{String(index + 1).padStart(2, '0')}</span>
-                  <span className={styles.chapterName}>{item.title}</span>
-                </button>
-                {expanded && item.activities.length > 0 ? (
-                  <ul className={styles.sectionList} aria-label={`${item.title} 小节`}>
-                    {item.activities.map((act, actIndex) => (
-                      <li key={act.key}>
-                        <button
-                          type="button"
-                          className={actIndex === activityIndex ? styles.sectionOn : styles.sectionBtn}
-                          aria-current={actIndex === activityIndex ? 'page' : undefined}
-                          onClick={() => setActivityIndex(actIndex)}
-                        >
-                          <span className={styles.sectionIndex}>{actIndex + 1}</span>
-                          <span className={styles.sectionName}>{act.title}</span>
-                          {isPendingActivityContent(act) ? (
-                            <span className={styles.sectionPending}>待生成</span>
-                          ) : null}
-                        </button>
-                      </li>
-                    ))}
-                  </ul>
-                ) : null}
-              </li>
-            )
-          })}
-        </ul>
-      </aside>
+        <aside className={styles.syllabus}>
+          <h2>{t('teacher.workspace.syllabusTitle')}</h2>
+          <div className={styles.previewSyllabusScroll}>
+            <ul>
+              {content.chapters.map((item, index) => {
+                const expanded = index === chapterIndex
+                return (
+                  <li key={item.key} className={expanded ? styles.chapterGroupOpen : styles.chapterGroup}>
+                    <button
+                      type="button"
+                      className={expanded ? styles.chapterOn : styles.chapterBtn}
+                      onClick={() => {
+                        if (index === chapterIndex) {
+                          return
+                        }
+                        setChapterIndex(index)
+                        setActivityIndex(0)
+                      }}
+                    >
+                      <span className={styles.chapterIndex}>{String(index + 1).padStart(2, '0')}</span>
+                      <span className={styles.chapterName}>{item.title}</span>
+                    </button>
+                    {expanded && item.activities.length > 0 ? (
+                      <ul className={styles.sectionList} aria-label={t('teacher.workspace.sectionListAria', { title: item.title })}>
+                        {item.activities.map((act, actIndex) => (
+                          <li key={act.key}>
+                            <button
+                              type="button"
+                              className={actIndex === activityIndex ? styles.sectionOn : styles.sectionBtn}
+                              aria-current={actIndex === activityIndex ? 'page' : undefined}
+                              onClick={() => setActivityIndex(actIndex)}
+                            >
+                              <span className={styles.sectionIndex}>{actIndex + 1}</span>
+                              <span className={styles.sectionName}>{act.title}</span>
+                              {isPendingActivityContent(act) ? (
+                                <span className={styles.sectionPending}>{t('teacher.workspace.pendingBadge')}</span>
+                              ) : null}
+                            </button>
+                          </li>
+                        ))}
+                      </ul>
+                    ) : null}
+                  </li>
+                )
+              })}
+            </ul>
+          </div>
+        </aside>
 
-      <section className={`${styles.contentPane} ${styles.previewReadOnly}`}>
-        <span className={styles.previewBadge}>学生视角预览</span>
-        <p className={styles.contentKicker}>CURRENT CHAPTER</p>
-        <h1 className={styles.contentTitle}>{activity.title}</h1>
-        <p className={styles.contentType}>{activityLabel(activity.type)}</p>
-        {chapter.summary ? <p className={styles.chapterSummary}>{chapter.summary}</p> : null}
-        <CourseMarkdownBody source={activityText(activity)} codeClassName={styles.codeBlock} />
-      </section>
+        <section className={`${styles.contentPane} ${styles.previewReadOnly}`}>
+          <div className={styles.previewContentScroll}>
+            <div className={styles.previewReading}>
+              <span className={styles.previewBadge}>{t('teacher.workspace.previewBadge')}</span>
+              <p className={styles.contentKicker}>{t('teacher.workspace.kickerCurrentChapter')}</p>
+              <h1 className={styles.contentTitle}>{activity.title}</h1>
+              <p className={styles.contentType}>{activityLabel(activity.type)}</p>
+              {chapter.summary ? <p className={styles.chapterSummary}>{chapter.summary}</p> : null}
+              <div className={styles.previewContentBody}>
+                <CourseMarkdownBody source={activityText(activity)} codeClassName={styles.codeBlock} />
+              </div>
+            </div>
+          </div>
+        </section>
 
-      <aside className={styles.toolsPane}>
-        <h2>AI 学习助手</h2>
-        <p className={styles.toolHint}>学生端在此使用章节问答、总结与练习生成。教师预览仅展示布局，不调用模型。</p>
-        <div className={styles.aiPanelPlaceholder}>
-          <span>章节总结</span>
-          <span>知识点解释</span>
-          <span>生成练习题</span>
-          <span>提问与答疑</span>
-        </div>
-      </aside>
+        <aside className={styles.toolsPane}>
+          <h2>{t('teacher.workspace.aiAssistantTitle')}</h2>
+          <div className={styles.previewToolsScroll}>
+            <p className={styles.toolHint}>{t('teacher.workspace.previewHint')}</p>
+            <div className={styles.aiPanelPlaceholder}>
+              <span>{t('teacher.workspace.placeholderSummary')}</span>
+              <span>{t('teacher.workspace.placeholderExplain')}</span>
+              <span>{t('teacher.workspace.placeholderPractice')}</span>
+              <span>{t('teacher.workspace.placeholderQa')}</span>
+            </div>
+          </div>
+        </aside>
       </div>
     </div>
   )
 }
 
 function QuestionEditor({ value, onChange }: { value: TeacherQuestionInput; onChange: (value: TeacherQuestionInput) => void }) {
+  const { t } = useI18n()
+  const difficultyOptions = [
+    { value: 'easy', label: t('teacher.workspace.difficultyEasy') },
+    { value: 'medium', label: t('teacher.workspace.difficultyMedium') },
+    { value: 'hard', label: t('teacher.workspace.difficultyHard') },
+  ]
+
   return (
     <div className={styles.questionEditor}>
       <label className={styles.questionField}>
-        题干
+        {t('teacher.workspace.stem')}
         <Input.TextArea
           rows={3}
           value={value.content}
@@ -1484,12 +1600,10 @@ function QuestionEditor({ value, onChange }: { value: TeacherQuestionInput; onCh
         />
       </label>
       <label className={styles.questionField}>
-        难度
+        {t('teacher.workspace.difficulty')}
         <Select
           value={value.difficulty}
-          options={[
-            { value: 'easy', label: '简单' }, { value: 'medium', label: '中等' }, { value: 'hard', label: '困难' },
-          ]}
+          options={difficultyOptions}
           onChange={(difficulty) => onChange({ ...value, difficulty })}
         />
       </label>
@@ -1508,11 +1622,11 @@ function QuestionEditor({ value, onChange }: { value: TeacherQuestionInput; onCh
         ))}
       </div>
       <Space wrap>
-        <Button disabled={value.options.length >= 8} onClick={() => onChange({ ...value, options: [...value.options, ''] })}>增加选项</Button>
-        <Button disabled={value.options.length <= 2} onClick={() => onChange({ ...value, options: value.options.slice(0, -1) })}>减少选项</Button>
+        <Button disabled={value.options.length >= 8} onClick={() => onChange({ ...value, options: [...value.options, ''] })}>{t('teacher.workspace.addOption')}</Button>
+        <Button disabled={value.options.length <= 2} onClick={() => onChange({ ...value, options: value.options.slice(0, -1) })}>{t('teacher.workspace.removeOption')}</Button>
       </Space>
       <label className={styles.questionField}>
-        正确答案
+        {t('teacher.workspace.correctAnswer')}
         {value.options.some(Boolean) ? (
           <Radio.Group
             className={styles.correctRadioGroup}
@@ -1531,11 +1645,11 @@ function QuestionEditor({ value, onChange }: { value: TeacherQuestionInput; onCh
             )}
           </Radio.Group>
         ) : (
-          <Typography.Text type="secondary">请先填写选项内容</Typography.Text>
+          <Typography.Text type="secondary">{t('teacher.workspace.fillOptionsFirst')}</Typography.Text>
         )}
       </label>
       <label className={styles.questionField}>
-        答案解析
+        {t('teacher.workspace.explanation')}
         <Input.TextArea
           rows={2}
           className={styles.questionTextArea}
@@ -1547,21 +1661,32 @@ function QuestionEditor({ value, onChange }: { value: TeacherQuestionInput; onCh
   )
 }
 
-function dimensionLabel(name: string) {
-  return ({ coverage: '内容覆盖', clarity: '表达清晰', practice: '练习设计', audience_fit: '受众匹配' } as Record<string, string>)[name] ?? name
+function dimensionLabel(name: string, locale = getAppLocale()) {
+  const keys: Record<string, string> = {
+    coverage: 'teacher.workspace.dimensionCoverage',
+    clarity: 'teacher.workspace.dimensionClarity',
+    practice: 'teacher.workspace.dimensionPractice',
+    audience_fit: 'teacher.workspace.dimensionAudienceFit',
+  }
+  const key = keys[name]
+  return key ? translateApp(locale, key) : name
 }
 
 function StudentGenerationMetaLike({ meta }: { meta: AiGenerationMeta }) {
+  const { t } = useI18n()
   return (
     <Alert
       type={meta.warnings.length || meta.fallbackUsed ? 'warning' : 'success'}
       showIcon
-      message={`生成信息 · ${meta.modelUsed || '默认模型'} · ${meta.latencyMs} ms`}
+      message={t('teacher.workspace.generationInfo', {
+        model: meta.modelUsed || t('teacher.workspace.defaultModel'),
+        latency: meta.latencyMs,
+      })}
       description={[
-        meta.templateId ? `模板 ${meta.templateId}` : '',
-        meta.fallbackUsed ? '已使用备用模型' : '',
+        meta.templateId ? t('teacher.workspace.templateId', { id: meta.templateId }) : '',
+        meta.fallbackUsed ? t('teacher.workspace.fallbackUsed') : '',
         ...meta.warnings,
-      ].filter(Boolean).join('；') || '评估完成'}
+      ].filter(Boolean).join('；') || t('teacher.workspace.evalComplete')}
     />
   )
 }

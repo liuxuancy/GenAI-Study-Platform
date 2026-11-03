@@ -3,33 +3,34 @@ import { Button, Layout, Menu, Tag } from 'antd'
 import { Outlet, useLocation, useNavigate } from 'react-router-dom'
 
 import { useAuthStore } from '@/core/auth/store'
+import { LanguageSwitcher } from '@/core/i18n/LanguageSwitcher'
+import { localizedRoleName } from '@/core/i18n/roleName'
+import { useI18n } from '@/core/i18n/useI18n'
 import styles from '@/core/layout/AppLayout.module.css'
 
-// 菜单按角色写死。阶段 7 再改成按权限收集。
-
-function menuFor(role?: string) {
+function menuFor(role: string | undefined, t: (key: string) => string) {
   if (role === 'ROLE_ADMIN') {
     return [
-      { key: '/admin', label: 'Users' },
-      { key: '/admin/classes', label: 'Classes' },
-      { key: '/admin/courses', label: 'Courses' },
-      { key: '/admin/system', label: 'System' },
-      { key: '/account', label: 'Account' },
+      { key: '/admin', label: t('layout.admin.users') },
+      { key: '/admin/classes', label: t('layout.admin.classes') },
+      { key: '/admin/courses', label: t('layout.admin.courses') },
+      { key: '/admin/system', label: t('layout.admin.system') },
+      { key: '/account', label: t('layout.admin.account') },
     ]
   }
   if (role === 'ROLE_TEACHER') {
     return [
-      { key: '/teacher', label: 'Courses' },
-      { key: '/teacher/account', label: 'Account' },
+      { key: '/teacher', label: t('layout.teacher.courses') },
+      { key: '/teacher/account', label: t('layout.teacher.account') },
     ]
   }
   if (role === 'ROLE_STUDENT') {
     return [
-      { key: '/student', label: 'Courses' },
-      { key: '/student/account', label: 'Account' },
+      { key: '/student', label: t('layout.student.courses') },
+      { key: '/student/account', label: t('layout.student.account') },
     ]
   }
-  return [{ key: '/', label: 'Home' }]
+  return [{ key: '/', label: t('layout.home') }]
 }
 
 export function AppLayout() {
@@ -37,7 +38,8 @@ export function AppLayout() {
   const logout = useAuthStore((state) => state.logout)
   const navigate = useNavigate()
   const location = useLocation()
-  const menuItems = menuFor(currentUser?.role)
+  const { t } = useI18n()
+  const menuItems = menuFor(currentUser?.role, t)
 
   return (
     <Layout style={{ minHeight: '100vh' }}>
@@ -46,12 +48,13 @@ export function AppLayout() {
           <span className={styles.mark} aria-hidden="true">
             C
           </span>
-          <span className={styles.brandName}>CaveClass</span>
+          <span className={styles.brandName}>{t('common.brandName')}</span>
         </div>
         <div className={styles.user}>
           <span>{currentUser?.nickname || currentUser?.username}</span>
-          <Tag>{currentUser?.roleName}</Tag>
-          <Button onClick={logout}>Sign out</Button>
+          {currentUser ? <Tag>{localizedRoleName(currentUser.role)}</Tag> : null}
+          <LanguageSwitcher compact />
+          <Button onClick={logout}>{t('common.signOut')}</Button>
         </div>
       </Layout.Header>
       <Layout>

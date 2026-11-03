@@ -1,4 +1,6 @@
 import type { ActivityRef } from '@/modules/student/courseTreeNav'
+import { getAppLocale } from '@/core/i18n/store'
+import { translateApp } from '@/core/i18n/translateApp'
 
 export function isLastActivityInChapter(activityId: string, activities: readonly ActivityRef[]) {
   const current = activities.find((item) => item.id === activityId)
@@ -11,22 +13,39 @@ export function isLastActivityInChapter(activityId: string, activities: readonly
 
 export type LessonPrimaryAction = 'complete-next' | 'next' | 'complete-chapter' | 'next-chapter' | 'finished'
 
-export function lessonPrimaryAction(activityId: string, activities: readonly ActivityRef[], done: boolean) {
+export function lessonPrimaryAction(
+  activityId: string,
+  activities: readonly ActivityRef[],
+  done: boolean,
+  locale = getAppLocale(),
+) {
   const last = isLastActivityInChapter(activityId, activities)
   const hasNextChapter = firstActivityOfNextChapter(activityId, activities) !== null
   if (!last && !done) {
-    return { label: '完成并学习下一节 →', action: 'complete-next' as const, disabled: false }
+    return {
+      label: translateApp(locale, 'student.lesson.completeNext'),
+      action: 'complete-next' as const,
+      disabled: false,
+    }
   }
   if (!last && done) {
-    return { label: '下一节 →', action: 'next' as const, disabled: false }
+    return { label: translateApp(locale, 'student.lesson.next'), action: 'next' as const, disabled: false }
   }
   if (!done) {
-    return { label: '完成本章', action: 'complete-chapter' as const, disabled: false }
+    return {
+      label: translateApp(locale, 'student.lesson.completeChapter'),
+      action: 'complete-chapter' as const,
+      disabled: false,
+    }
   }
   if (hasNextChapter) {
-    return { label: '进入下一章', action: 'next-chapter' as const, disabled: false }
+    return {
+      label: translateApp(locale, 'student.lesson.nextChapter'),
+      action: 'next-chapter' as const,
+      disabled: false,
+    }
   }
-  return { label: '已学完', action: 'finished' as const, disabled: true }
+  return { label: translateApp(locale, 'student.lesson.finished'), action: 'finished' as const, disabled: true }
 }
 
 export function shouldAdvanceAfterComplete(activityId: string, activities: readonly ActivityRef[]) {

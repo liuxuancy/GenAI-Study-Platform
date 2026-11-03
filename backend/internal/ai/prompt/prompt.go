@@ -98,6 +98,7 @@ type ChapterQAData struct {
 // LearningInsightData 学生学习摘要 JSON。
 type LearningInsightData struct {
 	SummaryJSON string
+	Language    string
 }
 
 // Render 渲染指定模板。未知 templateId 返回 AI_INVALID_INPUT。

@@ -4,6 +4,8 @@ import { Alert, Button, Checkbox, Form, Input, Modal, Space, Table, Typography }
 import { Navigate } from 'react-router-dom'
 
 import { useAuthStore } from '@/core/auth/store'
+import { localizedRoleName } from '@/core/i18n/roleName'
+import { useI18n } from '@/core/i18n/useI18n'
 import {
   createAdminClass,
   getAdminClasses,
@@ -15,6 +17,7 @@ import {
 } from '@/modules/admin/api'
 
 export function AdminClassesPage() {
+  const { t } = useI18n()
   const currentUser = useAuthStore((state) => state.currentUser)
   const [classes, setClasses] = useState<AdminClass[] | null>(null)
   const [people, setPeople] = useState<AdminUser[]>([])
@@ -64,7 +67,7 @@ export function AdminClassesPage() {
       createForm.resetFields()
       await reload()
     } catch (error) {
-      setFormError(error instanceof Error ? error.message : 'Could not create the class.')
+      setFormError(error instanceof Error ? error.message : t('admin.classes.createFailed'))
     } finally {
       setSaving(false)
     }
@@ -112,7 +115,7 @@ export function AdminClassesPage() {
       setEditing(null)
       await reload()
     } catch (error) {
-      setFormError(error instanceof Error ? error.message : 'Could not save the class.')
+      setFormError(error instanceof Error ? error.message : t('admin.classes.saveFailed'))
     } finally {
       setSaving(false)
     }
@@ -122,7 +125,7 @@ export function AdminClassesPage() {
     <>
       <Space style={{ width: '100%', justifyContent: 'space-between', marginBottom: 16 }}>
         <Typography.Title level={3} style={{ margin: 0 }}>
-          Classes
+          {t('admin.classes.title')}
         </Typography.Title>
         <Button
           type="primary"
@@ -132,12 +135,12 @@ export function AdminClassesPage() {
             setCreateOpen(true)
           }}
         >
-          New class
+          {t('admin.classes.newClass')}
         </Button>
       </Space>
       <Input.Search
         allowClear
-        placeholder="Search class or member"
+        placeholder={t('admin.classes.searchPlaceholder')}
         value={keyword}
         onChange={(event) => {
           setKeyword(event.target.value)
@@ -160,15 +163,15 @@ export function AdminClassesPage() {
             setPageSize(nextPageSize)
           },
         }}
-        locale={{ emptyText: 'No classes yet.' }}
+        locale={{ emptyText: t('admin.classes.empty') }}
         columns={[
-          { title: 'Class', dataIndex: 'name' },
+          { title: t('admin.classes.colClass'), dataIndex: 'name' },
           {
-            title: 'Members',
+            title: t('admin.classes.colMembers'),
             dataIndex: 'members',
             render: (members: AdminClass['members']) =>
               members.length === 0
-                ? '—'
+                ? t('common.dash')
                 : members.map((member) => member.nickname || member.username).join(', '),
           },
           {
@@ -177,7 +180,7 @@ export function AdminClassesPage() {
             width: 120,
             render: (_, item) => (
               <Button type="link" onClick={() => openMembers(item)}>
-                Members
+                {t('admin.classes.members')}
               </Button>
             ),
           },
@@ -185,9 +188,9 @@ export function AdminClassesPage() {
       />
 
       <Modal
-        title="New class"
+        title={t('admin.classes.newClass')}
         open={createOpen}
-        okText="Create"
+        okText={t('admin.classes.create')}
         confirmLoading={saving}
         onCancel={() => setCreateOpen(false)}
         onOk={() => void createClass()}
@@ -196,10 +199,10 @@ export function AdminClassesPage() {
         <Form form={createForm} layout="vertical">
           <Form.Item
             name="name"
-            label="Class name"
+            label={t('admin.classes.className')}
             rules={[
-              { required: true, whitespace: true, message: 'Enter a class name.' },
-              { max: 64, message: 'Class name is too long.' },
+              { required: true, whitespace: true, message: t('admin.classes.classNameRequired') },
+              { max: 64, message: t('admin.classes.classNameTooLong') },
             ]}
           >
             <Input />
@@ -208,9 +211,9 @@ export function AdminClassesPage() {
       </Modal>
 
       <Modal
-        title={editing ? `Members · ${editing.name}` : 'Members'}
+        title={editing ? t('admin.classes.membersTitle', { name: editing.name }) : t('admin.classes.members')}
         open={editing !== null}
-        okText="Save"
+        okText={t('common.save')}
         confirmLoading={saving}
         onCancel={() => setEditing(null)}
         onOk={() => void saveMembers()}
@@ -219,19 +222,19 @@ export function AdminClassesPage() {
         <Form form={editForm} layout="vertical">
           <Form.Item
             name="name"
-            label="Class name"
+            label={t('admin.classes.className')}
             rules={[
-              { required: true, whitespace: true, message: 'Enter a class name.' },
-              { max: 64, message: 'Class name is too long.' },
+              { required: true, whitespace: true, message: t('admin.classes.classNameRequired') },
+              { max: 64, message: t('admin.classes.classNameTooLong') },
             ]}
           >
             <Input />
           </Form.Item>
         </Form>
-        <Typography.Paragraph type="secondary">Teachers and students. One person can belong to more than one class.</Typography.Paragraph>
+        <Typography.Paragraph type="secondary">{t('admin.classes.membersHint')}</Typography.Paragraph>
         <Input.Search
           allowClear
-          placeholder="Search people"
+          placeholder={t('admin.classes.searchPeople')}
           value={memberKeyword}
           onChange={(event) => setMemberKeyword(event.target.value)}
           style={{ marginBottom: 12 }}
@@ -240,7 +243,7 @@ export function AdminClassesPage() {
           style={{ display: 'flex', flexDirection: 'column', gap: 8 }}
           value={memberIds}
           options={visiblePeople.map((person) => ({
-            label: `${person.nickname || person.username} (${person.role === 'ROLE_TEACHER' ? 'Teacher' : 'Student'})`,
+            label: `${person.nickname || person.username} (${localizedRoleName(person.role)})`,
             value: person.id,
           }))}
           onChange={(values) => setMemberIds(values as number[])}

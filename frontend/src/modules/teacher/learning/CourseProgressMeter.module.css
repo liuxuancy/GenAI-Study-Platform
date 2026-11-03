@@ -1,0 +1,51 @@
+.wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 140px;
+}
+
+.meta {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  font-family: var(--font-ui);
+  font-size: 12px;
+}
+
+.phase {
+  color: var(--insights-muted, #898984);
+}
+
+.percent {
+  font-weight: 600;
+  color: var(--insights-ink, #262626);
+  font-variant-numeric: tabular-nums;
+}
+
+.track {
+  height: 6px;
+  border-radius: 999px;
+  background: var(--insights-soft, #f2f0eb);
+  overflow: hidden;
+}
+
+.fill {
+  height: 100%;
+  border-radius: inherit;
+  transition: width 0.55s var(--ease);
+}
+
+.fillIdle {
+  width: 0;
+  background: transparent;
+}
+
+.fillActive {
+  background: linear-gradient(90deg, #7a9bb5, #638aa7);
+}
+
+.fillDone {
+  background: linear-gradient(90deg, #6a9a84, #548b76);
+}

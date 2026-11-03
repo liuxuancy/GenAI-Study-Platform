@@ -1,4 +1,6 @@
 import type { StudentCourse } from '@/modules/student/api'
+import { getAppLocale } from '@/core/i18n/store'
+import { translateApp } from '@/core/i18n/translateApp'
 
 export type CourseSource = 'teacher' | 'personal' | 'shared'
 
@@ -14,29 +16,55 @@ export function courseSourceOf(course: StudentCourse): CourseSource {
   return 'shared'
 }
 
+export function courseSourceLabel(source: CourseSource, locale = getAppLocale()) {
+  return translateApp(locale, `student.courseSource.${source}`)
+}
+
+export function courseSourceDescription(source: CourseSource, locale = getAppLocale()) {
+  return translateApp(locale, `student.courseSource.${source}Desc`)
+}
+
+/** @deprecated 在组件内请调用 courseSourceLabel */
 export const courseSourceLabels: Record<CourseSource, string> = {
-  teacher: '教师发布',
-  personal: '我创建的',
-  shared: '同学共享',
+  get teacher() {
+    return courseSourceLabel('teacher')
+  },
+  get personal() {
+    return courseSourceLabel('personal')
+  },
+  get shared() {
+    return courseSourceLabel('shared')
+  },
 }
 
+/** @deprecated 在组件内请调用 courseSourceDescription */
 export const courseSourceDescriptions: Record<CourseSource, string> = {
-  teacher: '由教师创建并发布的课程',
-  personal: '由你创建和管理的课程',
-  shared: '来自同学分享的学习资源',
+  get teacher() {
+    return courseSourceDescription('teacher')
+  },
+  get personal() {
+    return courseSourceDescription('personal')
+  },
+  get shared() {
+    return courseSourceDescription('shared')
+  },
 }
 
-export function visibilityText(visibility: string) {
+export function visibilityText(visibility: string, locale = getAppLocale()) {
   if (visibility === 'class') {
-    return '同班可见'
+    return translateApp(locale, 'student.visibility.class')
   }
   if (visibility === 'assigned') {
-    return '教师课程'
+    return translateApp(locale, 'student.visibility.assigned')
   }
-  return '仅自己'
+  return translateApp(locale, 'student.visibility.private')
 }
 
 export type ProgressFilter = 'all' | 'not_started' | 'in_progress' | 'completed'
+
+export function progressFilterLabel(filter: ProgressFilter, locale = getAppLocale()) {
+  return translateApp(locale, `student.progressFilter.${filter}`)
+}
 
 export function matchesProgressFilter(course: StudentCourse, filter: ProgressFilter) {
   if (filter === 'all') {

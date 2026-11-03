@@ -482,6 +482,19 @@ func (handler *Handler) GetTeacherCourseProgress(ctx *gin.Context) (any, error) 
 	return handler.service.GetTeacherCourseProgress(ctx.Request.Context(), principal, courseID)
 }
 
+// GetTeacherCourseLearningOverview GET /api/teacher/courses/:id/learning-overview
+func (handler *Handler) GetTeacherCourseLearningOverview(ctx *gin.Context) (any, error) {
+	principal, err := access.GetCurrentPrincipal(ctx)
+	if err != nil {
+		return nil, err
+	}
+	courseID, err := resp.GetInt64PathParam(ctx, "id")
+	if err != nil {
+		return nil, err
+	}
+	return handler.service.GetTeacherCourseLearningOverview(ctx.Request.Context(), principal, courseID)
+}
+
 // SaveTeacherCourseContent PUT /api/teacher/courses/:id/content
 func (handler *Handler) SaveTeacherCourseContent(ctx *gin.Context) (any, error) {
 	principal, err := access.GetCurrentPrincipal(ctx)

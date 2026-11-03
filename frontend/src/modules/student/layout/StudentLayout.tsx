@@ -3,12 +3,14 @@ import { Navigate, Outlet, useLocation } from 'react-router-dom'
 
 import { homePathFor } from '@/core/auth/homePath'
 import { useAuthStore } from '@/core/auth/store'
+import { useI18n } from '@/core/i18n/useI18n'
 
 import { StudentSidebar } from '@/modules/student/layout/StudentSidebar'
 import { StudentTopbar } from '@/modules/student/layout/StudentTopbar'
 import styles from '@/modules/student/layout/StudentLayout.module.css'
 
 export function StudentLayout() {
+  const { t } = useI18n()
   const currentUser = useAuthStore((state) => state.currentUser)
   const location = useLocation()
   const [sidebarOpen, setSidebarOpen] = useState(false)
@@ -25,6 +27,7 @@ export function StudentLayout() {
   }
 
   const aiWorkspace = /\/ai\/?$/.test(location.pathname)
+  const quizAttempt = /\/student\/questions\//.test(location.pathname)
 
   return (
     <div className={`${styles.studentLayout} ${aiWorkspace ? styles.studentLayoutFlush : ''}`}>
@@ -32,7 +35,7 @@ export function StudentLayout() {
         <button
           type="button"
           className={styles.backdrop}
-          aria-label="关闭导航菜单"
+          aria-label={t('nav.common.closeMenu')}
           onClick={closeSidebar}
         />
       ) : null}
@@ -40,7 +43,7 @@ export function StudentLayout() {
       <div className={styles.mainLayout}>
         <StudentTopbar pathname={location.pathname} onMenuClick={() => setSidebarOpen(true)} />
         <main
-          className={`${styles.pageContainer} ${aiWorkspace ? styles.pageContainerFlush : ''}`}
+          className={`${styles.pageContainer} ${aiWorkspace ? styles.pageContainerFlush : ''} ${quizAttempt ? styles.pageContainerQuiz : ''}`}
         >
           <Outlet />
         </main>

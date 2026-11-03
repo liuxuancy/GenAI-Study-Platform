@@ -2,12 +2,14 @@ import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 
 import { useAuthStore } from '@/core/auth/store'
+import { useI18n } from '@/core/i18n/useI18n'
 import { createStudentCourse } from '@/modules/student/api'
 import homeStyles from '@/modules/student/StudentHomePage.module.css'
 
 const structuredCourseType = 'Structured'
 
 export function CreateCourseDialog({ open, onClose }: { open: boolean; onClose: () => void }) {
+  const { t } = useI18n()
   const navigate = useNavigate()
   const major = useAuthStore((state) => state.currentUser?.major ?? '')
   const dialogRef = useRef<HTMLDialogElement>(null)
@@ -33,7 +35,7 @@ export function CreateCourseDialog({ open, onClose }: { open: boolean; onClose: 
   async function createCourse() {
     const title = courseName.trim()
     if (!title) {
-      setNameError('请输入课程名称。')
+      setNameError(t('student.createCourse.nameRequired'))
       return
     }
     setNameError('')
@@ -44,7 +46,7 @@ export function CreateCourseDialog({ open, onClose }: { open: boolean; onClose: 
       onClose()
       navigate(`/student/courses/${created.id}`)
     } catch (error) {
-      setCreateError(error instanceof Error ? error.message : '创建课程失败。')
+      setCreateError(error instanceof Error ? error.message : t('student.createCourse.failed'))
     } finally {
       setCreating(false)
     }
@@ -59,33 +61,33 @@ export function CreateCourseDialog({ open, onClose }: { open: boolean; onClose: 
           void createCourse()
         }}
       >
-        <h2 className={homeStyles.dialogTitle}>创建课程</h2>
+        <h2 className={homeStyles.dialogTitle}>{t('student.createCourse.title')}</h2>
         <label className={homeStyles.field}>
-          课程名称
+          {t('student.createCourse.nameLabel')}
           <input value={courseName} onChange={(event) => setCourseName(event.target.value)} />
         </label>
         {nameError ? <p className={homeStyles.error}>{nameError}</p> : null}
         <label className={homeStyles.field}>
-          课程简介
+          {t('student.createCourse.descLabel')}
           <input value={description} onChange={(event) => setDescription(event.target.value)} />
         </label>
         {createError ? <p className={homeStyles.error}>{createError}</p> : null}
         <label className={homeStyles.field}>
-          专业
+          {t('student.createCourse.majorLabel')}
           <input value={major} disabled />
         </label>
         <label className={homeStyles.field}>
-          课程类型
+          {t('student.createCourse.typeLabel')}
           <select defaultValue={structuredCourseType}>
-            <option value={structuredCourseType}>{structuredCourseType}</option>
+            <option value={structuredCourseType}>{t('student.createCourse.typeStructured')}</option>
           </select>
         </label>
         <div className={homeStyles.dialogActions}>
           <button className={homeStyles.cancel} type="button" onClick={onClose}>
-            取消
+            {t('common.cancel')}
           </button>
           <button className={homeStyles.create} type="submit" disabled={creating}>
-            {creating ? '创建中…' : '创建'}
+            {creating ? t('student.createCourse.creating') : t('student.createCourse.create')}
           </button>
         </div>
       </form>

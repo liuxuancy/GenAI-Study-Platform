@@ -1,9 +1,11 @@
 // 管理员系统页：账号数、课程数、已发布数、全站 token，以及每位师生的用量明细。
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Alert, Button, Col, Input, Row, Select, Space, Statistic, Table, Tag, Typography } from 'antd'
 import { Navigate, useSearchParams } from 'react-router-dom'
 
 import { useAuthStore } from '@/core/auth/store'
+import { localizedRoleName } from '@/core/i18n/roleName'
+import { useI18n } from '@/core/i18n/useI18n'
 import {
   getAdminCourses,
   getAdminUsage,
@@ -12,14 +14,14 @@ import {
   type AdminUsageUser,
 } from '@/modules/admin/api'
 
-const sceneLabel: Record<string, string> = {
-  generate_course: 'Generate course',
-  generate_activity: 'Generate activity',
-  evaluate_course: 'Evaluate course',
-  chapter_qa: 'Chapter Q&A',
-  learning_insight: 'Learning insight',
-  study_note: 'Study note',
-}
+const USAGE_SCENES = [
+  'generate_course',
+  'generate_activity',
+  'evaluate_course',
+  'chapter_qa',
+  'learning_insight',
+  'study_note',
+] as const
 
 function formatWhen(value: string) {
   const date = new Date(value)
@@ -37,12 +39,22 @@ function dateValue(date: Date) {
 }
 
 export function AdminSystemPage() {
+  const { t } = useI18n()
   const currentUser = useAuthStore((state) => state.currentUser)
   const [searchParams, setSearchParams] = useSearchParams()
   const [report, setReport] = useState<AdminUsageReport | null>(null)
   const [courseTotal, setCourseTotal] = useState<number | null>(null)
   const [publishedCount, setPublishedCount] = useState<number | null>(null)
   const [loadError, setLoadError] = useState('')
+
+  const sceneOptions = useMemo(
+    () =>
+      USAGE_SCENES.map((value) => ({
+        value,
+        label: t(`admin.system.scene.${value}`),
+      })),
+    [t],
+  )
 
   const queryKey = searchParams.toString()
 
@@ -88,6 +100,12 @@ export function AdminSystemPage() {
 
   const loading = report === null && !loadError
 
+  function sceneLabel(scene: string) {
+    const key = `admin.system.scene.${scene}`
+    const translated = t(key)
+    return translated === key ? scene : translated
+  }
+
   function updateQuery(changes: Record<string, string | number | undefined>, resetPage = true) {
     const next = new URLSearchParams(searchParams)
     Object.entries(changes).forEach(([key, value]) => {
@@ -113,96 +131,104 @@ export function AdminSystemPage() {
   return (
     <>
       <Typography.Title level={3} style={{ marginTop: 0 }}>
-        System
+        {t('admin.system.title')}
       </Typography.Title>
-      <Typography.Paragraph type="secondary">
-        Token counts are model usage. They are not login credentials.
-      </Typography.Paragraph>
+      <Typography.Paragraph type="secondary">{t('admin.system.subtitle')}</Typography.Paragraph>
       {loadError ? <Alert type="error" showIcon message={loadError} style={{ marginBottom: 16 }} /> : null}
       <Row gutter={16} style={{ marginBottom: 24 }}>
         <Col span={6}>
-          <Statistic title="Accounts" value={report?.accountCount ?? 0} loading={loading} />
+          <Statistic title={t('admin.system.accounts')} value={report?.accountCount ?? 0} loading={loading} />
         </Col>
         <Col span={6}>
-          <Statistic title="Courses" value={courseTotal ?? 0} loading={courseTotal === null && !loadError} />
+          <Statistic
+            title={t('admin.system.coursesStat')}
+            value={courseTotal ?? 0}
+            loading={courseTotal === null && !loadError}
+          />
         </Col>
         <Col span={6}>
-          <Statistic title="Published" value={publishedCount ?? 0} loading={publishedCount === null && !loadError} />
+          <Statistic
+            title={t('admin.system.publishedStat')}
+            value={publishedCount ?? 0}
+            loading={publishedCount === null && !loadError}
+          />
         </Col>
         <Col span={6}>
-          <Statistic title="Tokens" value={report?.totalTokens ?? 0} loading={loading} />
+          <Statistic title={t('admin.system.tokens')} value={report?.totalTokens ?? 0} loading={loading} />
           {report ? (
             <Typography.Text type="secondary">
-              Prompt {report.promptTokens} · Completion {report.completionTokens}
+              {t('admin.system.promptCompletion', {
+                prompt: report.promptTokens,
+                completion: report.completionTokens,
+              })}
             </Typography.Text>
           ) : null}
         </Col>
       </Row>
-      <Typography.Title level={4}>AI usage</Typography.Title>
+      <Typography.Title level={4}>{t('admin.system.aiUsage')}</Typography.Title>
       <Space wrap style={{ marginBottom: 16 }}>
-        <Button onClick={() => quickRange(1)}>Today</Button>
-        <Button onClick={() => quickRange(7)}>7 days</Button>
-        <Button onClick={() => quickRange(30)}>30 days</Button>
+        <Button onClick={() => quickRange(1)}>{t('admin.system.today')}</Button>
+        <Button onClick={() => quickRange(7)}>{t('admin.system.days7')}</Button>
+        <Button onClick={() => quickRange(30)}>{t('admin.system.days30')}</Button>
         <Input
           type="date"
-          aria-label="From date"
+          aria-label={t('admin.system.fromDate')}
           value={searchParams.get('from') ?? ''}
           onChange={(event) => updateQuery({ from: event.target.value })}
           style={{ width: 145 }}
         />
         <Input
           type="date"
-          aria-label="To date"
+          aria-label={t('admin.system.toDate')}
           value={searchParams.get('to') ?? ''}
           onChange={(event) => updateQuery({ to: event.target.value })}
           style={{ width: 145 }}
         />
         <Input
           allowClear
-          placeholder="User"
+          placeholder={t('admin.system.user')}
           value={searchParams.get('user') ?? ''}
           onChange={(event) => updateQuery({ user: event.target.value })}
           style={{ width: 150 }}
         />
         <Select
           allowClear
-          placeholder="Role"
+          placeholder={t('admin.system.role')}
           value={searchParams.get('role') || undefined}
           onChange={(value) => updateQuery({ role: value })}
           style={{ width: 130 }}
-          options={[
-            { value: 'ROLE_ADMIN', label: 'Admin' },
-            { value: 'ROLE_TEACHER', label: 'Teacher' },
-            { value: 'ROLE_STUDENT', label: 'Student' },
-          ]}
+          options={(['ROLE_ADMIN', 'ROLE_TEACHER', 'ROLE_STUDENT'] as const).map((value) => ({
+            value,
+            label: localizedRoleName(value),
+          }))}
         />
         <Select
           allowClear
-          placeholder="Scene"
+          placeholder={t('admin.system.sceneLabel')}
           value={searchParams.get('scene') || undefined}
           onChange={(value) => updateQuery({ scene: value })}
           style={{ width: 180 }}
-          options={Object.entries(sceneLabel).map(([value, label]) => ({ value, label }))}
+          options={sceneOptions}
         />
         <Input
           allowClear
-          placeholder="Model"
+          placeholder={t('admin.system.model')}
           value={searchParams.get('model') ?? ''}
           onChange={(event) => updateQuery({ model: event.target.value })}
           style={{ width: 150 }}
         />
         <Select
           allowClear
-          placeholder="Status"
+          placeholder={t('admin.system.status')}
           value={searchParams.get('call_status') || undefined}
           onChange={(value) => updateQuery({ call_status: value })}
           style={{ width: 130 }}
           options={[
-            { value: 'success', label: 'Success' },
-            { value: 'failed', label: 'Failed' },
+            { value: 'success', label: t('admin.system.success') },
+            { value: 'failed', label: t('admin.system.failed') },
           ]}
         />
-        <Button onClick={() => setSearchParams({}, { replace: true })}>Reset</Button>
+        <Button onClick={() => setSearchParams({}, { replace: true })}>{t('admin.system.reset')}</Button>
       </Space>
       <Table<AdminUsageUser>
         rowKey="userId"
@@ -224,33 +250,50 @@ export function AdminSystemPage() {
               pagination={false}
               dataSource={user.calls}
               columns={[
-                { title: 'Time', dataIndex: 'createdAt', render: (value: string) => formatWhen(value) },
                 {
-                  title: 'Scene',
+                  title: t('admin.system.colTime'),
+                  dataIndex: 'createdAt',
+                  render: (value: string) => formatWhen(value),
+                },
+                {
+                  title: t('admin.system.colScene'),
                   dataIndex: 'scene',
-                  render: (scene: string) => sceneLabel[scene] ?? scene,
+                  render: (scene: string) => sceneLabel(scene),
                 },
-                { title: 'Model', dataIndex: 'model', render: (value: string) => value || '—' },
                 {
-                  title: 'Status',
-                  dataIndex: 'callStatus',
-                  render: (status: string) => (status === 'success' ? <Tag>Success</Tag> : <Tag>Failed</Tag>),
+                  title: t('admin.system.colModel'),
+                  dataIndex: 'model',
+                  render: (value: string) => value || t('common.dash'),
                 },
-                { title: 'Prompt', dataIndex: 'promptTokens' },
-                { title: 'Completion', dataIndex: 'completionTokens' },
-                { title: 'Total', dataIndex: 'totalTokens' },
+                {
+                  title: t('admin.system.colStatus'),
+                  dataIndex: 'callStatus',
+                  render: (status: string) =>
+                    status === 'success' ? (
+                      <Tag>{t('admin.system.success')}</Tag>
+                    ) : (
+                      <Tag>{t('admin.system.failed')}</Tag>
+                    ),
+                },
+                { title: t('admin.system.colPrompt'), dataIndex: 'promptTokens' },
+                { title: t('admin.system.colCompletion'), dataIndex: 'completionTokens' },
+                { title: t('admin.system.colTotal'), dataIndex: 'totalTokens' },
               ]}
             />
           ),
         }}
         columns={[
-          { title: 'Username', dataIndex: 'username' },
-          { title: 'Nickname', dataIndex: 'nickname', render: (value: string) => value || '—' },
-          { title: 'Role', dataIndex: 'roleName' },
-          { title: 'Calls', dataIndex: 'callCount' },
-          { title: 'Prompt', dataIndex: 'promptTokens' },
-          { title: 'Completion', dataIndex: 'completionTokens' },
-          { title: 'Total', dataIndex: 'totalTokens' },
+          { title: t('admin.system.colUsername'), dataIndex: 'username' },
+          {
+            title: t('admin.system.colNickname'),
+            dataIndex: 'nickname',
+            render: (value: string) => value || t('common.dash'),
+          },
+          { title: t('admin.system.colRole'), dataIndex: 'roleName' },
+          { title: t('admin.system.colCalls'), dataIndex: 'callCount' },
+          { title: t('admin.system.colPrompt'), dataIndex: 'promptTokens' },
+          { title: t('admin.system.colCompletion'), dataIndex: 'completionTokens' },
+          { title: t('admin.system.colTotal'), dataIndex: 'totalTokens' },
         ]}
       />
     </>

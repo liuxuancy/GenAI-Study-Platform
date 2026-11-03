@@ -20,6 +20,7 @@ import { QuizDashboard } from '@/modules/student/quiz/QuizDashboard'
 import { StudentAiPage } from '@/modules/student/learning/StudentAiPage'
 import { TeacherLayout } from '@/modules/teacher/layout/TeacherLayout'
 import { TeacherAiPage } from '@/modules/teacher/TeacherAiPage'
+import { TeacherLearningOverviewPage } from '@/modules/teacher/TeacherLearningOverviewPage'
 import { TeacherHomePage } from '@/modules/teacher/TeacherHomePage'
 import { TeacherCourseWorkspacePage } from '@/modules/teacher/TeacherCourseWorkspacePage'
 
@@ -58,6 +59,7 @@ export const appRouter = createBrowserRouter([
     ),
     children: [
       { index: true, element: <TeacherHomePage /> },
+      { path: 'learning', element: <TeacherLearningOverviewPage /> },
       { path: 'ai', element: <TeacherAiPage /> },
       { path: 'account', element: <TeacherAccountPage /> },
     ],

@@ -2,6 +2,7 @@
 import type { ReactNode } from 'react'
 import { Link } from 'react-router-dom'
 
+import { useI18n } from '@/core/i18n/useI18n'
 import styles from '@/core/layout/RoleHomeShell.module.css'
 
 export interface RoleNavItem {
@@ -33,11 +34,12 @@ export function RoleHomeShell({
   contentFlush = false,
   children,
 }: RoleHomeShellProps) {
+  const { t } = useI18n()
   return (
     <div className={`${styles.app} ${contentFlush ? styles.appFlush : ''}`}>
       <aside className={styles.side}>
         <div className={styles.sideBrand}>
-          <Link className={styles.brand} to={homePath} aria-label="CaveClass home">
+          <Link className={styles.brand} to={homePath} aria-label={t('common.brandName')}>
             <span className={styles.mark} aria-hidden="true">
               C
             </span>
@@ -70,7 +72,7 @@ export function RoleHomeShell({
 
         <div className={styles.sideFoot}>
           <button className={styles.signOut} type="button" onClick={onSignOut}>
-            Sign out
+            {t('common.signOut')}
           </button>
         </div>
       </aside>
@@ -93,7 +95,7 @@ export function RoleHomeShell({
                 {item.label}
               </button>
             ))}
-            <button type="button" onClick={onSignOut}>退出</button>
+            <button type="button" onClick={onSignOut}>{t('common.signOut')}</button>
           </nav>
         </header>
 

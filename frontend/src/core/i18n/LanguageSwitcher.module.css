@@ -1,0 +1,38 @@
+.switcher {
+  display: inline-flex;
+  align-items: stretch;
+  border: 1px solid var(--color-border, #e5e7eb);
+  border-radius: 999px;
+  overflow: hidden;
+  background: var(--color-surface, #fff);
+  flex-shrink: 0;
+}
+
+.btn {
+  border: 0;
+  background: transparent;
+  padding: 6px 12px;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  cursor: pointer;
+  color: var(--color-muted, #6b7280);
+  line-height: 1.2;
+}
+
+.btn:hover {
+  color: var(--color-text, #111827);
+}
+
+.btnActive {
+  background: var(--color-text, #111827);
+  color: #fff;
+}
+
+.btnActive:hover {
+  color: #fff;
+}
+
+.compact .btn {
+  padding: 4px 10px;
+}

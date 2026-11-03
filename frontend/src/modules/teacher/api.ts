@@ -84,6 +84,35 @@ export interface ClassStudentProgress {
   percent: number
 }
 
+export interface TeacherQuizOverviewItem {
+  quizId: number
+  title: string
+  chapterKey: string
+  sectionKey: string
+  questionCount: number
+}
+
+export interface StudentQuizOverviewStat {
+  quizId: number
+  answered: number
+  total: number
+  submitted: boolean
+  score: number | null
+}
+
+export interface TeacherStudentLearningRow {
+  userId: number
+  username: string
+  nickname: string
+  percent: number
+  quizzes: StudentQuizOverviewStat[]
+}
+
+export interface TeacherCourseLearningOverview {
+  quizzes: TeacherQuizOverviewItem[]
+  students: TeacherStudentLearningRow[]
+}
+
 export function getTeacherCourses() {
   return http.get<TeacherCourse[]>('/teacher/courses')
 }
@@ -109,6 +138,10 @@ export function generateTeacherCourse(courseId: number, input: GenerateCourseReq
 
 export function getTeacherCourseProgress(courseId: number) {
   return http.get<{ students: ClassStudentProgress[] }>(`/teacher/courses/${courseId}/progress`)
+}
+
+export function getTeacherCourseLearningOverview(courseId: number) {
+  return http.get<TeacherCourseLearningOverview>(`/teacher/courses/${courseId}/learning-overview`)
 }
 
 export function getTeacherCourse(courseId: number) {

@@ -19,6 +19,7 @@ import {
 } from '@ant-design/icons'
 
 import { FilePreview } from '@/modules/shared/FilePreview/FilePreview'
+import { useI18n } from '@/core/i18n/useI18n'
 import type { CourseContent } from '@/modules/teacher/api'
 import {
   deleteTeacherCourseResource,
@@ -33,6 +34,7 @@ import {
 } from '@/modules/courseResources/api'
 import { mapCourseResourceError } from '@/modules/courseResources/errors'
 import { TeacherResourceUploadModal } from './TeacherResourceUploadModal'
+import { buildTeacherResourceScopeOptions } from './teacherResourceScopeOptions'
 import styles from './teacherResources.module.css'
 
 interface Props {
@@ -52,10 +54,10 @@ function fileIconClass(ext: string): string {
   return styles.fileIconDefault
 }
 
-function formatDate(iso: string): string {
-  if (!iso) return '—'
+function formatDate(iso: string, dash: string): string {
+  if (!iso) return dash
   const d = iso.slice(0, 10)
-  return d || '—'
+  return d || dash
 }
 
 function matchesType(item: CourseResourceItem, typeFilter: string): boolean {
@@ -68,6 +70,7 @@ function matchesType(item: CourseResourceItem, typeFilter: string): boolean {
 }
 
 export function TeacherCourseResourcesTab({ courseId, content }: Props) {
+  const { t } = useI18n()
   const [allItems, setAllItems] = useState<CourseResourceItem[]>([])
   const [loading, setLoading] = useState(false)
   const [publishFilter, setPublishFilter] = useState<PublishFilter>('all')
@@ -86,11 +89,11 @@ export function TeacherCourseResourcesTab({ courseId, content }: Props) {
       const result = await listTeacherCourseResources(courseId, {})
       setAllItems(result.items)
     } catch (error) {
-      message.error(mapCourseResourceError(error, '加载失败'))
+      message.error(mapCourseResourceError(error, t('courseResources.teacherPanel.loadFailed')))
     } finally {
       setLoading(false)
     }
-  }, [courseId])
+  }, [courseId, t])
 
   useEffect(() => {
     void reload()
@@ -125,13 +128,13 @@ export function TeacherCourseResourcesTab({ courseId, content }: Props) {
     )
     try {
       await publishTeacherCourseResource(courseId, record.id, published)
-      message.success(published ? '已设为学生可见' : '已设为未发布')
+      message.success(published ? t('courseResources.teacherPanel.publishedOn') : t('courseResources.teacherPanel.publishedOff'))
       void reload()
     } catch (error) {
       setAllItems((rows) =>
         rows.map((r) => (r.id === record.id ? { ...r, publishStatus: prev } : r)),
       )
-      message.error(mapCourseResourceError(error, '操作失败'))
+      message.error(mapCourseResourceError(error, t('courseResources.teacherPanel.opFailed')))
     }
   }
 
@@ -144,7 +147,7 @@ export function TeacherCourseResourcesTab({ courseId, content }: Props) {
       const result = await getCourseResourcePreview(courseId, record.id)
       setPreview(result)
     } catch (error) {
-      setPreviewError(mapCourseResourceError(error, '预览失败'))
+      setPreviewError(mapCourseResourceError(error, t('courseResources.studentPanel.previewFailed')))
     } finally {
       setPreviewLoading(false)
     }
@@ -155,14 +158,14 @@ export function TeacherCourseResourcesTab({ courseId, content }: Props) {
       const result = await getCourseResourceDownload(courseId, record.id)
       window.open(result.url, '_blank', 'noopener,noreferrer')
     } catch (error) {
-      message.error(mapCourseResourceError(error, '下载失败'))
+      message.error(mapCourseResourceError(error, t('courseResources.studentPanel.downloadFailed')))
     }
   }
 
   function rename(record: CourseResourceItem) {
     let nextName = record.displayName
     Modal.confirm({
-      title: '重命名资料',
+      title: t('courseResources.teacherPanel.renameTitle'),
       content: (
         <Input
           defaultValue={record.displayName}
@@ -174,18 +177,17 @@ export function TeacherCourseResourcesTab({ courseId, content }: Props) {
       onOk: async () => {
         const name = nextName.trim()
         if (!name) {
-          message.warning('名称不能为空')
+          message.warning(t('courseResources.teacherPanel.nameRequired'))
           return Promise.reject()
         }
         await patchTeacherCourseResource(courseId, record.id, { displayName: name })
-        message.success('已重命名')
+        message.success(t('courseResources.teacherPanel.renamed'))
         void reload()
       },
     })
   }
 
   function changeScope(record: CourseResourceItem) {
-    const chapters = content?.chapters ?? []
     const initial =
       record.scopeType === 'course'
         ? 'course'
@@ -195,24 +197,10 @@ export function TeacherCourseResourcesTab({ courseId, content }: Props) {
 
     let scopeValue = initial
 
-    const options: { value: string; label: string }[] = [
-      { value: 'course', label: '整门课程 · 公共资料' },
-    ]
-    chapters.forEach((ch, index) => {
-      options.push({
-        value: `chapter:${ch.key}`,
-        label: `第 ${index + 1} 章 · ${ch.title}`,
-      })
-      ch.activities.forEach((act) => {
-        options.push({
-          value: `section:${ch.key}:${act.key}`,
-          label: `${ch.title} · ${act.title}`,
-        })
-      })
-    })
+    const options = buildTeacherResourceScopeOptions(content, t)
 
     Modal.confirm({
-      title: '调整归属位置',
+      title: t('courseResources.teacherPanel.changeScopeTitle'),
       content: (
         <Select
           style={{ width: '100%' }}
@@ -236,7 +224,7 @@ export function TeacherCourseResourcesTab({ courseId, content }: Props) {
           return
         }
         await patchTeacherCourseResource(courseId, record.id, body)
-        message.success('归属已更新')
+        message.success(t('courseResources.teacherPanel.scopeUpdated'))
         void reload()
       },
     })
@@ -244,13 +232,13 @@ export function TeacherCourseResourcesTab({ courseId, content }: Props) {
 
   async function remove(record: CourseResourceItem) {
     Modal.confirm({
-      title: '删除资料',
-      content: `确定删除「${record.displayName}」？文件将从存储中移除，此操作不可恢复。`,
+      title: t('courseResources.teacherPanel.deleteTitle'),
+      content: t('courseResources.teacherPanel.deleteContent', { name: record.displayName }),
       okType: 'danger',
-      okText: '删除',
+      okText: t('courseResources.teacherPanel.deleteBtn'),
       onOk: async () => {
         await deleteTeacherCourseResource(courseId, record.id)
-        message.success('已删除')
+        message.success(t('courseResources.teacherPanel.deleted'))
         void reload()
       },
     })
@@ -258,13 +246,22 @@ export function TeacherCourseResourcesTab({ courseId, content }: Props) {
 
   function rowMenu(record: CourseResourceItem): MenuProps['items'] {
     return [
-      { key: 'rename', icon: <EditOutlined />, label: '重命名', onClick: () => rename(record) },
-      { key: 'scope', label: '调整归属', onClick: () => changeScope(record) },
+      {
+        key: 'rename',
+        icon: <EditOutlined />,
+        label: t('courseResources.teacherPanel.menuRename'),
+        onClick: () => rename(record),
+      },
+      {
+        key: 'scope',
+        label: t('courseResources.teacherPanel.menuScope'),
+        onClick: () => changeScope(record),
+      },
       { type: 'divider' },
       {
         key: 'delete',
         icon: <DeleteOutlined />,
-        label: '删除',
+        label: t('courseResources.teacherPanel.menuDelete'),
         danger: true,
         onClick: () => void remove(record),
       },
@@ -277,12 +274,12 @@ export function TeacherCourseResourcesTab({ courseId, content }: Props) {
     <div className={styles.page}>
       <div className={styles.hero}>
         <div>
-          <div className={styles.eyebrow}>COURSE MATERIALS</div>
-          <h2>课程资料管理</h2>
+          <div className={styles.eyebrow}>{t('courseResources.teacherPanel.eyebrow')}</div>
+          <h2>{t('courseResources.teacherPanel.heroTitle')}</h2>
           <p className={styles.heroDesc}>
-            上传和整理教学资源，自主决定向学生开放哪些内容。
+            {t('courseResources.teacherPanel.heroDescLine1')}
             <br />
-            支持课程、章节、小节三级关联，资料发布前可以随时预览。
+            {t('courseResources.teacherPanel.heroDescLine2')}
           </p>
         </div>
         <div className={styles.heroGraphic} aria-hidden>
@@ -294,21 +291,21 @@ export function TeacherCourseResourcesTab({ courseId, content }: Props) {
       <div className={styles.stats}>
         <div className={styles.statCard}>
           <div>
-            <span>全部资料</span>
+            <span>{t('courseResources.teacherPanel.statTotal')}</span>
             <strong>{pad2(stats.total)}</strong>
           </div>
           <span className={styles.statSymbol}>▤</span>
         </div>
         <div className={styles.statCard}>
           <div>
-            <span>学生可见</span>
+            <span>{t('courseResources.teacherPanel.statPublished')}</span>
             <strong>{pad2(stats.published)}</strong>
           </div>
           <span className={styles.statSymbol}>◉</span>
         </div>
         <div className={styles.statCard}>
           <div>
-            <span>未发布资料</span>
+            <span>{t('courseResources.teacherPanel.statDraft')}</span>
             <strong>{pad2(stats.draft)}</strong>
           </div>
           <span className={styles.statSymbol}>◌</span>
@@ -319,9 +316,9 @@ export function TeacherCourseResourcesTab({ courseId, content }: Props) {
         <div className={styles.chips}>
           {(
             [
-              ['all', '全部资料'],
-              ['published', '已发布'],
-              ['draft', '未发布'],
+              ['all', t('courseResources.teacherPanel.filterAll')],
+              ['published', t('courseResources.teacherPanel.filterPublished')],
+              ['draft', t('courseResources.teacherPanel.filterDraft')],
             ] as const
           ).map(([value, label]) => (
             <button
@@ -340,7 +337,7 @@ export function TeacherCourseResourcesTab({ courseId, content }: Props) {
             style={{ width: 120 }}
             onChange={setTypeFilter}
             options={[
-              { value: 'all', label: '全部类型' },
+              { value: 'all', label: t('courseResources.studentPanel.allTypes') },
               { value: 'pdf', label: 'PDF' },
               { value: 'pptx', label: 'PPTX' },
               { value: 'docx', label: 'DOCX' },
@@ -352,7 +349,7 @@ export function TeacherCourseResourcesTab({ courseId, content }: Props) {
             style={{ width: 180 }}
             onChange={setChapterFilter}
             options={[
-              { value: 'all', label: '全部章节' },
+              { value: 'all', label: t('courseResources.studentPanel.allChapters') },
               ...(content?.chapters ?? []).map((ch, i) => ({
                 value: ch.key,
                 label: `${String(i + 1).padStart(2, '0')} · ${ch.title}`,
@@ -361,32 +358,32 @@ export function TeacherCourseResourcesTab({ courseId, content }: Props) {
           />
           <Input
             className={styles.search}
-            placeholder="搜索文件名称…"
+            placeholder={t('courseResources.teacherPanel.searchPlaceholder')}
             allowClear
             value={search}
             onChange={(e) => setSearch(e.target.value)}
           />
           <Button type="primary" onClick={() => setUploadOpen(true)}>
-            ＋ 上传资料
+            {t('courseResources.teacherPanel.uploadBtn')}
           </Button>
         </div>
       </div>
 
       <div className={styles.listbox}>
         <div className={styles.listhead}>
-          <span>文件名称</span>
-          <span>归属位置</span>
-          <span>文件大小</span>
-          <span>发布日期</span>
-          <span>展示状态</span>
-          <span style={{ textAlign: 'right' }}>操作</span>
+          <span>{t('courseResources.teacherPanel.colFileName')}</span>
+          <span>{t('courseResources.teacherPanel.colScope')}</span>
+          <span>{t('courseResources.teacherPanel.colSize')}</span>
+          <span>{t('courseResources.teacherPanel.colDate')}</span>
+          <span>{t('courseResources.teacherPanel.colStatus')}</span>
+          <span style={{ textAlign: 'right' }}>{t('courseResources.teacherPanel.colActions')}</span>
         </div>
         {loading ? (
           <div className={styles.loadingWrap}>
             <Spin />
           </div>
         ) : items.length === 0 ? (
-          <div className={styles.empty}>这里还没有符合条件的资料</div>
+          <div className={styles.empty}>{t('courseResources.teacherPanel.emptyList')}</div>
         ) : (
           items.map((record) => (
             <div key={record.id} className={styles.row}>
@@ -399,18 +396,20 @@ export function TeacherCourseResourcesTab({ courseId, content }: Props) {
                     {record.displayName}
                   </div>
                   <div className={styles.sub}>
-                    {record.fileExtension.toUpperCase()} · 教师上传
+                    {record.fileExtension.toUpperCase()} · {t('courseResources.teacherPanel.uploadedByTeacher')}
                   </div>
                 </div>
               </div>
               <div className={styles.meta}>{scopeLabel(record, content)}</div>
               <div className={styles.meta}>{formatFileSize(record.fileSize)}</div>
-              <div className={styles.meta}>{formatDate(record.createdAt)}</div>
+              <div className={styles.meta}>{formatDate(record.createdAt, t('common.dash'))}</div>
               <div className={styles.publishCell}>
                 <span
                   className={`${styles.status} ${record.publishStatus === 'published' ? styles.statusPublished : ''}`}
                 >
-                  {record.publishStatus === 'published' ? '● 学生可见' : '○ 未发布'}
+                  {record.publishStatus === 'published'
+                    ? t('courseResources.teacherPanel.statusPublished')
+                    : t('courseResources.teacherPanel.statusDraft')}
                 </span>
                 <Switch
                   size="small"
@@ -422,7 +421,7 @@ export function TeacherCourseResourcesTab({ courseId, content }: Props) {
                 <button
                   type="button"
                   className={styles.iconBtn}
-                  title="预览"
+                  title={t('courseResources.teacherPanel.preview')}
                   onClick={() => void openPreview(record)}
                 >
                   <EyeOutlined />
@@ -430,13 +429,13 @@ export function TeacherCourseResourcesTab({ courseId, content }: Props) {
                 <button
                   type="button"
                   className={styles.iconBtn}
-                  title="下载"
+                  title={t('courseResources.teacherPanel.download')}
                   onClick={() => void download(record)}
                 >
                   <DownloadOutlined />
                 </button>
                 <Dropdown menu={{ items: rowMenu(record) }} trigger={['click']}>
-                  <button type="button" className={styles.iconBtn} title="更多">
+                  <button type="button" className={styles.iconBtn} title={t('courseResources.teacherPanel.more')}>
                     <MoreOutlined />
                   </button>
                 </Dropdown>
@@ -446,9 +445,7 @@ export function TeacherCourseResourcesTab({ courseId, content }: Props) {
         )}
       </div>
 
-      <p className={styles.footnote}>
-        说明：发布状态保存在服务端；学生端仅能看到已发布资料。预览与下载经后端鉴权后签发短效链接。
-      </p>
+      <p className={styles.footnote}>{t('courseResources.teacherPanel.footnote')}</p>
 
       <TeacherResourceUploadModal
         open={uploadOpen}

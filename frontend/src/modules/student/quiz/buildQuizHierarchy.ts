@@ -1,6 +1,8 @@
+import { getAppLocale } from '@/core/i18n/store'
+import { translateApp } from '@/core/i18n/translateApp'
 import type { StudentCourse, StudentQuestion } from '@/modules/student/api'
 import type { BubbleNode } from '@/modules/student/bubbleTree'
-import { courseSourceLabels, courseSourceOf } from '@/modules/student/learning/courseSource'
+import { courseSourceLabel, courseSourceOf } from '@/modules/student/learning/courseSource'
 import { mapStudentQuestionsToViews } from '@/modules/student/quiz/mapStudentQuiz'
 import type {
   ChapterQuizGroup,
@@ -10,7 +12,7 @@ import type {
   SectionQuizGroup,
   StudentQuizView,
 } from '@/modules/student/quiz/quizTypes'
-import { UNLINKED_CHAPTER_KEY, UNLINKED_CHAPTER_TITLE } from '@/modules/student/quiz/quizTypes'
+import { UNLINKED_CHAPTER_KEY } from '@/modules/student/quiz/quizTypes'
 
 export function buildCourseQuizGroups(
   courses: StudentCourse[],
@@ -25,6 +27,8 @@ export function buildCourseQuizGroups(
     viewsByCourse.set(view.courseId, list)
   }
 
+  const locale = getAppLocale()
+  const unlinkedTitle = translateApp(locale, 'student.quiz.unlinkedNode')
   const groups: CourseQuizGroup[] = []
   const scopedCourses = options.courseId === 'all'
     ? courses
@@ -38,11 +42,13 @@ export function buildCourseQuizGroups(
     groups.push({
       courseId: String(course.id),
       courseTitle: course.title,
-      courseSourceLabel: courseSourceLabels[courseSourceOf(course)],
-      creatorLabel: course.owned ? '我创建' : courseSourceLabels[courseSourceOf(course)],
+      courseSourceLabel: courseSourceLabel(courseSourceOf(course)),
+      creatorLabel: course.owned
+        ? translateApp(getAppLocale(), 'student.courseSource.personal')
+        : courseSourceLabel(courseSourceOf(course)),
       quizTotal: courseViews.length,
       completedCount: courseViews.filter((view) => view.attempt.status === 'completed').length,
-      chapters: buildChapterGroups(courseViews, tree),
+      chapters: buildChapterGroups(courseViews, tree, unlinkedTitle),
     })
   }
 
@@ -56,19 +62,19 @@ export function buildCourseQuizGroups(
     }
     groups.push({
       courseId,
-      courseTitle: courseViews[0]?.courseName || '未命名课程',
-      courseSourceLabel: courseViews[0]?.courseSourceLabel || '课程',
-      creatorLabel: '课程测验',
+      courseTitle: courseViews[0]?.courseName || translateApp(locale, 'student.quiz.unnamedCourse'),
+      courseSourceLabel: courseViews[0]?.courseSourceLabel || translateApp(locale, 'student.quiz.fallbackCourseLabel'),
+      creatorLabel: translateApp(locale, 'student.quiz.creatorCourseQuiz'),
       quizTotal: courseViews.length,
       completedCount: courseViews.filter((view) => view.attempt.status === 'completed').length,
-      chapters: buildChapterGroups(courseViews, null),
+      chapters: buildChapterGroups(courseViews, null, unlinkedTitle),
     })
   }
 
   return groups.sort((left, right) => left.courseTitle.localeCompare(right.courseTitle))
 }
 
-function buildChapterGroups(views: StudentQuizView[], tree: BubbleNode | null): ChapterQuizGroup[] {
+function buildChapterGroups(views: StudentQuizView[], tree: BubbleNode | null, unlinkedTitle: string): ChapterQuizGroup[] {
   if (views.length === 0) {
     return []
   }
@@ -97,7 +103,7 @@ function buildChapterGroups(views: StudentQuizView[], tree: BubbleNode | null): 
     })
   }
   if (byChapter.has(UNLINKED_CHAPTER_KEY)) {
-    ordered.push({ key: UNLINKED_CHAPTER_KEY, title: UNLINKED_CHAPTER_TITLE })
+    ordered.push({ key: UNLINKED_CHAPTER_KEY, title: unlinkedTitle })
   }
 
   return ordered.map(({ key, title }) => {
@@ -175,8 +181,12 @@ export function filterQuizViews(
 }
 
 export function chapterFilterOptions(views: StudentQuizView[], courseId: string) {
+  const locale = getAppLocale()
   const scoped = courseId === 'all' ? views : views.filter((view) => view.courseId === courseId)
-  const options: { value: string; label: string }[] = [{ value: 'all', label: '全部章节' }]
+  const unlinkedTitle = translateApp(locale, 'student.quiz.unlinkedNode')
+  const options: { value: string; label: string }[] = [
+    { value: 'all', label: translateApp(locale, 'student.quiz.chapterFilterAll') },
+  ]
   const seen = new Set<string>()
   for (const view of scoped) {
     const key = view.chapterKey?.trim() || UNLINKED_CHAPTER_KEY
@@ -186,7 +196,7 @@ export function chapterFilterOptions(views: StudentQuizView[], courseId: string)
     seen.add(key)
     options.push({
       value: key,
-      label: key === UNLINKED_CHAPTER_KEY ? UNLINKED_CHAPTER_TITLE : view.chapterName?.trim() || key,
+      label: key === UNLINKED_CHAPTER_KEY ? unlinkedTitle : view.chapterName?.trim() || key,
     })
   }
   return options

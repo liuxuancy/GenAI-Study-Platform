@@ -2,13 +2,15 @@ import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { PlusOutlined } from '@ant-design/icons'
 
+import { useI18n } from '@/core/i18n/useI18n'
 import { getStudentCourses, type StudentCourse } from '@/modules/student/api'
 import { CreateCourseDialog } from '@/modules/student/learning/CreateCourseDialog'
 import {
-  courseSourceDescriptions,
-  courseSourceLabels,
+  courseSourceDescription,
+  courseSourceLabel,
   courseSourceOf,
   matchesProgressFilter,
+  progressFilterLabel,
   type CourseSource,
   type CourseSourceFilter,
   type ProgressFilter,
@@ -18,6 +20,7 @@ import homeStyles from '@/modules/student/StudentHomePage.module.css'
 import { CourseCover } from '@/modules/student/studentCourseVisuals'
 
 export function MyCoursesPage() {
+  const { t } = useI18n()
   const [courses, setCourses] = useState<StudentCourse[] | null>(null)
   const [errorMessage, setErrorMessage] = useState('')
   const [createOpen, setCreateOpen] = useState(false)
@@ -44,18 +47,18 @@ export function MyCoursesPage() {
     <div className={styles.page}>
       <div className={styles.pageHeading}>
         <div>
-          <p className={styles.eyebrow}>YOUR PERSONAL LIBRARY</p>
-          <h1>我的课程</h1>
-          <p>创建、筛选并进入课程，继续你的学习进度。</p>
+          <p className={styles.eyebrow}>{t('student.myCourses.eyebrow')}</p>
+          <h1>{t('student.myCourses.title')}</h1>
+          <p>{t('student.myCourses.subtitle')}</p>
         </div>
         <button className={styles.primaryAction} type="button" onClick={() => setCreateOpen(true)}>
-          <PlusOutlined /> 创建课程
+          <PlusOutlined /> {t('student.myCourses.createCourse')}
         </button>
       </div>
       <CreateCourseDialog open={createOpen} onClose={() => setCreateOpen(false)} />
       {errorMessage ? (
         <div className={styles.statePanel}>
-          <strong>课程加载失败</strong>
+          <strong>{t('student.myCourses.loadFailed')}</strong>
           <p>{errorMessage}</p>
         </div>
       ) : (
@@ -66,6 +69,7 @@ export function MyCoursesPage() {
 }
 
 function CourseLibrary({ courses }: { courses: StudentCourse[] | null }) {
+  const { t } = useI18n()
   const [query, setQuery] = useState('')
   const [sourceTab, setSourceTab] = useState<CourseSourceFilter>('all')
   const [progressFilter, setProgressFilter] = useState<ProgressFilter>('all')
@@ -93,7 +97,7 @@ function CourseLibrary({ courses }: { courses: StudentCourse[] | null }) {
 
   if (!courses) {
     return (
-      <div className={styles.skeletons} aria-label="正在加载课程">
+      <div className={styles.skeletons} aria-label={t('student.myCourses.loadingAria')}>
         <span />
         <span />
         <span />
@@ -104,31 +108,35 @@ function CourseLibrary({ courses }: { courses: StudentCourse[] | null }) {
   if (courses.length === 0) {
     return (
       <div className={styles.statePanel}>
-        <strong>还没有课程</strong>
-        <p>创建第一门课程，或等待教师发布课程到你的班级。</p>
+        <strong>{t('student.myCourses.emptyTitle')}</strong>
+        <p>{t('student.myCourses.emptyBody')}</p>
       </div>
     )
   }
 
+  const sourceTabs: Array<[CourseSourceFilter, string]> = [
+    ['all', t('student.myCourses.tabAll')],
+    ['teacher', courseSourceLabel('teacher')],
+    ['personal', courseSourceLabel('personal')],
+    ['shared', courseSourceLabel('shared')],
+  ]
+
+  const progressFilters: ProgressFilter[] = ['all', 'not_started', 'in_progress', 'completed']
+
   return (
-    <section aria-label="课程库">
+    <section aria-label={t('student.myCourses.libraryAria')}>
       <div className={homeStyles.sectionHeading}>
         <div>
-          <p className={styles.eyebrow}>COURSE CATALOG</p>
-          <h2>全部课程</h2>
-          <p className={homeStyles.sectionSub}>按来源与进度筛选，快速找到想学的课。</p>
+          <p className={styles.eyebrow}>{t('student.myCourses.catalogEyebrow')}</p>
+          <h2>{t('student.myCourses.catalogTitle')}</h2>
+          <p className={homeStyles.sectionSub}>{t('student.myCourses.catalogSub')}</p>
         </div>
-        <span className={homeStyles.sectionCount}>共 {filtered.length} 门课程</span>
+        <span className={homeStyles.sectionCount}>
+          {t('student.myCourses.count', { count: filtered.length })}
+        </span>
       </div>
-      <div className={styles.sourceTabs} role="tablist" aria-label="课程来源">
-        {(
-          [
-            ['all', '全部课程'],
-            ['teacher', courseSourceLabels.teacher],
-            ['personal', courseSourceLabels.personal],
-            ['shared', courseSourceLabels.shared],
-          ] as const
-        ).map(([value, label]) => (
+      <div className={styles.sourceTabs} role="tablist" aria-label={t('student.myCourses.sourceTabsAria')}>
+        {sourceTabs.map(([value, label]) => (
           <button
             key={value}
             type="button"
@@ -150,30 +158,35 @@ function CourseLibrary({ courses }: { courses: StudentCourse[] | null }) {
           <input
             type="search"
             value={query}
-            placeholder="搜索你的课程..."
-            aria-label="搜索课程"
+            placeholder={t('student.myCourses.searchPlaceholder')}
+            aria-label={t('student.myCourses.searchAria')}
             onChange={(event) => setQuery(event.target.value)}
           />
         </label>
         <select
           value={progressFilter}
-          aria-label="进度筛选"
+          aria-label={t('student.myCourses.progressFilterAria')}
           onChange={(event) => setProgressFilter(event.target.value as ProgressFilter)}
         >
-          <option value="all">全部进度</option>
-          <option value="not_started">尚未开始</option>
-          <option value="in_progress">正在学习</option>
-          <option value="completed">已完成</option>
+          {progressFilters.map((filter) => (
+            <option key={filter} value={filter}>
+              {progressFilterLabel(filter)}
+            </option>
+          ))}
         </select>
-        <select value={sort} aria-label="课程排序" onChange={(event) => setSort(event.target.value as 'progress' | 'title')}>
-          <option value="progress">按进度排序</option>
-          <option value="title">按名称排序</option>
+        <select
+          value={sort}
+          aria-label={t('student.myCourses.sortAria')}
+          onChange={(event) => setSort(event.target.value as 'progress' | 'title')}
+        >
+          <option value="progress">{t('student.myCourses.sortByProgress')}</option>
+          <option value="title">{t('student.myCourses.sortByTitle')}</option>
         </select>
       </div>
       {filtered.length === 0 ? (
         <div className={styles.statePanel}>
-          <strong>没有匹配的课程</strong>
-          <p>调整搜索或筛选条件后再试。</p>
+          <strong>{t('student.myCourses.noMatchTitle')}</strong>
+          <p>{t('student.myCourses.noMatchBody')}</p>
         </div>
       ) : sourceTab === 'all' ? (
         (['teacher', 'personal', 'shared'] as CourseSource[]).map((source) => {
@@ -184,8 +197,8 @@ function CourseLibrary({ courses }: { courses: StudentCourse[] | null }) {
           return (
             <CourseGroup
               key={source}
-              title={courseSourceLabels[source]}
-              description={courseSourceDescriptions[source]}
+              title={courseSourceLabel(source)}
+              description={courseSourceDescription(source)}
               courses={group}
             />
           )
@@ -226,25 +239,34 @@ function CourseGroup({
 }
 
 function CourseCard({ course }: { course: StudentCourse }) {
+  const { t } = useI18n()
   const source = courseSourceOf(course)
-  const chapterLabel = course.chapterCount ? `${course.chapterCount} 章` : '草稿'
-  const statusLabel = course.percent === 100 ? '已完成' : course.percent > 0 ? '正在学习' : '尚未开始'
-  const actionLabel = course.percent > 0 ? '继续学习' : '进入课程'
+  const chapterLabel = course.chapterCount
+    ? t('student.myCourses.card.chapters', { count: course.chapterCount })
+    : t('student.myCourses.card.draft')
+  const statusLabel =
+    course.percent === 100
+      ? t('student.myCourses.card.completed')
+      : course.percent > 0
+        ? t('student.myCourses.card.inProgress')
+        : t('student.myCourses.card.notStarted')
+  const actionLabel =
+    course.percent > 0 ? t('student.myCourses.card.continue') : t('student.myCourses.card.enter')
 
   return (
     <article className={homeStyles.courseCard}>
-      <Link to={`/student/courses/${course.id}`} aria-label={`打开 ${course.title}`}>
-        <CourseCover title={course.title} description={course.description} />
+      <Link to={`/student/courses/${course.id}`} aria-label={t('student.myCourses.card.openAria', { title: course.title })}>
+        <CourseCover title={course.title} description={course.description} courseId={course.id} />
       </Link>
       <div className={homeStyles.cardBody}>
         <div className={homeStyles.cardMeta}>
-          <span className={homeStyles.pill}>{courseSourceLabels[source]}</span>
+          <span className={homeStyles.pill}>{courseSourceLabel(source)}</span>
           <span className={homeStyles.cardChapter}>{chapterLabel}</span>
         </div>
         <Link className={homeStyles.cardTitle} to={`/student/courses/${course.id}`}>
           {course.title}
         </Link>
-        <p className={homeStyles.cardDesc}>{course.description || '暂无课程简介'}</p>
+        <p className={homeStyles.cardDesc}>{course.description || t('student.myCourses.card.noDescription')}</p>
         <div className={homeStyles.cardBottom}>
           <div className={homeStyles.cardMeter}>
             <div className={homeStyles.meter} aria-hidden="true">

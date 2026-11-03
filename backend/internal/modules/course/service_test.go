@@ -395,6 +395,12 @@ func TestGetQuestion(t *testing.T) {
 	if own.Questions[0].UserOption != "" {
 		t.Fatalf("user option = %q", own.Questions[0].UserOption)
 	}
+	if own.IsSubmit {
+		t.Fatal("expected unsubmitted own question")
+	}
+	if own.Questions[0].CorrectAnswer != "" || own.Questions[0].Explanation != "" {
+		t.Fatalf("expected redacted answers before submit, got %+v", own.Questions[0])
+	}
 
 	published, err := service.GetQuestion(context.Background(), student, questionIDByTitle(t, database, "What is a commit?"))
 	if err != nil {
@@ -406,8 +412,11 @@ func TestGetQuestion(t *testing.T) {
 	if published.Questions[0].UserOption != "A snapshot of the work" {
 		t.Fatalf("published user option = %q", published.Questions[0].UserOption)
 	}
-	if published.Questions[0].CorrectAnswer != "A snapshot of the work" || published.Questions[0].Explanation == "" {
-		t.Fatalf("answer = %+v", published.Questions[0])
+	if published.IsSubmit {
+		t.Fatal("seed published set should not be marked submitted")
+	}
+	if published.Questions[0].CorrectAnswer != "" || published.Questions[0].Explanation != "" {
+		t.Fatalf("expected redacted answers before submit, got %+v", published.Questions[0])
 	}
 
 	_, err = service.GetQuestion(context.Background(), &access.Principal{UserID: teacherID, Role: access.RoleStudent}, own.ID)
@@ -498,6 +507,20 @@ func TestAnswerQuestion(t *testing.T) {
 	}
 	if submittedCount(t, database, teacherID, questionID) != 0 {
 		t.Fatal("submit marked another user")
+	}
+
+	final, err := service.GetQuestion(context.Background(), student, questionID)
+	if err != nil {
+		t.Fatalf("after submit detail: %v", err)
+	}
+	if !final.IsSubmit || final.Score == nil || *final.Score != 50 {
+		t.Fatalf("after submit = isSubmit %v score %v", final.IsSubmit, final.Score)
+	}
+	if final.Questions[0].CorrectAnswer != "On the line" || final.Questions[0].Explanation == "" {
+		t.Fatalf("expected revealed answer after submit, got %+v", final.Questions[0])
+	}
+	if !final.Questions[0].IsCorrect || final.Questions[1].IsCorrect {
+		t.Fatalf("isCorrect = %v %v", final.Questions[0].IsCorrect, final.Questions[1].IsCorrect)
 	}
 }
 

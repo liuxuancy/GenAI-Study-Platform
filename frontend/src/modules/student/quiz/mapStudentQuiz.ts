@@ -1,6 +1,8 @@
+import { getAppLocale } from '@/core/i18n/store'
+import { translateApp } from '@/core/i18n/translateApp'
 import type { StudentCourse, StudentQuestion } from '@/modules/student/api'
 import {
-  courseSourceLabels,
+  courseSourceLabel,
   courseSourceOf,
 } from '@/modules/student/learning/courseSource'
 import type {
@@ -24,20 +26,23 @@ function parseDifficulty(value: string): QuizDifficulty | null {
 }
 
 function displayTitle(title: string, chapterName?: string | null) {
+  const locale = getAppLocale()
   const studentMatch = studentGeneratedTitle.exec(title)
   if (studentMatch) {
     return studentMatch[1]
   }
   if (excelImportTitle.test(title)) {
-    return 'Excel 导入测验'
+    return translateApp(locale, 'student.quiz.titleExcelImport')
   }
   if (teacherBankTitle.test(title)) {
-    return '手动测验'
+    return translateApp(locale, 'student.quiz.titleManualQuiz')
   }
   const chapterMatch = chapterQuizTitle.exec(title)
   if (chapterMatch) {
     const chapter = chapterName?.trim()
-    return chapter ? `${chapter}测验` : chapterMatch[1]
+    return chapter
+      ? translateApp(locale, 'student.quiz.titleChapterQuiz', { chapter })
+      : chapterMatch[1]
   }
   return title
 }
@@ -106,7 +111,7 @@ export function mapStudentQuestionToView(
   const chapterKey = item.chapterKey?.trim() || null
   const sectionKey = item.sectionKey?.trim() || null
   const course = resolveCourse(item, courseById, courseByTitle)
-  const courseSource = course ? courseSourceLabels[courseSourceOf(course)] : null
+  const courseSource = course ? courseSourceLabel(courseSourceOf(course)) : null
   const courseId = course
     ? String(course.id)
     : typeof item.courseId === 'number' && item.courseId > 0
@@ -155,7 +160,7 @@ export function quizStatistics(views: StudentQuizView[]) {
 
 export function nodePathLabel(view: StudentQuizView) {
   if (!view.chapterKey) {
-    return '未关联教学节点'
+    return translateApp(getAppLocale(), 'student.quiz.unlinkedNode')
   }
   const chapter = view.chapterName || view.chapterKey
   if (view.sectionName) {
@@ -164,29 +169,45 @@ export function nodePathLabel(view: StudentQuizView) {
   return chapter
 }
 
-export const creationMethodLabels: Record<QuizCreationMethod, string> = {
-  manual: '手动创建',
-  excel: 'Excel 导入',
-  ai: 'AI 生成',
+export function creationMethodLabel(method: QuizCreationMethod) {
+  return translateApp(getAppLocale(), `student.quiz.${method}`)
 }
 
+export function attemptStatusLabel(status: QuizAttemptView['status']) {
+  return translateApp(getAppLocale(), `student.quiz.status.${status}`)
+}
+
+/** @deprecated 在组件渲染时调用 creationMethodLabel */
+export const creationMethodLabels: Record<QuizCreationMethod, string> = {
+  get manual() {
+    return creationMethodLabel('manual')
+  },
+  get excel() {
+    return creationMethodLabel('excel')
+  },
+  get ai() {
+    return creationMethodLabel('ai')
+  },
+}
+
+/** @deprecated 在组件渲染时调用 attemptStatusLabel */
 export const attemptStatusLabels: Record<QuizAttemptView['status'], string> = {
-  pending: '待完成',
-  in_progress: '进行中',
-  completed: '已完成',
+  get pending() {
+    return attemptStatusLabel('pending')
+  },
+  get in_progress() {
+    return attemptStatusLabel('in_progress')
+  },
+  get completed() {
+    return attemptStatusLabel('completed')
+  },
 }
 
 export function difficultyLabel(difficulty: QuizDifficulty | null) {
-  if (difficulty === 'easy') {
-    return '简单'
+  if (difficulty === 'easy' || difficulty === 'medium' || difficulty === 'hard') {
+    return translateApp(getAppLocale(), `student.quiz.difficulty.${difficulty}`)
   }
-  if (difficulty === 'medium') {
-    return '中等'
-  }
-  if (difficulty === 'hard') {
-    return '困难'
-  }
-  return '—'
+  return translateApp(getAppLocale(), 'common.dash')
 }
 
 /** @deprecated 使用 StudentQuizView */

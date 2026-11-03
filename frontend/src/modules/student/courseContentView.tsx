@@ -2,6 +2,8 @@ import { useMemo } from 'react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 
+import { getAppLocale } from '@/core/i18n/store'
+import { translateApp } from '@/core/i18n/translateApp'
 import markdownStyles from '@/modules/student/courseMarkdown.module.css'
 
 export function splitNoteBlocks(note: string) {
@@ -50,28 +52,28 @@ export function CourseMarkdownBody({
   )
 }
 
-export function activityLabel(activityType: string) {
+export function activityLabel(activityType: string, locale = getAppLocale()) {
   if (activityType === 'rich_text') {
-    return '阅读'
+    return translateApp(locale, 'student.activityType.rich_text')
   }
   if (activityType === 'coding') {
-    return '编程练习'
+    return translateApp(locale, 'student.activityType.coding')
   }
   if (activityType === 'mock_interview') {
-    return '模拟面试'
+    return translateApp(locale, 'student.activityType.mock_interview')
   }
   if (activityType === 'quiz_game') {
-    return '章末小测'
+    return translateApp(locale, 'student.activityType.quiz_game')
   }
   return activityType
 }
 
-export function chapterBadgeLabel(status: 'completed' | 'learning' | 'pending') {
+export function chapterBadgeLabel(status: 'completed' | 'learning' | 'pending', locale = getAppLocale()) {
   if (status === 'completed') {
-    return '已完成'
+    return translateApp(locale, 'student.chapterBadge.completed')
   }
   if (status === 'learning') {
-    return '学习中'
+    return translateApp(locale, 'student.chapterBadge.learning')
   }
   return ''
 }

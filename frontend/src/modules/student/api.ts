@@ -80,6 +80,7 @@ export interface StudentQuestionContent {
   content: string
   options: string[]
   userOption: string
+  isCorrect?: boolean
   correctAnswer: string
   explanation: string
 }
@@ -91,6 +92,8 @@ export interface StudentQuestionDetail {
   difficulty: string
   questionCount: number
   percent: number
+  isSubmit: boolean
+  score?: number
   questions: StudentQuestionContent[]
 }
 
@@ -236,7 +239,7 @@ export interface LearningInsightResult {
   recommendedAction: LearningRecommendedAction
 }
 
-export function postLearningInsight(input: { provider?: string } = {}) {
+export function postLearningInsight(input: { provider?: string; language?: string } = {}) {
   return http.post<LearningInsightResult>('/student/learning/insights', input)
 }
 

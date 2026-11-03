@@ -1,0 +1,31 @@
+.tag {
+  display: inline-flex;
+  align-items: center;
+  max-width: 100%;
+  padding: 4px 10px;
+  border-radius: 6px;
+  font-family: var(--font-ui);
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1.35;
+  border: 1px solid transparent;
+  word-break: break-word;
+}
+
+.idle {
+  color: #6f6f6a;
+  background: #f2f0eb;
+  border-color: #e8e6e0;
+}
+
+.progress {
+  color: #9a6b3d;
+  background: #faf3e8;
+  border-color: #efe0c8;
+}
+
+.submitted {
+  color: #3d6b58;
+  background: #eef6f1;
+  border-color: #d4e8dc;
+}

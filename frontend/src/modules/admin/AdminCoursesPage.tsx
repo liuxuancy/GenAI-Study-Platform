@@ -4,9 +4,12 @@ import { Alert, Button, Input, Modal, Select, Space, Table, Tag, Typography, mes
 import { Navigate } from 'react-router-dom'
 
 import { useAuthStore } from '@/core/auth/store'
+import { localizedRoleName } from '@/core/i18n/roleName'
+import { useI18n } from '@/core/i18n/useI18n'
 import { getAdminCourses, setAdminCoursePublished, type AdminCourse } from '@/modules/admin/api'
 
 export function AdminCoursesPage() {
+  const { t } = useI18n()
   const currentUser = useAuthStore((state) => state.currentUser)
   const [courses, setCourses] = useState<AdminCourse[] | null>(null)
   const [publishedCount, setPublishedCount] = useState(0)
@@ -42,18 +45,18 @@ export function AdminCoursesPage() {
 
   function changePublished(course: AdminCourse, published: boolean) {
     Modal.confirm({
-      title: published ? `Restore "${course.title}"?` : `Remove "${course.title}" from students?`,
-      content: published
-        ? 'Students who are allowed to see this course will see it again. Class assignments stay as they are.'
-        : 'Other students will no longer see it. The owner still can. Chapters, exercises, progress, and class assignments stay.',
-      okText: published ? 'Restore' : 'Remove',
+      title: published
+        ? t('admin.courses.restoreTitle', { title: course.title })
+        : t('admin.courses.removeTitle', { title: course.title }),
+      content: published ? t('admin.courses.restoreContent') : t('admin.courses.removeContent'),
+      okText: published ? t('admin.courses.restore') : t('admin.courses.remove'),
       okButtonProps: { danger: !published },
       onOk: async () => {
         try {
           await setAdminCoursePublished(course.id, published)
           await reload()
         } catch (error) {
-          message.error(error instanceof Error ? error.message : 'Could not update the course.')
+          message.error(error instanceof Error ? error.message : t('admin.courses.updateFailed'))
           throw error
         }
       },
@@ -76,17 +79,20 @@ export function AdminCoursesPage() {
   return (
     <>
       <Typography.Title level={3} style={{ marginTop: 0 }}>
-        Courses
+        {t('admin.courses.title')}
       </Typography.Title>
       {courses ? (
         <Typography.Paragraph type="secondary">
-          {publishedCount} published · {total - publishedCount} removed. Removing a course only hides it from other students.
+          {t('admin.courses.stats', {
+            published: publishedCount,
+            removed: total - publishedCount,
+          })}
         </Typography.Paragraph>
       ) : null}
       <Space wrap style={{ marginBottom: 16 }}>
         <Input.Search
           allowClear
-          placeholder="Course or owner"
+          placeholder={t('admin.courses.searchPlaceholder')}
           value={keyword}
           onChange={(event) => {
             setKeyword(event.target.value)
@@ -96,21 +102,21 @@ export function AdminCoursesPage() {
         />
         <Select
           allowClear
-          placeholder="Owner role"
+          placeholder={t('admin.courses.ownerRolePlaceholder')}
           value={ownerRole}
           onChange={(value) => {
             setOwnerRole(value)
             setPage(1)
           }}
           style={{ width: 140 }}
-          options={[
-            { value: 'ROLE_ADMIN', label: 'Admin' },
-            { value: 'ROLE_TEACHER', label: 'Teacher' },
-          ]}
+          options={(['ROLE_ADMIN', 'ROLE_TEACHER'] as const).map((value) => ({
+            value,
+            label: localizedRoleName(value),
+          }))}
         />
         <Select
           allowClear
-          placeholder="Status"
+          placeholder={t('admin.courses.statusPlaceholder')}
           value={published}
           onChange={(value) => {
             setPublished(value)
@@ -118,8 +124,8 @@ export function AdminCoursesPage() {
           }}
           style={{ width: 140 }}
           options={[
-            { value: true, label: 'Published' },
-            { value: false, label: 'Removed' },
+            { value: true, label: t('admin.courses.published') },
+            { value: false, label: t('admin.courses.removed') },
           ]}
         />
         <Button
@@ -130,7 +136,7 @@ export function AdminCoursesPage() {
             setPage(1)
           }}
         >
-          Reset
+          {t('admin.users.reset')}
         </Button>
       </Space>
       {loadError ? <Alert type="error" showIcon message={loadError} style={{ marginBottom: 16 }} /> : null}
@@ -149,23 +155,24 @@ export function AdminCoursesPage() {
           },
         }}
         columns={[
-          { title: 'Title', dataIndex: 'title' },
+          { title: t('admin.courses.colTitle'), dataIndex: 'title' },
           {
-            title: 'Owner',
+            title: t('admin.courses.colOwner'),
             key: 'owner',
             render: (_, course) => course.ownerNickname || course.ownerUsername,
           },
-          { title: 'Role', dataIndex: 'ownerRoleName' },
+          { title: t('admin.courses.colRole'), dataIndex: 'ownerRoleName' },
           {
-            title: 'Classes',
+            title: t('admin.courses.colClasses'),
             dataIndex: 'classCount',
             width: 100,
           },
           {
-            title: 'Status',
+            title: t('admin.courses.statusPlaceholder'),
             dataIndex: 'published',
             width: 130,
-            render: (published: boolean) => (published ? <Tag>Published</Tag> : <Tag>Removed</Tag>),
+            render: (published: boolean) =>
+              published ? <Tag>{t('admin.courses.published')}</Tag> : <Tag>{t('admin.courses.removed')}</Tag>,
           },
           {
             title: '',
@@ -175,11 +182,11 @@ export function AdminCoursesPage() {
               <Space>
                 {course.published ? (
                   <Button type="link" danger onClick={() => changePublished(course, false)}>
-                    Remove
+                    {t('admin.courses.remove')}
                   </Button>
                 ) : (
                   <Button type="link" onClick={() => changePublished(course, true)}>
-                    Restore
+                    {t('admin.courses.restore')}
                   </Button>
                 )}
               </Space>

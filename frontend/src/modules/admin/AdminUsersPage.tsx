@@ -4,6 +4,8 @@ import { Alert, Button, Form, Input, Modal, Select, Space, Table, Tag, Typograph
 import { Navigate } from 'react-router-dom'
 
 import { useAuthStore } from '@/core/auth/store'
+import { localizedRoleName } from '@/core/i18n/roleName'
+import { useI18n } from '@/core/i18n/useI18n'
 import {
   getAdminUsers,
   resetAdminUserPassword,
@@ -12,6 +14,7 @@ import {
 } from '@/modules/admin/api'
 
 export function AdminUsersPage() {
+  const { t } = useI18n()
   const currentUser = useAuthStore((state) => state.currentUser)
   const [users, setUsers] = useState<AdminUser[] | null>(null)
   const [total, setTotal] = useState(0)
@@ -80,7 +83,7 @@ export function AdminUsersPage() {
       setEditing(null)
       await reload()
     } catch (error) {
-      setFormError(error instanceof Error ? error.message : 'Could not save the user.')
+      setFormError(error instanceof Error ? error.message : t('admin.users.saveFailed'))
     } finally {
       setSaving(false)
     }
@@ -98,7 +101,7 @@ export function AdminUsersPage() {
       setResetting(null)
       passwordForm.resetFields()
     } catch (error) {
-      setFormError(error instanceof Error ? error.message : 'Could not reset the password.')
+      setFormError(error instanceof Error ? error.message : t('admin.users.resetFailed'))
     } finally {
       setSaving(false)
     }
@@ -107,12 +110,12 @@ export function AdminUsersPage() {
   return (
     <>
       <Typography.Title level={3} style={{ marginTop: 0 }}>
-        Users
+        {t('admin.users.title')}
       </Typography.Title>
       <Space wrap style={{ marginBottom: 16 }}>
         <Input.Search
           allowClear
-          placeholder="Username or nickname"
+          placeholder={t('admin.users.searchPlaceholder')}
           value={keyword}
           onChange={(event) => {
             setKeyword(event.target.value)
@@ -122,22 +125,20 @@ export function AdminUsersPage() {
         />
         <Select
           allowClear
-          placeholder="Role"
+          placeholder={t('admin.users.rolePlaceholder')}
           value={role}
           onChange={(value) => {
             setRole(value)
             setPage(1)
           }}
           style={{ width: 140 }}
-          options={[
-            { value: 'ROLE_ADMIN', label: 'Admin' },
-            { value: 'ROLE_TEACHER', label: 'Teacher' },
-            { value: 'ROLE_STUDENT', label: 'Student' },
-          ]}
+          options={(
+            ['ROLE_ADMIN', 'ROLE_TEACHER', 'ROLE_STUDENT'] as const
+          ).map((value) => ({ value, label: localizedRoleName(value) }))}
         />
         <Select
           allowClear
-          placeholder="Status"
+          placeholder={t('admin.users.statusPlaceholder')}
           value={status}
           onChange={(value) => {
             setStatus(value)
@@ -145,8 +146,8 @@ export function AdminUsersPage() {
           }}
           style={{ width: 130 }}
           options={[
-            { value: 1, label: 'Active' },
-            { value: 0, label: 'Disabled' },
+            { value: 1, label: t('admin.users.active') },
+            { value: 0, label: t('admin.users.disabled') },
           ]}
         />
         <Button
@@ -157,7 +158,7 @@ export function AdminUsersPage() {
             setPage(1)
           }}
         >
-          Reset
+          {t('admin.users.reset')}
         </Button>
       </Space>
       {loadError ? <Alert type="error" showIcon message={loadError} style={{ marginBottom: 16 }} /> : null}
@@ -176,16 +177,29 @@ export function AdminUsersPage() {
           },
         }}
         columns={[
-          { title: 'Username', dataIndex: 'username' },
-          { title: 'Nickname', dataIndex: 'nickname', render: (value: string) => value || '—' },
-          { title: 'Email', dataIndex: 'email', render: (value: string) => value || '—' },
-          { title: 'Major', dataIndex: 'major', render: (value: string) => value || '—' },
-          { title: 'Role', dataIndex: 'roleName' },
+          { title: t('admin.users.colUsername'), dataIndex: 'username' },
           {
-            title: 'Status',
+            title: t('admin.users.colNickname'),
+            dataIndex: 'nickname',
+            render: (value: string) => value || t('common.dash'),
+          },
+          {
+            title: t('admin.users.colEmail'),
+            dataIndex: 'email',
+            render: (value: string) => value || t('common.dash'),
+          },
+          {
+            title: t('admin.users.colMajor'),
+            dataIndex: 'major',
+            render: (value: string) => value || t('common.dash'),
+          },
+          { title: t('admin.users.colRole'), dataIndex: 'roleName' },
+          {
+            title: t('admin.users.colStatus'),
             dataIndex: 'status',
             width: 110,
-            render: (status: number) => (status === 1 ? <Tag>Active</Tag> : <Tag>Disabled</Tag>),
+            render: (status: number) =>
+              status === 1 ? <Tag>{t('admin.users.active')}</Tag> : <Tag>{t('admin.users.disabled')}</Tag>,
           },
           {
             title: '',
@@ -194,7 +208,7 @@ export function AdminUsersPage() {
             render: (_, user) => (
               <Space>
                 <Button type="link" onClick={() => openEdit(user)}>
-                  Edit
+                  {t('admin.users.edit')}
                 </Button>
                 <Button
                   type="link"
@@ -204,7 +218,7 @@ export function AdminUsersPage() {
                     setResetting(user)
                   }}
                 >
-                  Reset password
+                  {t('admin.users.resetPassword')}
                 </Button>
               </Space>
             ),
@@ -213,46 +227,62 @@ export function AdminUsersPage() {
       />
 
       <Modal
-        title={editing ? `Edit · ${editing.username}` : 'Edit'}
+        title={editing ? t('admin.users.editTitle', { username: editing.username }) : t('admin.users.edit')}
         open={editing !== null}
-        okText="Save"
+        okText={t('common.save')}
         confirmLoading={saving}
         onCancel={() => setEditing(null)}
         onOk={() => void saveUser()}
       >
         {formError ? <Alert type="error" showIcon message={formError} style={{ marginBottom: 16 }} /> : null}
         <Form form={editForm} layout="vertical">
-          <Form.Item label="Role">
+          <Form.Item label={t('admin.users.role')}>
             <Input value={editing?.roleName} disabled />
           </Form.Item>
-          <Form.Item name="nickname" label="Nickname" rules={[{ max: 64, message: 'Nickname is too long.' }]}>
+          <Form.Item
+            name="nickname"
+            label={t('admin.users.nickname')}
+            rules={[{ max: 64, message: t('admin.users.nicknameTooLong') }]}
+          >
             <Input />
           </Form.Item>
-          <Form.Item name="email" label="Email" rules={[{ type: 'email', message: 'Enter a valid email.' }]}>
+          <Form.Item
+            name="email"
+            label={t('admin.users.email')}
+            rules={[{ type: 'email', message: t('admin.users.emailInvalid') }]}
+          >
             <Input />
           </Form.Item>
-          <Form.Item name="major" label="Major" rules={[{ max: 64, message: 'Major is too long.' }]}>
+          <Form.Item
+            name="major"
+            label={t('admin.users.major')}
+            rules={[{ max: 64, message: t('admin.users.majorTooLong') }]}
+          >
             <Input />
           </Form.Item>
-          <Form.Item name="status" label="Status">
+          <Form.Item name="status" label={t('admin.users.colStatus')}>
             <Select
               disabled={editing?.id === currentUser.id}
               options={[
-                { value: 1, label: 'Active' },
-                { value: 0, label: 'Disabled' },
+                { value: 1, label: t('admin.users.active') },
+                { value: 0, label: t('admin.users.disabled') },
               ]}
             />
           </Form.Item>
           {editing?.id === currentUser.id ? (
-            <Typography.Paragraph type="secondary">You cannot disable your own account.</Typography.Paragraph>
+            <Typography.Paragraph type="secondary">{t('admin.users.cannotDisableSelf')}</Typography.Paragraph>
           ) : null}
         </Form>
       </Modal>
 
       <Modal
-        title={resetting ? `Reset password · ${resetting.username}` : 'Reset password'}
+        title={
+          resetting
+            ? t('admin.users.resetPasswordTitle', { username: resetting.username })
+            : t('admin.users.resetPassword')
+        }
         open={resetting !== null}
-        okText="Reset"
+        okText={t('admin.users.resetBtn')}
         confirmLoading={saving}
         onCancel={() => setResetting(null)}
         onOk={() => void savePassword()}
@@ -261,10 +291,10 @@ export function AdminUsersPage() {
         <Form form={passwordForm} layout="vertical">
           <Form.Item
             name="password"
-            label="New password"
+            label={t('admin.users.newPassword')}
             rules={[
-              { required: true, message: 'Enter a password.' },
-              { min: 6, max: 72, message: 'Use 6 to 72 characters.' },
+              { required: true, message: t('admin.users.passwordRequired') },
+              { min: 6, max: 72, message: t('admin.users.passwordLength') },
             ]}
           >
             <Input.Password />

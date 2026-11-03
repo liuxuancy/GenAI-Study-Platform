@@ -1,5 +1,7 @@
 import type { ReactNode } from 'react'
 
+import { getAppLocale } from '@/core/i18n/store'
+import { translateApp } from '@/core/i18n/translateApp'
 import styles from '@/modules/student/StudentHomePage.module.css'
 
 export type CourseCoverKey =
@@ -12,6 +14,31 @@ export type CourseCoverKey =
   | 'java'
   | 'sort'
   | 'introdb'
+  | 'spark'
+  | 'horizon'
+  | 'meadow'
+  | 'dusk'
+  | 'citrus'
+  | 'iris'
+
+/** Palette order for courses without a title keyword match (indexed by course id). */
+export const CYCLE_COVER_KEYS: readonly CourseCoverKey[] = [
+  'notes',
+  'reading',
+  'spark',
+  'horizon',
+  'meadow',
+  'dusk',
+  'citrus',
+  'iris',
+  'line',
+  'java',
+  'sort',
+  'algo',
+  'db',
+  'introdb',
+  'git',
+]
 
 const coverMeta: Record<CourseCoverKey, { label: string; className: string }> = {
   notes: { label: 'STUDY JOURNAL', className: 'coverNotes' },
@@ -23,6 +50,12 @@ const coverMeta: Record<CourseCoverKey, { label: string; className: string }> = 
   java: { label: 'PROGRAMMING', className: 'coverJava' },
   sort: { label: 'ALGORITHMS', className: 'coverSort' },
   introdb: { label: 'DATABASE BASICS', className: 'coverIntrodb' },
+  spark: { label: 'IDEAS & REVIEW', className: 'coverSpark' },
+  horizon: { label: 'OPEN TOPICS', className: 'coverHorizon' },
+  meadow: { label: 'GROWTH PATH', className: 'coverMeadow' },
+  dusk: { label: 'DEEP FOCUS', className: 'coverDusk' },
+  citrus: { label: 'QUICK START', className: 'coverCitrus' },
+  iris: { label: 'EXPLORE MORE', className: 'coverIris' },
 }
 
 const coverSvgs: Record<CourseCoverKey, string> = {
@@ -35,9 +68,20 @@ const coverSvgs: Record<CourseCoverKey, string> = {
   java: `<svg viewBox="0 0 360 160" fill="none"><circle cx="260" cy="70" r="70" fill="#c4d2f5"/><path d="M135 85h109v28c0 22-29 30-56 30s-53-9-53-30z" fill="#fff" stroke="#6077b0" stroke-width="3"/><path d="M244 88h16c27 0 16 39-17 35" stroke="#6077b0" stroke-width="7" stroke-linecap="round"/><path d="M168 74c-29-25 29-32 0-51M200 75c-28-25 29-35 3-58" stroke="#eaa070" stroke-width="4" stroke-linecap="round"/><ellipse cx="190" cy="145" rx="84" ry="7" fill="#9cb1e5"/></svg>`,
   sort: `<svg viewBox="0 0 360 160" fill="none"><circle cx="249" cy="74" r="70" fill="#c2e9d8"/><rect x="105" y="101" width="28" height="32" rx="5" fill="#9dd3b7"/><rect x="143" y="75" width="28" height="58" rx="5" fill="#73bca0"/><rect x="181" y="40" width="28" height="93" rx="5" fill="#439b7d"/><rect x="219" y="58" width="28" height="75" rx="5" fill="#5eaf91"/><path d="M112 54l33-21 27 11 47-24" stroke="#398a71" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/><path d="m211 21 10-3-2 12" stroke="#398a71" stroke-width="4" stroke-linecap="round"/></svg>`,
   introdb: `<svg viewBox="0 0 360 160" fill="none"><circle cx="259" cy="81" r="72" fill="#f1d0ac"/><rect x="106" y="38" width="144" height="87" rx="11" fill="#fff9ef" stroke="#b88e60" stroke-width="3"/><ellipse cx="178" cy="50" rx="60" ry="16" fill="#e7b883" stroke="#b88e60" stroke-width="3"/><path d="M118 50v42c0 9 27 17 60 17s60-8 60-17V50M118 72c0 9 27 17 60 17s60-8 60-17" stroke="#b88e60" stroke-width="3"/><circle cx="271" cy="49" r="12" fill="#e7a775"/><path d="M271 61v40m0 0 19 20m-19-20-22 18" stroke="#c58f67" stroke-width="4"/></svg>`,
+  spark: `<svg viewBox="0 0 360 160" fill="none"><circle cx="258" cy="72" r="68" fill="#f8e4a8"/><path d="M178 34l14 42h45l-36 26 14 42-37-28-37 28 14-42-36-26h45z" fill="#efb840" stroke="#d49a28" stroke-width="2" stroke-linejoin="round"/><circle cx="108" cy="108" r="18" fill="#f5c96a" opacity=".55"/></svg>`,
+  horizon: `<svg viewBox="0 0 360 160" fill="none"><circle cx="268" cy="88" r="62" fill="#b8dff5"/><path d="M72 98h216" stroke="#5a9ec4" stroke-width="3" stroke-linecap="round"/><path d="M72 98c36-28 72-42 108-42s72 14 108 42" fill="#dceefb"/><circle cx="118" cy="52" r="22" fill="#fff4d6" stroke="#e8c87a" stroke-width="2"/></svg>`,
+  meadow: `<svg viewBox="0 0 360 160" fill="none"><circle cx="262" cy="78" r="70" fill="#c8ead4"/><path d="M88 112c24-48 48-8 72-32s48 8 72-16" stroke="#3d8f62" stroke-width="4" stroke-linecap="round"/><circle cx="128" cy="88" r="10" fill="#7bc492"/><circle cx="168" cy="72" r="8" fill="#5daf78"/><circle cx="208" cy="92" r="9" fill="#7bc492"/></svg>`,
+  dusk: `<svg viewBox="0 0 360 160" fill="none"><circle cx="255" cy="70" r="72" fill="#d4c8f0"/><path d="M96 108h168" stroke="#6b52a8" stroke-width="3"/><circle cx="180" cy="58" r="28" fill="#8f72c9" opacity=".85"/><circle cx="148" cy="44" r="6" fill="#fff" opacity=".7"/><circle cx="212" cy="38" r="4" fill="#fff" opacity=".5"/></svg>`,
+  citrus: `<svg viewBox="0 0 360 160" fill="none"><circle cx="260" cy="76" r="70" fill="#ffe8b8"/><circle cx="168" cy="78" r="42" fill="#ffb84d" stroke="#e6952e" stroke-width="3"/><path d="M168 36v12M168 108v12M126 78h-12M222 78h12" stroke="#e6952e" stroke-width="3" stroke-linecap="round"/><path d="M168 36c8-10 18-6 22 4" stroke="#5a9e4a" stroke-width="4" stroke-linecap="round"/></svg>`,
+  iris: `<svg viewBox="0 0 360 160" fill="none"><circle cx="258" cy="74" r="70" fill="#cdd9fb"/><ellipse cx="172" cy="78" rx="52" ry="36" fill="#8fa8ef" opacity=".75"/><ellipse cx="172" cy="78" rx="28" ry="20" fill="#5c78d6"/><circle cx="172" cy="78" r="8" fill="#fef6d8"/></svg>`,
 }
 
-export function resolveCourseCoverKey(title: string, description = ''): CourseCoverKey {
+function cycleCoverKeyFromId(courseId: number): CourseCoverKey {
+  const index = Math.abs(Math.trunc(courseId)) % CYCLE_COVER_KEYS.length
+  return CYCLE_COVER_KEYS[index]!
+}
+
+export function resolveCourseCoverKey(title: string, description = '', courseId?: number): CourseCoverKey {
   const text = `${title} ${description}`.toLowerCase()
   const name = title.trim().toLowerCase()
 
@@ -50,7 +94,12 @@ export function resolveCourseCoverKey(title: string, description = ''): CourseCo
   if (/lecture|how a lecture/.test(text)) return 'reading'
   if (/shared line|asking on a line/.test(text)) return 'line'
   if (/notes/.test(text)) return 'notes'
-  return 'notes'
+
+  if (courseId != null && Number.isFinite(courseId)) {
+    return cycleCoverKeyFromId(courseId)
+  }
+
+  return CYCLE_COVER_KEYS[0]!
 }
 
 const dashboardAccent: Record<CourseCoverKey, { color: string; symbol: string }> = {
@@ -63,37 +112,39 @@ const dashboardAccent: Record<CourseCoverKey, { color: string; symbol: string }>
   java: { color: '#c4d2f5', symbol: '☕' },
   sort: { color: '#c2e9d8', symbol: '▥' },
   introdb: { color: '#f1d0ac', symbol: '▤' },
+  spark: { color: '#f8e4a8', symbol: '★' },
+  horizon: { color: '#dceefb', symbol: '☀' },
+  meadow: { color: '#c8ead4', symbol: '❀' },
+  dusk: { color: '#d4c8f0', symbol: '◐' },
+  citrus: { color: '#ffe8b8', symbol: '◎' },
+  iris: { color: '#cdd9fb', symbol: '◉' },
 }
 
-export function courseDashboardAccent(title: string, description = '') {
-  const key = resolveCourseCoverKey(title, description)
+export function courseDashboardAccent(title: string, description = '', courseId?: number) {
+  const key = resolveCourseCoverKey(title, description, courseId)
   return dashboardAccent[key]
 }
 
-export function courseTopicLabel(title: string, description = '') {
-  const key = resolveCourseCoverKey(title, description)
-  const topics: Record<CourseCoverKey, string> = {
-    notes: '个人学习',
-    reading: '阅读与理解',
-    git: '版本控制',
-    db: '数据库系统',
-    algo: '算法与结构',
-    line: '课堂笔记',
-    java: 'Java 开发',
-    sort: '排序算法',
-    introdb: '数据入门',
-  }
-  return topics[key]
+export function courseTopicLabel(
+  title: string,
+  description = '',
+  locale = getAppLocale(),
+  courseId?: number,
+) {
+  const key = resolveCourseCoverKey(title, description, courseId)
+  return translateApp(locale, `student.coverTopics.${key}`)
 }
 
 export function CourseCover({
   title,
   description,
+  courseId,
 }: {
   title: string
   description?: string
+  courseId?: number
 }) {
-  const key = resolveCourseCoverKey(title, description)
+  const key = resolveCourseCoverKey(title, description, courseId)
   const meta = coverMeta[key]
   const toneClass = styles[meta.className as keyof typeof styles]
 
@@ -105,13 +156,21 @@ export function CourseCover({
         aria-hidden="true"
         dangerouslySetInnerHTML={{ __html: coverSvgs[key] }}
       />
-      <div className={styles.coverBottom}>{courseTopicLabel(title, description)}</div>
+      <div className={styles.coverBottom}>{courseTopicLabel(title, description, getAppLocale(), courseId)}</div>
     </div>
   )
 }
 
-export function FeaturedHeroArt({ title, description }: { title: string; description?: string }) {
-  const key = resolveCourseCoverKey(title, description)
+export function FeaturedHeroArt({
+  title,
+  description,
+  courseId,
+}: {
+  title: string
+  description?: string
+  courseId?: number
+}) {
+  const key = resolveCourseCoverKey(title, description, courseId)
 
   if (key === 'git') {
     return (
@@ -149,7 +208,7 @@ export function FeaturedHeroArt({ title, description }: { title: string; descrip
         className={styles.heroIllustration}
         dangerouslySetInnerHTML={{ __html: coverSvgs[key] }}
       />
-      <div className={styles.heroBadge}>{courseTopicLabel(title, description)}</div>
+      <div className={styles.heroBadge}>{courseTopicLabel(title, description, getAppLocale(), courseId)}</div>
     </div>
   )
 }

@@ -1,4 +1,6 @@
 import { http, uploadForm } from '@/core/http'
+import { getAppLocale } from '@/core/i18n/store'
+import { translateApp } from '@/core/i18n/translateApp'
 import type { CourseChapter, CourseContent } from '@/modules/teacher/api'
 
 export interface CourseResourceItem {
@@ -103,8 +105,8 @@ export function formatFileSize(bytes: number): string {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
 }
 
-export function scopeLabel(item: CourseResourceItem, content: CourseContent | null): string {
-  if (item.scopeType === 'course') return '整门课程'
+export function scopeLabel(item: CourseResourceItem, content: CourseContent | null, locale = getAppLocale()): string {
+  if (item.scopeType === 'course') return translateApp(locale, 'courseResources.scopeWholeCourse')
   const chapter = content?.chapters.find((ch) => ch.key === item.chapterKey)
   if (item.scopeType === 'chapter') return chapter?.title ?? item.chapterKey
   const activity = chapter?.activities.find((a) => a.key === item.sectionKey)

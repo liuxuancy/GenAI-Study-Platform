@@ -1,3 +1,6 @@
+import { getAppLocale } from '@/core/i18n/store'
+import { translateApp } from '@/core/i18n/translateApp'
+
 // 请求封装：自动带上 token，解开后端的 {code, msg, data}，失败时抛出 ApiError。
 // 收到 401 时通知登录状态退出，页面随之跳回登录页。
 
@@ -53,7 +56,7 @@ export async function request<T>(method: HttpMethod, path: string, body?: unknow
       body: body === undefined ? undefined : JSON.stringify(body),
     })
   } catch {
-    throw new ApiError(0, 'Network error: is the backend running?')
+    throw new ApiError(0, translateApp(getAppLocale(), 'http.networkError'))
   }
 
   const result = await parseResult<T>(response)

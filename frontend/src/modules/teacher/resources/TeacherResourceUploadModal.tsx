@@ -2,12 +2,14 @@ import { useEffect, useMemo, useState } from 'react'
 import { Form, Modal, Progress, Radio, Select, Upload, message } from 'antd'
 import { InboxOutlined } from '@ant-design/icons'
 
+import { useI18n } from '@/core/i18n/useI18n'
 import {
   publishTeacherCourseResource,
   uploadTeacherCourseResource,
 } from '@/modules/courseResources/api'
 import { mapCourseResourceError } from '@/modules/courseResources/errors'
 import type { CourseContent } from '@/modules/teacher/api'
+import { buildTeacherResourceScopeOptions } from './teacherResourceScopeOptions'
 import styles from './teacherResources.module.css'
 
 interface Props {
@@ -24,26 +26,6 @@ interface QueueItem {
   percent: number
   status: 'pending' | 'uploading' | 'done' | 'error'
   error?: string
-}
-
-function buildScopeOptions(content: CourseContent | null): { value: string; label: string }[] {
-  const chapters = content?.chapters ?? []
-  const options: { value: string; label: string }[] = [
-    { value: 'course', label: '整门课程 · 公共资料' },
-  ]
-  chapters.forEach((ch, index) => {
-    options.push({
-      value: `chapter:${ch.key}`,
-      label: `第 ${index + 1} 章 · ${ch.title}`,
-    })
-    ch.activities.forEach((act) => {
-      options.push({
-        value: `section:${ch.key}:${act.key}`,
-        label: `${ch.title} · ${act.title}`,
-      })
-    })
-  })
-  return options
 }
 
 function parseScope(value: string): {
@@ -65,12 +47,13 @@ function parseScope(value: string): {
 }
 
 export function TeacherResourceUploadModal({ open, courseId, content, onClose, onUploaded }: Props) {
+  const { t } = useI18n()
   const [scopeValue, setScopeValue] = useState('course')
   const [publishOnUpload, setPublishOnUpload] = useState<'draft' | 'published'>('draft')
   const [queue, setQueue] = useState<QueueItem[]>([])
   const [submitting, setSubmitting] = useState(false)
 
-  const scopeOptions = useMemo(() => buildScopeOptions(content), [content])
+  const scopeOptions = useMemo(() => buildTeacherResourceScopeOptions(content, t), [content, t])
 
   useEffect(() => {
     if (!open) {
@@ -83,10 +66,10 @@ export function TeacherResourceUploadModal({ open, courseId, content, onClose, o
   async function uploadOne(item: QueueItem) {
     const { scopeType, chapterKey, sectionKey } = parseScope(scopeValue)
     if (scopeType === 'chapter' && !chapterKey) {
-      throw new Error('请选择章节')
+      throw new Error(t('courseResources.uploadModal.selectChapter'))
     }
     if (scopeType === 'section' && (!chapterKey || !sectionKey)) {
-      throw new Error('请选择小节')
+      throw new Error(t('courseResources.uploadModal.selectSection'))
     }
 
     const form = new FormData()
@@ -105,7 +88,7 @@ export function TeacherResourceUploadModal({ open, courseId, content, onClose, o
       }
       setQueue((q) => q.map((row) => (row.uid === item.uid ? { ...row, status: 'done', percent: 100 } : row)))
     } catch (error) {
-      const msg = mapCourseResourceError(error, '上传失败')
+      const msg = mapCourseResourceError(error, t('courseResources.uploadModal.uploadFailed'))
       setQueue((q) =>
         q.map((row) => (row.uid === item.uid ? { ...row, status: 'error', error: msg } : row)),
       )
@@ -115,7 +98,7 @@ export function TeacherResourceUploadModal({ open, courseId, content, onClose, o
 
   async function handleOk() {
     if (queue.length === 0) {
-      message.warning('请先选择文件')
+      message.warning(t('courseResources.uploadModal.pickFiles'))
       return
     }
     const pending = queue.filter((row) => row.status !== 'done')
@@ -128,11 +111,11 @@ export function TeacherResourceUploadModal({ open, courseId, content, onClose, o
       for (const item of pending) {
         await uploadOne(item)
       }
-      message.success('上传完成')
+      message.success(t('courseResources.uploadModal.uploadDone'))
       setQueue([])
       onUploaded()
     } catch {
-      message.error('部分文件上传失败，请查看下方错误说明后重试')
+      message.error(t('courseResources.uploadModal.partialFailed'))
     } finally {
       setSubmitting(false)
     }
@@ -140,10 +123,10 @@ export function TeacherResourceUploadModal({ open, courseId, content, onClose, o
 
   return (
     <Modal
-      title="上传课程资料"
+      title={t('courseResources.uploadModal.title')}
       open={open}
       width={650}
-      okText="开始上传"
+      okText={t('courseResources.uploadModal.okText')}
       confirmLoading={submitting}
       onCancel={() => {
         if (!submitting) onClose()
@@ -162,8 +145,8 @@ export function TeacherResourceUploadModal({ open, courseId, content, onClose, o
         <p className="ant-upload-drag-icon">
           <InboxOutlined style={{ color: '#c84d38' }} />
         </p>
-        <p className="ant-upload-text">拖拽文件到这里，或点击选择文件</p>
-        <p className="ant-upload-hint">支持 PDF、PPTX、DOCX、XLSX、ZIP 等格式</p>
+        <p className="ant-upload-text">{t('courseResources.uploadModal.dragText')}</p>
+        <p className="ant-upload-hint">{t('courseResources.uploadModal.dragHint')}</p>
       </Upload.Dragger>
 
       {queue.length > 0 ? (
@@ -193,19 +176,20 @@ export function TeacherResourceUploadModal({ open, courseId, content, onClose, o
       ) : null}
 
       <Form layout="vertical" style={{ marginTop: 16 }}>
-        <Form.Item label="资料所属位置">
+        <Form.Item label={t('courseResources.uploadModal.scopeLabel')}>
           <Select value={scopeValue} onChange={setScopeValue} options={scopeOptions} />
         </Form.Item>
-        <Form.Item label="发布设置">
+        <Form.Item label={t('courseResources.uploadModal.publishLabel')}>
           <Radio.Group
             value={publishOnUpload}
             onChange={(e) => setPublishOnUpload(e.target.value)}
           >
             <Radio value="draft">
-              <strong>暂不发布</strong> · 仅教师可以查看和预览
+              <strong>{t('courseResources.uploadModal.draftTitle')}</strong> · {t('courseResources.uploadModal.draftDesc')}
             </Radio>
             <Radio value="published" style={{ display: 'block', marginTop: 8 }}>
-              <strong>立即发布</strong> · 学生可以查看和下载
+              <strong>{t('courseResources.uploadModal.publishedTitle')}</strong> ·{' '}
+              {t('courseResources.uploadModal.publishedDesc')}
             </Radio>
           </Radio.Group>
         </Form.Item>
@@ -221,7 +205,7 @@ export function TeacherResourceUploadModal({ open, courseId, content, onClose, o
           lineHeight: 1.7,
         }}
       >
-        文件经后端鉴权后写入私有对象存储；上传失败不会写入课程资料列表。
+        {t('courseResources.uploadModal.storageNote')}
       </div>
     </Modal>
   )

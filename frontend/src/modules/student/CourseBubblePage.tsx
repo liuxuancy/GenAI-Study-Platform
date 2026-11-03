@@ -6,6 +6,8 @@ import { Alert, Form, Input, InputNumber, Modal, Select, Typography } from 'antd
 import { useAiProviderSelect } from '@/core/ai/useAiProviderSelect'
 import type { AiGenerationMeta, GenerateCourseRequest } from '@/core/api/ai'
 import { useAuthStore } from '@/core/auth/store'
+import { LanguageSwitcher } from '@/core/i18n/LanguageSwitcher'
+import { useI18n } from '@/core/i18n/useI18n'
 import {
   generateStudentCourse,
   getStudentCourse,
@@ -13,6 +15,7 @@ import {
   updateStudentCourseProgress,
   type StudentCourseDetail,
 } from '@/modules/student/api'
+import { CourseBubbleMap } from '@/modules/student/CourseBubbleMap'
 import type { BubbleNode } from '@/modules/student/bubbleTree'
 import { activityLabel, chapterBadgeLabel, CourseMarkdownBody, useActivityNeighbors } from '@/modules/student/courseContentView'
 import { AiAssistantPanel } from '@/modules/student/learning/AiAssistantPanel'
@@ -47,7 +50,7 @@ import {
 } from '@/modules/student/learning/workspaceLayout'
 import { useCourseLearningHeartbeat } from '@/modules/student/learning/useCourseLearningHeartbeat'
 
-type CourseViewTab = 'learn' | 'resources'
+type CourseViewTab = 'learn' | 'resources' | 'map'
 
 function resourceContentFromTree(
   tree: BubbleNode,
@@ -80,6 +83,7 @@ function resourceContentFromTree(
 }
 
 export function CourseBubblePage() {
+  const { t } = useI18n()
   const { courseId } = useParams()
   const currentUser = useAuthStore((state) => state.currentUser)
   const [course, setCourse] = useState<StudentCourseDetail | null>(null)
@@ -144,7 +148,7 @@ export function CourseBubblePage() {
         visibility: result.shared ? 'class' : 'private',
       })
     } catch (error) {
-      setShareError(error instanceof Error ? error.message : 'Could not update sharing.')
+      setShareError(error instanceof Error ? error.message : t('student.bubble.shareUpdateFailed'))
     } finally {
       setSharing(false)
     }
@@ -161,7 +165,7 @@ export function CourseBubblePage() {
       setCourse(result.course)
       setGenerateMeta(result.meta)
     } catch (error) {
-      setGenerateError(error instanceof Error ? error.message : '课程生成失败。')
+      setGenerateError(error instanceof Error ? error.message : t('student.bubble.generateFailed'))
     } finally {
       setGenerating(false)
     }
@@ -172,17 +176,18 @@ export function CourseBubblePage() {
       <header className={styles.topBar}>
         <div className={styles.topLeft}>
           <Link className={styles.backLink} to="/student">
-            CaveClass
+            {t('common.brandName')}
           </Link>
           <span className={styles.topSep}>/</span>
-          <span className={styles.courseTitle}>{course?.title ?? '加载中…'}</span>
+          <span className={styles.courseTitle}>{course?.title ?? t('common.loading')}</span>
         </div>
         <div className={styles.topActions}>
+          <LanguageSwitcher compact />
           {course?.owned ? (
             <>
               <span className={styles.aiModel}>AI {aiProviderSelector}</span>
               <button className={styles.ghostBtn} type="button" disabled={sharing} onClick={() => void toggleSharing()}>
-                {course.shared ? '改为仅自己' : '对同班公开'}
+                {course.shared ? t('student.bubble.sharePrivate') : t('student.bubble.sharePublic')}
               </button>
               <button
                 className={styles.ghostBtn}
@@ -201,7 +206,11 @@ export function CourseBubblePage() {
                   setGenerateOpen(true)
                 }}
               >
-                {generating ? '生成中…' : course?.tree ? '重新生成整课' : 'AI 生成整课'}
+                {generating
+                  ? t('student.bubble.generating')
+                  : course?.tree
+                    ? t('student.bubble.regenerate')
+                    : t('student.bubble.generate')}
               </button>
             </>
           ) : null}
@@ -213,12 +222,12 @@ export function CourseBubblePage() {
       {generateError ? <p className={styles.bannerError}>{generateError}</p> : null}
       {aiProviderError ? <p className={styles.bannerError}>{aiProviderError}</p> : null}
       {course?.owned && course.shared && course.classmateCount === 0 ? (
-        <p className={styles.bannerNote}>这门课已对同班同学公开，但你还没有同班同学，所以暂时没有其他人能看到。</p>
+        <p className={styles.bannerNote}>{t('student.bubble.sharedEmpty')}</p>
       ) : null}
 
       {course ? (
         <>
-          <nav className={styles.viewTabs} aria-label="课程视图">
+          <nav className={styles.viewTabs} aria-label={t('student.bubble.viewTabsAria')}>
             <button
               type="button"
               role="tab"
@@ -226,7 +235,7 @@ export function CourseBubblePage() {
               className={courseViewTab === 'learn' ? styles.viewTabActive : styles.viewTab}
               onClick={() => setCourseViewTab('learn')}
             >
-              课程学习
+              {t('student.bubble.tabLearn')}
             </button>
             <button
               type="button"
@@ -235,7 +244,16 @@ export function CourseBubblePage() {
               className={courseViewTab === 'resources' ? styles.viewTabActive : styles.viewTab}
               onClick={() => setCourseViewTab('resources')}
             >
-              课程资料
+              {t('student.bubble.tabResources')}
+            </button>
+            <button
+              type="button"
+              role="tab"
+              aria-selected={courseViewTab === 'map'}
+              className={courseViewTab === 'map' ? styles.viewTabActive : styles.viewTab}
+              onClick={() => setCourseViewTab('map')}
+            >
+              {t('student.bubble.tabMap')}
             </button>
           </nav>
           {course.tree ? (
@@ -254,21 +272,26 @@ export function CourseBubblePage() {
             <div className={styles.resourcesStandalone}>
               <StudentCourseResourcesPanel courseId={course.id} />
             </div>
+          ) : courseViewTab === 'map' ? (
+            <div className={styles.mapEmpty}>
+              <strong>{t('student.bubble.noChaptersTitle')}</strong>
+              <p>{t('student.bubble.mapEmptyDesc')}</p>
+            </div>
           ) : (
             <div className={styles.emptyState}>
-              <strong>这门课还没有章节</strong>
-              <p>请使用「AI 生成整课」创建章节内容，或等待教师发布完整课程。</p>
+              <strong>{t('student.bubble.noChaptersTitle')}</strong>
+              <p>{t('student.bubble.learnEmptyDesc')}</p>
             </div>
           )}
         </>
       ) : (
-        <div className={styles.loadingState}>正在加载课程…</div>
+        <div className={styles.loadingState}>{t('student.bubble.loadingCourse')}</div>
       )}
 
       <Modal
-        title="AI 生成整课"
+        title={t('student.bubble.generateModalTitle')}
         open={generateOpen}
-        okText={generating ? '生成中…' : '生成内容'}
+        okText={generating ? t('student.bubble.generating') : t('student.bubble.generateOk')}
         confirmLoading={generating}
         okButtonProps={{ disabled: !aiOptionsAvailable }}
         onCancel={() => setGenerateOpen(false)}
@@ -278,32 +301,36 @@ export function CourseBubblePage() {
       >
         {generateError ? <Alert type="error" showIcon message={generateError} style={{ marginBottom: 16 }} /> : null}
         {generateMeta ? <StudentGenerationMeta meta={generateMeta} /> : null}
-        <Typography.Paragraph type="secondary">将替换当前整课内容，请按学习目标补充生成要求。</Typography.Paragraph>
+        <Typography.Paragraph type="secondary">{t('student.bubble.generateReplaceHint')}</Typography.Paragraph>
         <Form form={generateForm} layout="vertical">
-          <Form.Item name="topic" label="主题" rules={[{ required: true, whitespace: true, message: '请输入课程主题' }]}>
+          <Form.Item
+            name="topic"
+            label={t('ai.generate.topic')}
+            rules={[{ required: true, whitespace: true, message: t('ai.generate.topicRequired') }]}
+          >
             <Input maxLength={200} />
           </Form.Item>
-          <Form.Item name="audience" label="受众">
+          <Form.Item name="audience" label={t('ai.generate.audience')}>
             <Select
               options={[
-                { value: 'GENERAL', label: '通用' },
-                { value: 'CS', label: '计算机专业' },
-                { value: 'NON_CS', label: '非计算机专业' },
+                { value: 'GENERAL', label: t('ai.generate.audienceGeneral') },
+                { value: 'CS', label: t('ai.generate.audienceCs') },
+                { value: 'NON_CS', label: t('ai.generate.audienceNonCs') },
               ]}
             />
           </Form.Item>
-          <Form.Item name="language" label="语言">
+          <Form.Item name="language" label={t('ai.generate.language')}>
             <Select
               options={[
-                { value: 'zh-CN', label: '简体中文' },
-                { value: 'en-US', label: 'English' },
+                { value: 'zh-CN', label: t('ai.generate.langZh') },
+                { value: 'en-US', label: t('ai.generate.langEn') },
               ]}
             />
           </Form.Item>
-          <Form.Item name="chapterCountHint" label="期望章节数">
+          <Form.Item name="chapterCountHint" label={t('ai.generate.chapterCountHint')}>
             <InputNumber min={1} max={20} style={{ width: '100%' }} />
           </Form.Item>
-          <Form.Item name="extraRequirements" label="补充要求">
+          <Form.Item name="extraRequirements" label={t('ai.generate.extraRequirements')}>
             <Input.TextArea rows={3} maxLength={2000} showCount />
           </Form.Item>
         </Form>
@@ -313,15 +340,18 @@ export function CourseBubblePage() {
 }
 
 function StudentGenerationMeta({ meta }: { meta: AiGenerationMeta }) {
-  const summary = [`耗时 ${meta.latencyMs} ms`]
-  if (meta.modelUsed) summary.push(`模型 ${meta.modelUsed}`)
-  if (meta.fallbackUsed) summary.push('已使用备用模型')
+  const { t } = useI18n()
+  const summary = [t('ai.generate.metaLatency', { ms: meta.latencyMs })]
+  if (meta.modelUsed) summary.push(t('ai.generate.metaModel', { model: meta.modelUsed }))
+  if (meta.fallbackUsed) summary.push(t('ai.generate.metaFallback'))
   return (
     <Alert
       type={meta.warnings.length || meta.fallbackUsed ? 'warning' : 'success'}
       showIcon
-      message={summary.join(' · ')}
-      description={meta.warnings.length ? meta.warnings.join('；') : '内容生成完成'}
+      message={summary.join(t('ai.generate.summaryJoin'))}
+      description={
+        meta.warnings.length ? meta.warnings.join(t('ai.generate.warningJoin')) : t('ai.generate.complete')
+      }
       style={{ marginBottom: 16 }}
     />
   )
@@ -346,6 +376,7 @@ function CourseWorkspace({
   viewTab: CourseViewTab
   resourceContent: CourseContent
 }) {
+  const { t } = useI18n()
   const chapters = useMemo(() => listChapters(tree), [tree])
   const activities = useMemo(() => flattenActivities(tree), [tree])
   const activityIds = useMemo(() => activities.map((item) => item.id), [activities])
@@ -451,12 +482,13 @@ function CourseWorkspace({
   }, [syllabusCollapsed])
 
   const resourcesView = viewTab === 'resources'
+  const mapView = viewTab === 'map'
   const collapsed = syllabusCollapsed && !narrow
   const syllabusTrack = collapsed ? 0 : syllabusWidth
   const available = Math.max(0, paneWidth - syllabusTrack)
   const aiWidth = aiPixelWidth(aiRatio, available)
   ratioRef.current = available > separatorWidth ? aiWidth / (available - separatorWidth) : aiRatio
-  const showAiPane = !resourcesView && !narrow
+  const showAiPane = viewTab === 'learn' && !narrow
 
   function rememberRatio(next: number) {
     const safe = clampAiRatio(next)
@@ -489,7 +521,7 @@ function CourseWorkspace({
   const sectionDone = Boolean(activityId && doneIds.has(activityId))
   const primary = activityId
     ? lessonPrimaryAction(activityId, activities, sectionDone)
-    : { label: '完成并学习下一节 →', action: 'complete-next' as const, disabled: false }
+    : { label: t('student.lesson.completeNext'), action: 'complete-next' as const, disabled: false }
   const nextChapterActivity = activityId ? firstActivityOfNextChapter(activityId, activities) : null
   const showFinishNote =
     Boolean(activeChapter?.node.questionId) &&
@@ -512,7 +544,7 @@ function CourseWorkspace({
         // 浏览器拒绝本地存储时，本次会话里的勾选仍然保留。
       }
     } catch (error) {
-      setDoneError(error instanceof Error ? error.message : '进度保存失败，请重试。')
+      setDoneError(error instanceof Error ? error.message : t('student.bubble.progressSaveFailed'))
       throw error
     } finally {
       setSaving(false)
@@ -624,11 +656,19 @@ function CourseWorkspace({
     })
   }
 
+  if (mapView) {
+    return (
+      <div className={styles.mapWorkspace}>
+        <CourseBubbleMap tree={tree} embedded />
+      </div>
+    )
+  }
+
   return (
     <div className={styles.workspace}>
       {resourcesView ? null : (
         <div className={styles.progressStrip}>
-          <span>学习进度 {percent}%</span>
+          <span>{t('student.bubble.progress', { percent })}</span>
           <div className={styles.progressTrack} aria-hidden="true">
             <span className={styles.progressFill} style={{ width: `${percent}%` }} />
           </div>
@@ -636,7 +676,7 @@ function CourseWorkspace({
       )}
 
       <div
-        className={`${styles.columns}${dragging ? ` ${styles.columnsDragging}` : ''}${resourcesView ? ` ${styles.columnsResources}` : ''}`}
+        className={`${styles.columns}${dragging ? ` ${styles.columnsDragging}` : ''}${resourcesView ? ` ${styles.columnsResources}` : ''}${collapsed && !narrow ? ` ${styles.columnsSyllabusCollapsed}` : ''}`}
         ref={columnsRef}
         style={
           narrow || paneWidth <= 0
@@ -657,13 +697,13 @@ function CourseWorkspace({
         }
       >
         {collapsed ? null : (
-        <aside className={styles.syllabus} aria-label="课程目录">
+        <aside className={styles.syllabus} aria-label={t('student.bubble.syllabusAria')}>
           <div className={styles.syllabusHead}>
-            {collapsed ? null : <h2>课程目录</h2>}
+            {collapsed ? null : <h2>{t('student.bubble.syllabusTitle')}</h2>}
             <button
               className={styles.collapseBtn}
               type="button"
-              aria-label="收起目录"
+              aria-label={t('student.bubble.collapseSyllabus')}
               aria-expanded="true"
               onClick={toggleSyllabus}
             >
@@ -693,7 +733,7 @@ function CourseWorkspace({
                     ) : null}
                   </button>
                   {expanded && sections.length > 0 ? (
-                    <ul className={styles.sectionList} aria-label={`${chapter.node.label} 小节`}>
+                    <ul className={styles.sectionList} aria-label={t('student.bubble.sectionsAria', { chapter: chapter.node.label })}>
                       {sections.map((item, index) => (
                         <li key={item.id}>
                           <button
@@ -705,7 +745,7 @@ function CourseWorkspace({
                             <span className={styles.sectionIndex}>{index + 1}</span>
                             <span className={styles.sectionName}>{item.node.label}</span>
                             {doneIds.has(item.id) ? (
-                              <span className={styles.sectionDone} aria-label="已完成">
+                              <span className={styles.sectionDone} aria-label={t('student.bubble.sectionDoneAria')}>
                                 ✓
                               </span>
                             ) : null}
@@ -725,7 +765,7 @@ function CourseWorkspace({
         <main className={styles.contentPane}>
           {collapsed ? (
             <div className={styles.contentTools}>
-              <button className={styles.collapseBtn} type="button" aria-label="展开目录" onClick={toggleSyllabus}>
+              <button className={styles.collapseBtn} type="button" aria-label={t('student.bubble.expandSyllabus')} onClick={toggleSyllabus}>
                 ›
               </button>
             </div>
@@ -738,7 +778,7 @@ function CourseWorkspace({
             <>
               <div className={styles.contentScroll} ref={contentRef} onMouseUp={onContentMouseUp}>
                 <div className={styles.reading}>
-                <p className={styles.contentKicker}>CURRENT CHAPTER</p>
+                <p className={styles.contentKicker}>{t('student.bubble.currentChapterKicker')}</p>
                 <h1 className={styles.contentTitle}>{activeActivity.node.label}</h1>
                 <p className={styles.contentChapter}>{activeChapter.node.label}</p>
                 {activeActivity.node.activityType ? (
@@ -754,7 +794,7 @@ function CourseWorkspace({
 
                 {activeChapter.node.questionId ? (
                   <Link className={styles.quizLink} to={`/student/questions/${activeChapter.node.questionId}`}>
-                    进入本章测验
+                    {t('student.bubble.chapterQuiz')}
                   </Link>
                 ) : null}
                 </div>
@@ -772,7 +812,7 @@ function CourseWorkspace({
                       window.getSelection()?.removeAllRanges()
                     }}
                   >
-                    AI 解释
+                    {t('student.bubble.aiExplain')}
                   </button>
                 ) : null}
               </div>
@@ -781,10 +821,10 @@ function CourseWorkspace({
                 {doneError ? <p className={styles.doneError}>{doneError}</p> : null}
                 {showCourseDone || showFinishNote ? (
                   <div className={styles.finishNote}>
-                    {showCourseDone ? <p>你已学完这门课的全部小节。</p> : null}
+                    {showCourseDone ? <p>{t('student.bubble.courseComplete')}</p> : null}
                     {showFinishNote && activeChapter.node.questionId ? (
                       <Link className={styles.quizLink} to={`/student/questions/${activeChapter.node.questionId}`}>
-                        进入本章测验
+                        {t('student.bubble.chapterQuiz')}
                       </Link>
                     ) : null}
                   </div>
@@ -796,7 +836,7 @@ function CourseWorkspace({
                     disabled={!prev || saving}
                     onClick={() => prev && selectActivity(prev)}
                   >
-                    上一节
+                    {t('student.bubble.prevSection')}
                   </button>
                   <button
                     type="button"
@@ -804,13 +844,13 @@ function CourseWorkspace({
                     disabled={saving || primary.disabled}
                     onClick={() => void completeAndContinue()}
                   >
-                    {saving ? '保存中…' : primary.label}
+                    {saving ? t('student.bubble.saving') : primary.label}
                   </button>
                 </div>
               </div>
             </>
           ) : (
-            <p className={styles.emptyLesson}>本章暂无活动内容。</p>
+            <p className={styles.emptyLesson}>{t('student.bubble.emptyLesson')}</p>
           )}
         </main>
 
@@ -819,7 +859,7 @@ function CourseWorkspace({
             className={styles.paneSplit}
             role="separator"
             aria-orientation="vertical"
-            aria-label="调整正文和 AI 助手宽度"
+            aria-label={t('student.bubble.resizeSplitAria')}
             aria-valuemin={15}
             aria-valuemax={70}
             aria-valuenow={Math.round(ratioRef.current * 100)}

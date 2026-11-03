@@ -15,9 +15,11 @@ type Usage struct {
 }
 
 // Request 是一次补全请求。Model 为空时使用配置里的主模型。
+// JSONResponse 为 true 时，OpenAI 兼容客户端会要求模型返回 json_object（仅用于课程等结构化生成）。
 type Request struct {
-	Model  string
-	Prompt string
+	Model        string
+	Prompt       string
+	JSONResponse bool
 }
 
 // Response 是模型原文，尚未解析成课程。FallbackUsed 表示这次成功来自备用模型。

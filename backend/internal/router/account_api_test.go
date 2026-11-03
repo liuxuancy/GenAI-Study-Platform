@@ -32,6 +32,14 @@ func TestLoginWithEveryTestAccount(t *testing.T) {
 	server.login(t, "  ADMIN ", "admin123") // 用户名不区分大小写，前后空格会去掉
 }
 
+func TestLoginWithEmail(t *testing.T) {
+	server := newTestServer(t)
+	testutil.MustExec(t, server.database,
+		"UPDATE sys_user SET email = ? WHERE username = ?", "student1@caveclass.local", "student1")
+	server.login(t, "student1@caveclass.local", "student123")
+	server.login(t, "  Student1@Caveclass.Local  ", "student123")
+}
+
 // 用户不存在和密码错误返回完全相同的结果，不泄露用户名是否存在。
 func TestLoginFailuresLookTheSame(t *testing.T) {
 	server := newTestServer(t)

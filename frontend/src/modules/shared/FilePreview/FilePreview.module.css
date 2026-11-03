@@ -64,6 +64,11 @@
   padding: 16px;
 }
 
+/** Tall scroll content (PDF pages): flex vertical centering breaks scroll-to-top. */
+.bodyScrollStart {
+  align-items: flex-start;
+}
+
 .frame {
   width: 100%;
   height: 100%;

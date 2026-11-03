@@ -1,18 +1,12 @@
 import { Link } from 'react-router-dom'
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 
 import { CourseMarkdownBody } from '@/modules/student/courseContentView'
+import { useI18n } from '@/core/i18n/useI18n'
 import {
   askStudentChapter,
 } from '@/modules/student/api'
 import styles from '@/modules/student/CourseBubblePage.module.css'
-
-const shortcuts = [
-  { label: '章节总结', prompt: '请用简洁的中文总结当前章节的核心要点。' },
-  { label: '知识点解释', prompt: '请解释当前章节里最重要的概念，并给一个例子。' },
-  { label: '生成练习', prompt: '请根据当前章节内容出 3 道练习题，并给出参考答案。这些练习只用于本次对话，不要当作正式测验。' },
-  { label: '提问答疑', prompt: '' },
-] as const
 
 interface ChatMessage {
   id: string
@@ -79,6 +73,17 @@ export function AiAssistantPanel({
   selectedExcerpt: string
   explainRequest: { id: number; text: string } | null
 }) {
+  const { t } = useI18n()
+  const shortcuts = useMemo(
+    () =>
+      [
+        { id: 'summary', label: t('student.aiAssistant.quickSummary'), prompt: t('student.aiAssistant.promptSummary') },
+        { id: 'explain', label: t('student.aiAssistant.quickExplain'), prompt: t('student.aiAssistant.promptExplain') },
+        { id: 'practice', label: t('student.aiAssistant.quickPractice'), prompt: t('student.aiAssistant.promptPractice') },
+        { id: 'ask', label: t('student.aiAssistant.quickAsk'), prompt: '' },
+      ] as const,
+    [t],
+  )
   const [messages, setMessages] = useState<ChatItem[]>([])
   const [draft, setDraft] = useState('')
   const [sending, setSending] = useState(false)
@@ -95,7 +100,7 @@ export function AiAssistantPanel({
   const lastExplainId = useRef(0)
   const sendRef = useRef<(question: string, options?: SendOptions) => void>(() => {})
 
-  const lessonLabel = sectionTitle || chapterTitle || '当前章节'
+  const lessonLabel = sectionTitle || chapterTitle || t('student.aiAssistant.currentSection')
 
   function commit(next: ChatItem[]) {
     messagesRef.current = next
@@ -147,7 +152,7 @@ export function AiAssistantPanel({
         return
       }
       commit(markLastUser(messagesRef.current, 'error'))
-      setError(reason instanceof Error ? reason.message : '章节问答失败')
+      setError(reason instanceof Error ? reason.message : t('student.aiAssistant.qaFailed'))
       setRetry({ question: text, selection: options?.selection, display })
     } finally {
       if (requestGen.current === gen) {
@@ -176,7 +181,7 @@ export function AiAssistantPanel({
       {
         id: nextChatId(),
         kind: 'divider',
-        label: `已切换到「${lessonLabel}」，之后的回答基于这一节`,
+        label: t('student.aiAssistant.switchedLesson', { section: lessonLabel }),
       },
     ])
   }, [activityKey, chapterKey, lessonLabel, sectionTitle])
@@ -190,9 +195,9 @@ export function AiAssistantPanel({
       return
     }
     lastExplainId.current = explainRequest.id
-    sendRef.current('请结合当前章节，解释我选中的这段内容。', {
+    sendRef.current(t('student.aiAssistant.explainSelection'), {
       selection: excerpt,
-      display: `请解释这段内容：\n${excerpt}`,
+      display: t('student.aiAssistant.explainDisplay', { text: excerpt }),
     })
   }, [explainRequest, sending])
 
@@ -216,16 +221,16 @@ export function AiAssistantPanel({
     setDraft('')
   }
 
-  function sendShortcut(label: string, prompt: string) {
-    if (label === '提问答疑') {
+  function sendShortcut(id: string, prompt: string) {
+    if (id === 'ask') {
       inputRef.current?.focus()
       return
     }
-    if (label === '知识点解释' && selectedExcerpt.trim()) {
+    if (id === 'explain' && selectedExcerpt.trim()) {
       const excerpt = selectedExcerpt.trim()
-      void sendMessage('请结合当前章节，解释我选中的这段内容。', {
+      void sendMessage(t('student.aiAssistant.explainSelection'), {
         selection: excerpt,
-        display: `请解释这段内容：\n${excerpt}`,
+        display: t('student.aiAssistant.explainDisplay', { text: excerpt }),
       })
       return
     }
@@ -233,31 +238,29 @@ export function AiAssistantPanel({
   }
 
   return (
-    <aside className={styles.aiPane} aria-label="AI 学习助手">
+    <aside className={styles.aiPane} aria-label={t('student.aiAssistant.panelAria')}>
       <div className={styles.aiHead}>
         <div>
-          <h2>AI 学习助手</h2>
-          <p className={styles.aiContext}>基于当前章节 · {lessonLabel}</p>
+          <h2>{t('student.aiAssistant.title')}</h2>
+          <p className={styles.aiContext}>{t('student.aiAssistant.context', { section: lessonLabel })}</p>
         </div>
         <div className={styles.aiHeadActions}>
           <Link className={styles.newChatBtn} to={`/student/ai?courseId=${courseId}`}>
-            历史
+            {t('student.aiAssistant.history')}
           </Link>
           {savedConversationId ? (
             <Link className={styles.newChatBtn} to={`/student/ai?conversation=${savedConversationId}`}>
-              在工作台中继续
+              {t('student.aiAssistant.continueInWorkspace')}
             </Link>
           ) : null}
           <button className={styles.newChatBtn} type="button" onClick={startNewChat}>
-            新对话
+            {t('student.aiAssistant.newChat')}
           </button>
         </div>
       </div>
       <div className={styles.chatLog} ref={logRef} aria-live="polite">
         {messages.length === 0 ? (
-          <p className={styles.chatPlaceholder}>
-            你好！我是你的 AI 学习助手。我可以结合当前章节内容，帮你理解知识点、总结要点或进行练习。
-          </p>
+          <p className={styles.chatPlaceholder}>{t('student.aiAssistant.welcome')}</p>
         ) : null}
         {messages.map((item) =>
           item.kind === 'divider' ? (
@@ -274,19 +277,19 @@ export function AiAssistantPanel({
             </p>
           ),
         )}
-        {sending ? <p className={styles.chatPending}>正在根据本章内容回答…</p> : null}
+        {sending ? <p className={styles.chatPending}>{t('student.aiAssistant.pending')}</p> : null}
         {error ? <p className={styles.doneError}>{error}</p> : null}
         {retry ? (
           <button className={styles.chatRetry} type="button" onClick={() => void sendMessage(retry.question, retry)}>
-            重试
+            {t('student.aiAssistant.retry')}
           </button>
         ) : null}
       </div>
       <div className={styles.chatComposer}>
         <ul className={styles.aiShortcuts}>
           {shortcuts.map((item) => (
-            <li key={item.label}>
-              <button type="button" disabled={sending || !chapterKey} onClick={() => sendShortcut(item.label, item.prompt)}>
+            <li key={item.id}>
+              <button type="button" disabled={sending || !chapterKey} onClick={() => sendShortcut(item.id, item.prompt)}>
                 {item.label}
               </button>
             </li>
@@ -302,10 +305,12 @@ export function AiAssistantPanel({
         >
           <textarea
             ref={inputRef}
-            aria-label="向 AI 提问"
+            aria-label={t('student.aiAssistant.askAria')}
             rows={2}
             value={draft}
-            placeholder={chapterKey ? '针对当前章节继续提问…' : '当前章节暂无 key，无法问答'}
+            placeholder={
+              chapterKey ? t('student.aiAssistant.askPlaceholder') : t('student.aiAssistant.askPlaceholderNoKey')
+            }
             disabled={!chapterKey || sending}
             onChange={(event) => setDraft(event.target.value)}
             onKeyDown={(event) => {
@@ -320,7 +325,7 @@ export function AiAssistantPanel({
             }}
           />
           <button type="submit" disabled={sending || !chapterKey || !draft.trim()}>
-            发送
+            {t('student.aiAssistant.send')}
           </button>
         </form>
       </div>

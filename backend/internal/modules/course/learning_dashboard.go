@@ -44,6 +44,7 @@ type LearningDashboard struct {
 // LearningInsightInput 生成 AI 建议。
 type LearningInsightInput struct {
 	Provider string `json:"provider"`
+	Language string `json:"language"`
 }
 
 // LearningInsightResult AI 学习建议。
@@ -323,12 +324,11 @@ func (service *Service) aggregateActiveDays(ctx context.Context, userID int64, y
 }
 
 type learningInsightPayload struct {
-	StudentName       string `json:"studentName"`
-	ContinueCourse    string `json:"continueCourse,omitempty"`
-	ContinuePercent   int    `json:"continuePercent,omitempty"`
-	PendingQuizCount  int    `json:"pendingQuizCount"`
-	WeeklyMinutes     []int  `json:"weeklyMinutes"`
-	CourseSummaries   []string `json:"courseSummaries"`
+	StudentName      string   `json:"studentName"`
+	ContinueCourse   string   `json:"continueCourse,omitempty"`
+	ContinuePercent  int      `json:"continuePercent,omitempty"`
+	PendingQuizCount int      `json:"pendingQuizCount"`
+	CourseSummaries  []string `json:"courseSummaries"`
 }
 
 // GenerateLearningInsight POST /api/student/learning/insights
@@ -336,7 +336,6 @@ func (service *Service) GenerateLearningInsight(ctx context.Context, principal *
 	if principal.Role != access.RoleStudent {
 		return nil, errs.Forbidden("only students can generate learning insights")
 	}
-	now := time.Now().UTC()
 	courses, err := service.GetCourseList(ctx, principal)
 	if err != nil {
 		return nil, err
@@ -345,15 +344,10 @@ func (service *Service) GenerateLearningInsight(ctx context.Context, principal *
 	if err != nil {
 		return nil, err
 	}
-	weeklyMinutes, err := service.aggregateWeeklyMinutes(ctx, principal.UserID, now)
-	if err != nil {
-		return nil, err
-	}
 
 	continueCourse := pickContinueCourseListItem(courses)
 	payload := learningInsightPayload{
 		PendingQuizCount: countPendingQuizzes(questions),
-		WeeklyMinutes:    weeklyMinutes,
 	}
 	if continueCourse != nil {
 		payload.ContinueCourse = continueCourse.Title
@@ -377,7 +371,7 @@ func (service *Service) GenerateLearningInsight(ctx context.Context, principal *
 	if err != nil {
 		return nil, err
 	}
-	response, meta, callErr := aiService.GenerateLearningInsight(ctx, string(encoded))
+	response, meta, callErr := aiService.GenerateLearningInsight(ctx, string(encoded), input.Language)
 	service.recordUsage(ctx, principal.UserID, usage.SceneLearningInsight, meta, callErr)
 	if callErr != nil {
 		ai.LogError(ctx, callErr, meta, principal.UserID)

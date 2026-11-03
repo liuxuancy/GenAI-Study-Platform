@@ -52,6 +52,24 @@
   padding: 0 clamp(16px, 3vw, 40px) 40px;
 }
 
+.mapTab {
+  display: flex;
+  flex-direction: column;
+  min-height: calc(100dvh - 148px);
+  margin-right: calc(-1 * clamp(16px, 3vw, 40px));
+  margin-bottom: -40px;
+  margin-left: calc(-1 * clamp(16px, 3vw, 40px));
+  width: calc(100% + 2 * clamp(16px, 3vw, 40px));
+}
+
+.mapTabEmpty {
+  display: grid;
+  place-items: center;
+  min-height: 360px;
+  color: #879399;
+  font-size: 14px;
+}
+
 .tabs :global(.ant-tabs-nav) {
   margin-bottom: 18px;
 }
@@ -420,6 +438,86 @@
   color: #68787c;
 }
 
+/* 学生视角预览：与学生课程页相同的三栏固定高度，仅中间正文滚动 */
+.previewWorkspace {
+  display: flex;
+  flex-direction: column;
+  box-sizing: border-box;
+  height: calc(100dvh - 148px);
+  min-height: 520px;
+  max-height: calc(100dvh - 148px);
+}
+
+.previewWorkspace .columns {
+  flex: 1;
+  grid-template-columns: minmax(220px, 260px) minmax(0, 1fr) minmax(260px, 320px);
+  gap: 16px;
+  min-height: 0;
+  align-items: stretch;
+}
+
+.previewWorkspace .syllabus {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.previewSyllabusScroll {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.previewWorkspace .contentPane {
+  min-height: 0;
+  padding: 0;
+  overflow: hidden;
+}
+
+.previewContentScroll {
+  flex: 1;
+  min-height: 0;
+  padding: 28px 32px 16px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.previewReading {
+  width: min(900px, 100%);
+  min-width: 0;
+  margin-inline: auto;
+}
+
+.previewContentBody {
+  margin-top: 20px;
+}
+
+.previewWorkspace .toolsPane {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  max-width: 320px;
+  min-height: 0;
+  padding: 18px 16px 14px;
+  overflow: hidden;
+  pointer-events: none;
+  user-select: none;
+}
+
+.previewToolsScroll {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.previewWorkspace .toolsPane h2 {
+  flex-shrink: 0;
+}
+
 .previewBadge {
   display: inline-block;
   margin-bottom: 8px;
@@ -719,6 +817,14 @@
 
   .toolsPane {
     grid-column: 1 / -1;
+  }
+
+  .previewWorkspace .columns {
+    grid-template-columns: minmax(200px, 240px) minmax(0, 1fr);
+  }
+
+  .previewWorkspace .toolsPane {
+    max-height: 320px;
   }
 }
 

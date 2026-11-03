@@ -91,7 +91,11 @@ func (service *Service) runModel(ctx context.Context, scene, templateID, request
 		meta.ModelRequested = llm.DefaultModelPrimary
 	}
 	started := time.Now()
-	response, err := llm.Call(ctx, service.client, service.config, llm.Request{Model: requestedModel, Prompt: rendered})
+	response, err := llm.Call(ctx, service.client, service.config, llm.Request{
+		Model:        requestedModel,
+		Prompt:       rendered,
+		JSONResponse: promptExpectsJSONResponse(templateID),
+	})
 	meta.LatencyMs = time.Since(started).Milliseconds()
 	if err != nil {
 		return llm.Response{}, meta, completeError(err)
@@ -104,6 +108,11 @@ func (service *Service) runModel(ctx context.Context, scene, templateID, request
 		TotalTokens:      response.Usage.TotalTokens,
 	}
 	return response, meta, nil
+}
+
+// promptExpectsJSONResponse 为 false 的模板输出 Markdown 等纯文本，不能对 DeepSeek 启用 json_object。
+func promptExpectsJSONResponse(templateID string) bool {
+	return templateID != prompt.ChapterQAV1
 }
 
 func applyReport(meta *Meta, report parse.Report) {

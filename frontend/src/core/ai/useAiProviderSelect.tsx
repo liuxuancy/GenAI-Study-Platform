@@ -1,11 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Alert, Select, Space, Typography } from 'antd'
 import { getAiProviderOptions, type AiGenerateProvider } from '@/core/api/ai'
-
-const labels: Record<AiGenerateProvider, string> = {
-  deepseek: 'DeepSeek',
-  teamily: 'Teamily',
-}
+import { useI18n } from '@/core/i18n/useI18n'
 
 const storageKey = 'caveclass.ai.provider'
 
@@ -15,6 +11,7 @@ function savedProvider(): AiGenerateProvider | null {
 }
 
 export function useAiProviderSelect() {
+  const { t } = useI18n()
   const [provider, setProviderState] = useState<AiGenerateProvider>(() => savedProvider() ?? 'deepseek')
   const [loading, setLoading] = useState(true)
   const [available, setAvailable] = useState<{ deepseek: boolean; teamily: boolean }>({
@@ -54,7 +51,7 @@ export function useAiProviderSelect() {
       .catch((error: Error) => {
         if (!cancelled) {
           setAvailable({ deepseek: false, teamily: false })
-          setLoadError(error.message || '无法读取服务端 AI 模型配置。')
+          setLoadError(error.message || t('ai.providerLoadFailed'))
         }
       })
       .finally(() => {
@@ -65,15 +62,17 @@ export function useAiProviderSelect() {
     return () => {
       cancelled = true
     }
-  }, [])
+  }, [t])
 
   const options = useMemo(() => {
-    return (Object.keys(labels) as AiGenerateProvider[]).map((value) => ({
+    return (['deepseek', 'teamily'] as AiGenerateProvider[]).map((value) => ({
       value,
-      label: available[value] ? labels[value] : `${labels[value]}（服务端未配置）`,
+      label: available[value]
+        ? t(`ai.providers.${value}`)
+        : `${t(`ai.providers.${value}`)}${t('ai.providerNotConfiguredSuffix')}`,
       disabled: !available[value],
     }))
-  }, [available.deepseek, available.teamily])
+  }, [available.deepseek, available.teamily, t])
 
   const selector = (
     <Select<AiGenerateProvider>
@@ -98,16 +97,17 @@ export function useAiProviderSelect() {
 }
 
 export function AiProviderControl({ compact = false }: { compact?: boolean }) {
+  const { t } = useI18n()
   const selection = useAiProviderSelect()
   return (
     <Space direction="vertical" size={4}>
       <Space>
-        {!compact ? <Typography.Text strong>AI 创作模型</Typography.Text> : null}
+        {!compact ? <Typography.Text strong>{t('ai.providerLabel')}</Typography.Text> : null}
         {selection.selector}
       </Space>
       {selection.error ? <Alert type="error" showIcon message={selection.error} /> : null}
       {!selection.loading && !selection.error && !selection.optionsAvailable ? (
-        <Alert type="warning" showIcon message="服务端尚未配置可用的 AI 模型。" />
+        <Alert type="warning" showIcon message={t('ai.providerNotConfigured')} />
       ) : null}
     </Space>
   )

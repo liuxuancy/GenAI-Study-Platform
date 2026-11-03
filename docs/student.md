@@ -107,7 +107,7 @@
 | 方法 | 路径 | 说明 |
 |---|---|---|
 | GET | `/api/student/learning/dashboard?year=&month=` | 今日任务、本周分钟趋势、当月活跃日、规则建议 |
-| POST | `/api/student/learning/insights` | 手动生成 AI 学习建议（body 可选 `provider`） |
+| POST | `/api/student/learning/insights` | 手动生成 AI 学习建议（body 可选 `provider`、`language`：`zh-CN` / `en-US`，默认 `zh-CN`） |
 | POST | `/api/student/courses/:id/learning/heartbeat` | 上报阅读时长，body `{ "seconds": 1–120 }` |
 
 ## 业务规则

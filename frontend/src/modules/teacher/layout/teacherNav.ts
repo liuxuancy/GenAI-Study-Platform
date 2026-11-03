@@ -1,37 +1,40 @@
 export interface TeacherNavItem {
   to: string
-  label: string
+  labelKey: string
   end?: boolean
-  icon: 'courses' | 'spark' | 'user'
+  icon: 'courses' | 'spark' | 'user' | 'learning'
 }
 
 export interface TeacherNavSection {
-  title: string
+  titleKey: string
   items: TeacherNavItem[]
 }
 
 export const teacherNavSections: TeacherNavSection[] = [
   {
-    title: 'TEACHING',
+    titleKey: 'nav.teacher.sectionTeaching',
     items: [
-      { to: '/teacher', label: '课程中心', end: true, icon: 'courses' },
-      { to: '/teacher/ai', label: 'AI 工作台', icon: 'spark' },
+      { to: '/teacher', labelKey: 'nav.teacher.courses', end: true, icon: 'courses' },
+      { to: '/teacher/learning', labelKey: 'nav.teacher.learningOverview', icon: 'learning' },
+      { to: '/teacher/ai', labelKey: 'nav.teacher.aiWorkspace', icon: 'spark' },
     ],
   },
   {
-    title: 'PERSONAL',
-    items: [{ to: '/teacher/account', label: '我的账号', icon: 'user' }],
+    titleKey: 'nav.teacher.sectionPersonal',
+    items: [{ to: '/teacher/account', labelKey: 'nav.teacher.account', icon: 'user' }],
   },
 ]
 
-export const teacherPageTitles: Record<string, string> = {
-  '/teacher': '课程中心',
-  '/teacher/ai': 'AI 工作台',
-  '/teacher/account': '我的账号',
+const teacherPageTitleKeys: Record<string, string> = {
+  '/teacher': 'nav.teacher.courses',
+  '/teacher/learning': 'nav.teacher.learningOverview',
+  '/teacher/ai': 'nav.teacher.aiWorkspace',
+  '/teacher/account': 'nav.teacher.account',
 }
 
-export function teacherPageTitle(pathname: string) {
-  return teacherPageTitles[pathname] ?? '课程中心'
+export function teacherPageTitle(pathname: string, t: (key: string) => string) {
+  const key = teacherPageTitleKeys[pathname] ?? 'nav.teacher.courses'
+  return t(key)
 }
 
 export function isTeacherNavActive(pathname: string, item: TeacherNavItem) {

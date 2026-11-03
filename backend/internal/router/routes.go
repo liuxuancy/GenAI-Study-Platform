@@ -124,6 +124,7 @@ func registerRoutes(api *gin.RouterGroup, deps Deps) {
 	teacherRoutes.GET("/courses/:id", access.RequireLogin(), resp.ToGinHandler(courseHandler.GetTeacherCourse))
 	teacherRoutes.PUT("/courses/:id/classes", access.RequireLogin(), resp.ToGinHandler(courseHandler.PublishCourseToClasses))
 	teacherRoutes.GET("/courses/:id/progress", access.RequireLogin(), resp.ToGinHandler(courseHandler.GetTeacherCourseProgress))
+	teacherRoutes.GET("/courses/:id/learning-overview", access.RequireLogin(), resp.ToGinHandler(courseHandler.GetTeacherCourseLearningOverview))
 	teacherRoutes.PUT("/courses/:id/content", access.RequireLogin(), resp.ToGinHandler(courseHandler.SaveTeacherCourseContent))
 	teacherRoutes.POST("/courses/:id/generate", access.RequireLogin(), resp.ToGinHandler(courseHandler.GenerateTeacherCourse))
 	teacherRoutes.POST("/courses/:id/chapters/generate", access.RequireLogin(), resp.ToGinHandler(courseHandler.GenerateTeacherChapter))

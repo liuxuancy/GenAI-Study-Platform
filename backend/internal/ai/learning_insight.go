@@ -6,13 +6,14 @@ import (
 	"strings"
 
 	"caveclass/internal/ai/aierr"
+	"caveclass/internal/ai/course"
 	"caveclass/internal/ai/prompt"
 )
 
 const SceneLearningInsight = "learning_insight"
 
 // GenerateLearningInsight 根据学生学习摘要生成 JSON 建议。
-func (service *Service) GenerateLearningInsight(ctx context.Context, summaryJSON string) (string, Meta, error) {
+func (service *Service) GenerateLearningInsight(ctx context.Context, summaryJSON, language string) (string, Meta, error) {
 	if err := service.ready(); err != nil {
 		return "", Meta{}, err
 	}
@@ -22,6 +23,7 @@ func (service *Service) GenerateLearningInsight(ctx context.Context, summaryJSON
 	}
 	response, meta, err := service.runModel(ctx, SceneLearningInsight, prompt.LearningInsightV1, "", prompt.LearningInsightData{
 		SummaryJSON: summaryJSON,
+		Language:    insightLanguage(language),
 	})
 	if err != nil {
 		return "", meta, err
@@ -50,4 +52,11 @@ func ParseLearningInsightResponse(raw string) (suggestion string, actionTitle, a
 		strings.TrimSpace(parsed.RecommendedAction.Title),
 		strings.TrimSpace(parsed.RecommendedAction.Detail),
 		strings.TrimSpace(parsed.Suggestion) != ""
+}
+
+func insightLanguage(language string) string {
+	if strings.TrimSpace(language) == course.LanguageEnUS {
+		return course.LanguageEnUS
+	}
+	return course.LanguageZhCN
 }

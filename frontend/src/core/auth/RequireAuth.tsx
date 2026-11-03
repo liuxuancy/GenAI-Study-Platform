@@ -4,6 +4,7 @@ import { useEffect, useState, type ReactNode } from 'react'
 import { Navigate, useLocation } from 'react-router-dom'
 
 import { useAuthStore } from '@/core/auth/store'
+import { useI18n } from '@/core/i18n/useI18n'
 
 export function RequireAuth({ children }: { children: ReactNode }) {
   const token = useAuthStore((state) => state.token)
@@ -11,6 +12,7 @@ export function RequireAuth({ children }: { children: ReactNode }) {
   const loadCurrentUser = useAuthStore((state) => state.loadCurrentUser)
   const location = useLocation()
   const [loadErrorMessage, setLoadErrorMessage] = useState<string | null>(null)
+  const { t } = useI18n()
 
   useEffect(() => {
     if (token && !currentUser) {
@@ -27,9 +29,9 @@ export function RequireAuth({ children }: { children: ReactNode }) {
     return (
       <Result
         status="error"
-        title="Failed to load your account"
+        title={t('auth.loadAccountFailed')}
         subTitle={loadErrorMessage}
-        extra={<Button onClick={() => window.location.reload()}>Retry</Button>}
+        extra={<Button onClick={() => window.location.reload()}>{t('common.retry')}</Button>}
       />
     )
   }

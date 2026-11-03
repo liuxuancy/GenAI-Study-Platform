@@ -3,6 +3,7 @@ import { Navigate, Outlet, useLocation } from 'react-router-dom'
 
 import { homePathFor } from '@/core/auth/homePath'
 import { useAuthStore } from '@/core/auth/store'
+import { useI18n } from '@/core/i18n/useI18n'
 
 import styles from '@/modules/student/layout/StudentLayout.module.css'
 import { TeacherSidebar } from '@/modules/teacher/layout/TeacherSidebar'
@@ -12,6 +13,7 @@ export function TeacherLayout() {
   const currentUser = useAuthStore((state) => state.currentUser)
   const location = useLocation()
   const [sidebarOpen, setSidebarOpen] = useState(false)
+  const { t } = useI18n()
 
   if (!currentUser) {
     return null
@@ -32,7 +34,7 @@ export function TeacherLayout() {
         <button
           type="button"
           className={styles.backdrop}
-          aria-label="关闭导航菜单"
+          aria-label={t('nav.common.closeMenu')}
           onClick={closeSidebar}
         />
       ) : null}
