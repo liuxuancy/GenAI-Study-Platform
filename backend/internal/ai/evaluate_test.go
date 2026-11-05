@@ -7,12 +7,13 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/liuxuancy/Libs/logs"
+
 	"caveclass/internal/ai"
 	"caveclass/internal/ai/aierr"
 	"caveclass/internal/ai/course"
 	"caveclass/internal/ai/llm"
 	"caveclass/internal/ai/prompt"
-	"caveclass/internal/platform/logs"
 )
 
 func TestEvaluateCourseFromMock(t *testing.T) {
@@ -25,7 +26,7 @@ func TestEvaluateCourseFromMock(t *testing.T) {
 		t.Fatal(err)
 	}
 	subject := courseFromMock(t)
-	ctx := logs.WithRequestID(context.Background(), "req-evaluate")
+	ctx := logs.WithLogID(context.Background(), "req-evaluate")
 	report, meta, err := service.EvaluateCourse(ctx, subject, "  多看练习是否够具体  ")
 	if err != nil {
 		t.Fatal(err)
@@ -39,7 +40,7 @@ func TestEvaluateCourseFromMock(t *testing.T) {
 	if meta.Scene != ai.SceneEvaluate || meta.TemplateID != prompt.ContentQualityV1 || meta.TemplateVersion != prompt.Version1 {
 		t.Fatalf("meta = %+v", meta)
 	}
-	if meta.ModelUsed == "" || meta.RequestID != "req-evaluate" || !meta.Validation.Passed {
+	if meta.ModelUsed == "" || meta.LogID != "req-evaluate" || !meta.Validation.Passed {
 		t.Fatalf("meta = %+v", meta)
 	}
 	if meta.ModelRequested != llm.DefaultModelPrimary {

@@ -7,6 +7,7 @@ require (
 	github.com/glebarez/sqlite v1.11.0
 	github.com/golang-jwt/jwt/v5 v5.3.1
 	github.com/google/uuid v1.3.0
+	github.com/liuxuancy/Libs/logs v0.2.0
 	github.com/tencentyun/cos-go-sdk-v5 v0.7.76
 	golang.org/x/crypto v0.58.0
 	gorm.io/gorm v1.31.2

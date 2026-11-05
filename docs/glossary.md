@@ -6,7 +6,7 @@
 
 | 代码里的名字 | 中文 | 说明 |
 |---|---|---|
-| `platform/` | 基础设施 | 和权限、业务都无关的通用包：config、db、logs、errs、resp、middleware |
+| `platform/` | 基础设施 | 和权限、业务都无关的通用包：config、db、errs、resp、middleware（日志用外部库 Libs/logs） |
 | `framework/` | 权限框架 | 登录 + 权限：identity、access、model、module、seed、testutil |
 | `modules/` | 业务模块 | account、system、course，每个模块一个目录，互不 import |
 | `router/` | 路由层 | `router.go` 组装 gin 和全局中间件；`routes.go` 是全部接口的路由表，唯一会 import 所有模块的地方 |
@@ -15,7 +15,7 @@
 | `account` | 账号模块 | 账号相关的接口：登录、退出、me、个人信息、改密码，地址 `/api/account/*` |
 | `internal/ai` | AI 子系统 | B 的内部 Go 包：生成课程、章节、activity 和质量评估。不访问数据库，不注册 `/api/ai/*`。说明见 `backend/internal/ai/README.md` |
 | `StandardCourse` | 标准课程 JSON | AI 输出的课程结构，camelCase，`schemaVersion` 为 `1.0`。类型在 `internal/ai/course` |
-| `Meta` | AI 调用元数据 | 放在业务响应的 `data.meta`。含模板、模型、`fallbackUsed`、用量、`warnings` 和 `requestId` |
+| `Meta` | AI 调用元数据 | 放在业务响应的 `data.meta`。含模板、模型、`fallbackUsed`、用量、`warnings` 和 `logId` |
 | `aiCode` | AI 错误码 | 如 `AI_INVALID_INPUT`、`AI_TIMEOUT`。只进日志，默认不返回给前端 |
 
 ## 权限
@@ -66,8 +66,8 @@
 | `http.Server` | HTTP 服务器 | Go 标准库，负责监听端口、解析 HTTP、超时和优雅退出 |
 | gin / Engine | 路由框架 | 第三方库，叠在 `net/http` 之上，负责路由、中间件、参数绑定 |
 | Middleware | 中间件 | 夹在"收到请求"和"执行 handler"之间的通用处理，按洋葱模型一层套一层 |
-| RequestID | 请求 ID | 每个请求分配一个 ID，写入响应头和日志，用来串起同一个请求的所有日志 |
-| Logger（中间件） | 请求日志 | 每个请求记一条日志，必须在 ErrorHandler 外层 |
+| logid（`log_id`） | 日志 ID | 每个请求一个，由 `ginlogs.AssignLogID` 分配，写入响应头 `X-Log-Id` 和该请求的所有日志，用来串起同一个请求的日志（原来叫 RequestID） |
+| AccessLog（中间件） | 访问日志 | `ginlogs.AccessLog`，每个请求结束后记一条，必须在 ErrorHandler 外层（原来是自写的 Logger） |
 | ErrorHandler | 错误处理中间件 | 把请求处理中出现的错误和 panic 统一转换成 `{code, msg, data}` 响应 |
 | Handler | 接口处理函数 | 处理某一个具体接口的函数，写法统一为 `func(ctx) (any, error)` |
 | `resp.ToGinHandler` | handler 转换 | 把上面的写法转成 gin 需要的函数，成功时写响应，失败时把错误交给 ErrorHandler |
@@ -137,7 +137,7 @@
 - 方法名带上处理的对象，比如写 `LoadPrincipal`，不写泛泛的 `Load`，避免和标准库的同名方法混淆。
 - 取值、查询类的函数用 `Get` 开头，如 `GetCurrentPrincipal`、`GetRoleName`、`registry.GetCatalog()`、`testutil.GetUserID`。判断类用 `Is` / `Has`，动作类用动词（`Issue`、`Parse`、`Reset`），Go、GORM、slog 规定的方法名（`Error`、`TableName`、`Handle`）保持原样。
 - 构造函数和初始化函数：
-  - 有返回值、创建一个对象的，用 `New` 开头，如 `NewRegistry`；修改全局状态、没有返回值的，用 `Setup` / `Init` 开头，如 `logs.Setup`。
+  - 有返回值、创建一个对象的，用 `New` 开头，如 `NewRegistry`；修改全局状态、没有返回值的，用 `Setup` / `Init` 开头，如 `logs.Init`。
   - 只在启动时调用一次的，注释里写明"全局只初始化一次：启动时由 xxx 调用"；没有这句的，表示可以按需多次创建（如测试里的 `testutil.NewDB`）。
 - 数据库访问：**查询和写入一律直接写 SQL，建表交给 AutoMigrate**。
   - 查询用 `database.Raw("SELECT ...", 参数...).Scan(&结果)`；写入用 `database.Exec("INSERT / UPDATE / DELETE ...", 参数...)`。

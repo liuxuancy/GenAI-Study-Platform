@@ -12,6 +12,7 @@
 ```
 study_platform/
 ├── README.md
+├── CLAUDE.md                         给 Claude Code 看的项目约定（SQL 写法、日志、分层、验收命令）
 ├── docs/
 │   ├── glossary.md                   术语表和命名约定
 │   └── permission-cases.json         权限匹配用例，前后端测试共用
@@ -22,10 +23,9 @@ study_platform/
 │       ├── platform/                 ① 基础设施：和权限、业务都无关，换个项目也能用
 │       │   ├── config/               读取环境变量
 │       │   ├── db/                   打开 SQLite（WAL、busy_timeout、IMMEDIATE 事务，时间存 UTC）、建表、删除库文件
-│       │   ├── logs/                 slog 封装：从 ctx 自动带出 request_id 等字段
 │       │   ├── errs/                 业务错误类型和 7 个错误码
 │       │   ├── resp/                 统一响应体 {code, msg, data} 和 handler 转换函数 resp.ToGinHandler
-│       │   └── middleware/           全局中间件：RequestID、Logger、ErrorHandler
+│       │   └── middleware/           全局中间件 ErrorHandler（logid 和访问日志用 Libs/logs 的 ginlogs）
 │       ├── framework/                ② 权限框架：登录 + 权限，所有业务模块都依赖它
 │       │   ├── identity/             你是谁：密码哈希、JWT 签发与校验、认证中间件 Authenticate、白名单
 │       │   ├── access/               你能做什么：权限码匹配、权限码目录、Principal、权限缓存、DBLoader、RequirePermission / RequireLogin
@@ -83,8 +83,8 @@ router ──► modules ──► framework ──► platform
 
 ```
 http.Server（监听端口、请求头 10 秒超时）
-  └─ RequestID      分配请求 ID，写入 ctx 和响应头 X-Request-ID
-      └─ Logger      请求结束后记一条日志（状态码、耗时）
+  └─ ginlogs.AssignLogID   分配 logid，写入 ctx 和响应头 X-Log-Id
+      └─ ginlogs.AccessLog   请求结束后记一条访问日志（状态码、耗时），/api/health 不记
           └─ ErrorHandler   把错误和 panic 统一转成 {code, msg, data}
               └─ identity.Authenticate   白名单放行；否则校验 token → 读权限缓存 → 检查是否禁用、token 版本
                   └─ access.RequirePermission("使用方:资源:动作") 或 access.RequireLogin()   路由级，写在 routes.go 每一行
@@ -186,12 +186,18 @@ go run ./cmd/server --reset-demo
 
 | 变量 | 默认值 | 说明 |
 |---|---|---|
-| `APP_ENV` | `dev` | `dev` 或 `prod`。prod 输出 JSON 日志，并要求设置 `JWT_SECRET` |
+| `APP_ENV` | `dev` | `dev` 或 `prod`。prod 要求设置 `JWT_SECRET` |
 | `HTTP_ADDR` | `:8080` | 监听地址 |
 | `DB_PATH` | `data/caveclass.db` | SQLite 文件路径，目录不存在时自动创建 |
 | `JWT_SECRET` | 内置开发密钥 | 未设置时启动会打印警告，prod 环境拒绝启动 |
 | `JWT_TTL` | `24h` | token 有效期 |
 | `PERMISSION_CACHE_TTL` | `30s` | 权限缓存时长，即撤销权限后最迟多久生效 |
+| `LOG_SERVICE_NAME` | `cave_class` | 日志里的服务名，日志平台按它区分程序 |
+| `LOG_ENVIRONMENT` | 跟随 `APP_ENV` | 日志环境 `dev` / `prod` |
+| `LOG_LEVEL` | dev 为 `debug`，prod 为 `info` | `debug` / `info` / `warn` / `error` |
+| `LOG_PLATFORM_ENABLED` | `false` | 是否把日志抄送到日志平台；打开后还要填 `LOG_PLATFORM_URL` 和 `LOG_PLATFORM_KEY` |
+
+日志统一用 [`github.com/liuxuancy/Libs/logs`](https://github.com/liuxuancy/Libs)：`logs.CtxInfo(ctx, "format", args...)`，终端输出 JSON，每条带 `log_id` 和代码位置。
 
 ## 团队协作约定
 

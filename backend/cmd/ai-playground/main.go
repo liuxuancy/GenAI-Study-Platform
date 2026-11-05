@@ -4,11 +4,12 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"log"
 	"net/http"
 	"os"
 	"path/filepath"
 	"strings"
+
+	"github.com/liuxuancy/Libs/logs"
 
 	"caveclass/internal/ai"
 	"caveclass/internal/ai/aierr"
@@ -63,22 +64,31 @@ type generateActivityBody struct {
 }
 
 type evaluateBody struct {
-	Provider string                 `json:"provider"`
-	Course   course.StandardCourse  `json:"course"`
-	Rubric   string                 `json:"rubric"`
+	Provider string                `json:"provider"`
+	Course   course.StandardCourse `json:"course"`
+	Rubric   string                `json:"rubric"`
 }
 
 func main() {
-	if err := loadLocalEnv(); err != nil {
-		log.Printf("警告: %v（仍可用 mock）", err)
+	envErr := loadLocalEnv()
+	// 先加载 .env 再初始化日志，LOG_ 环境变量才生效
+	logConfig := logs.LoadConfigFromEnv()
+	if logConfig.ServiceName == "" {
+		logConfig.ServiceName = "ai-playground"
+	}
+	logs.Init(logConfig)
+	defer logs.Shutdown(context.Background())
+
+	if envErr != nil {
+		logs.CtxWarn(context.Background(), "警告: %v（仍可用 mock）", envErr)
 	}
 	baseCfg, err := llm.LoadConfig()
 	if err != nil {
-		log.Fatalf("读取 AI 配置失败: %v", err)
+		exitWithError("读取 AI 配置失败: %v", err)
 	}
 	staticRoot, err := findStaticRoot()
 	if err != nil {
-		log.Fatalf("%v", err)
+		exitWithError("%v", err)
 	}
 	addr := getenv("AI_PLAYGROUND_ADDR", "127.0.0.1:8765")
 
@@ -104,9 +114,18 @@ func main() {
 	})
 	mux.Handle("/", http.FileServer(http.Dir(staticRoot)))
 
-	log.Printf("AI playground 静态目录: %s", staticRoot)
-	log.Printf("在浏览器打开 http://%s/", addr)
-	log.Fatal(http.ListenAndServe(addr, mux))
+	logs.CtxInfo(context.Background(), "AI playground 静态目录: %s", staticRoot)
+	logs.CtxInfo(context.Background(), "在浏览器打开 http://%s/", addr)
+	if err := http.ListenAndServe(addr, mux); err != nil {
+		exitWithError("playground exited: %v", err)
+	}
+}
+
+// exitWithError 打一条错误日志、把没发完的日志发完，再以状态码 1 退出（os.Exit 不会执行 defer）。
+func exitWithError(format string, args ...any) {
+	logs.CtxError(context.Background(), format, args...)
+	_ = logs.Shutdown(context.Background())
+	os.Exit(1)
 }
 
 func handleGenerateCourse(w http.ResponseWriter, r *http.Request, base llm.Config) {
@@ -262,7 +281,7 @@ func writeJSON(w http.ResponseWriter, status int, payload apiResult) {
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
 	w.WriteHeader(status)
 	if err := json.NewEncoder(w).Encode(payload); err != nil {
-		log.Printf("写响应失败: %v", err)
+		logs.CtxError(context.Background(), "写响应失败: %v", err)
 	}
 }
 

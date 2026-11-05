@@ -4,13 +4,14 @@ import (
 	"context"
 	"time"
 
+	"github.com/liuxuancy/Libs/logs"
+
 	"caveclass/internal/framework/access"
 	"caveclass/internal/platform/errs"
-	"caveclass/internal/platform/logs"
 )
 
 const (
-	estimatedProgressMinutes = 5
+	estimatedProgressMinutes   = 5
 	estimatedQuizAnswerMinutes = 3
 	estimatedChapterQAMinutes  = 5
 )

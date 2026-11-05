@@ -1,4 +1,4 @@
-// 请求日志 Logger 和错误处理 ErrorHandler。
+// 错误处理 ErrorHandler：统一渲染错误响应、兜住 panic。
 
 package middleware
 
@@ -7,31 +7,13 @@ import (
 	"log/slog"
 	"net/http"
 	"runtime/debug"
-	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/liuxuancy/Libs/logs"
 
 	"caveclass/internal/platform/errs"
-	"caveclass/internal/platform/logs"
 	"caveclass/internal/platform/resp"
 )
-
-// Logger 每个请求记一条日志。必须放在最外层，才能拿到最终状态码（包括 panic 后的 500）。
-func Logger() gin.HandlerFunc {
-	return func(ctx *gin.Context) {
-		start := time.Now()
-		ctx.Next()
-
-		status := ctx.Writer.Status()
-		slog.LogAttrs(ctx.Request.Context(), logLevel(status), "http",
-			slog.String("method", ctx.Request.Method),
-			slog.String("path", ctx.Request.URL.Path),
-			slog.Int("status", status),
-			slog.Int64("latency_ms", time.Since(start).Milliseconds()),
-			slog.String("ip", ctx.ClientIP()),
-		)
-	}
-}
 
 // ErrorHandler 统一渲染 ctx.Error 收集到的错误，并兜住 panic， 保证任何失败都以 {code, msg, data} 返回。
 func ErrorHandler() gin.HandlerFunc {
@@ -44,7 +26,7 @@ func ErrorHandler() gin.HandlerFunc {
 		}
 		appError := errs.From(ctx.Errors.Last().Err)
 		if appError.Code >= errs.SystemInternal {
-			// 只有 5xx 记错误日志，4xx 由 Logger 记 WARN 即可
+			// 只有 5xx 记错误日志，4xx 由 ginlogs.AccessLog 的访问日志记下即可
 			logs.CtxError(ctx.Request.Context(), "request failed: %s %s, err: %v",
 				ctx.Request.Method, ctx.Request.URL.Path, appError)
 		}
@@ -70,16 +52,4 @@ func recoverPanic(ctx *gin.Context) {
 	}
 	// 停止该请求后续handler处理
 	ctx.Abort()
-}
-
-// logLevel 按状态码选日志级别：5xx ERROR，4xx WARN，其余 INFO。
-func logLevel(status int) slog.Level {
-	switch {
-	case status >= 500:
-		return slog.LevelError
-	case status >= 400:
-		return slog.LevelWarn
-	default:
-		return slog.LevelInfo
-	}
 }

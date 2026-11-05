@@ -7,10 +7,10 @@ import (
 	"strings"
 
 	"github.com/gin-gonic/gin"
+	"github.com/liuxuancy/Libs/logs"
 
 	"caveclass/internal/framework/access"
 	"caveclass/internal/platform/errs"
-	"caveclass/internal/platform/logs"
 )
 
 const bearerPrefix = "Bearer "

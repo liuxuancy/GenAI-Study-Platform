@@ -80,7 +80,7 @@ func (service *Service) AskChapter(ctx context.Context, chapter course.Chapter, 
 	if err := service.ready(); err != nil {
 		return "", Meta{}, err
 	}
-	data, err := fitChapterQuestion(chapter, language, ask, service.config.ModelPrimary)
+	data, err := fitChapterQuestion(ctx, chapter, language, ask, service.config.ModelPrimary)
 	if err != nil {
 		return "", Meta{}, err
 	}
@@ -111,7 +111,8 @@ func chapterQuestionData(chapter course.Chapter, language string, ask ChapterQue
 	if err != nil {
 		return prompt.ChapterQAData{}, err
 	}
-	return fitChapterQuestion(chapter, language, ChapterQuestion{
+	// 只在测试里用来检查裁剪结果，没有请求上下文
+	return fitChapterQuestion(context.Background(), chapter, language, ChapterQuestion{
 		Question: question, ActivityKey: ask.ActivityKey, Selection: ask.Selection, History: history,
 	}, "")
 }

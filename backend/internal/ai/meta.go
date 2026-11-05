@@ -7,8 +7,9 @@ import (
 	"context"
 	"log/slog"
 
+	"github.com/liuxuancy/Libs/logs"
+
 	"caveclass/internal/ai/aierr"
-	"caveclass/internal/platform/logs"
 )
 
 const (
@@ -43,10 +44,10 @@ type Meta struct {
 	Usage           Usage      `json:"usage"`
 	Warnings        []string   `json:"warnings"`
 	Validation      Validation `json:"validation"`
-	RequestID       string     `json:"requestId"`
+	LogID           string     `json:"logId"`
 }
 
-// NewMeta 创建一条元数据，并从 ctx 填入 requestId。没有请求 ID 时留空。
+// NewMeta 创建一条元数据，并从 ctx 填入 logId。没有 logid 时留空。
 func NewMeta(ctx context.Context, scene string) Meta {
 	meta := Meta{
 		Scene:    scene,
@@ -55,16 +56,16 @@ func NewMeta(ctx context.Context, scene string) Meta {
 			RepairedFields: []string{},
 		},
 	}
-	meta.FillRequestID(ctx)
+	meta.FillLogID(ctx)
 	return meta
 }
 
-// FillRequestID 把日志 ctx 里的请求 ID 抄到 meta，便于和响应头 X-Request-ID 对照。
-func (meta *Meta) FillRequestID(ctx context.Context) {
+// FillLogID 把日志 ctx 里的 logid 抄到 meta，便于和响应头 X-Log-Id 对照。
+func (meta *Meta) FillLogID(ctx context.Context) {
 	if meta == nil {
 		return
 	}
-	meta.RequestID = logs.GetRequestID(ctx)
+	meta.LogID = logs.GetLogID(ctx)
 }
 
 // LogError 把 AI 失败打成结构化日志。字段为 aiCode、details、meta、uid。
