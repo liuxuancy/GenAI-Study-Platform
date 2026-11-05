@@ -26,9 +26,12 @@ func ErrorHandler() gin.HandlerFunc {
 		}
 		appError := errs.From(ctx.Errors.Last().Err)
 		if appError.Code >= errs.SystemInternal {
-			// 只有 5xx 记错误日志，4xx 由 ginlogs.AccessLog 的访问日志记下即可
 			logs.CtxError(ctx.Request.Context(), "request failed: %s %s, err: %v",
 				ctx.Request.Method, ctx.Request.URL.Path, appError)
+		} else {
+			// 4xx 是调用方的问题（参数错、没权限、找不到），记 WARN 和返回给前端的原因，方便查是哪里被拒
+			logs.CtxWarn(ctx.Request.Context(), "request rejected: %s %s, code=%d msg=%s",
+				ctx.Request.Method, ctx.Request.URL.Path, appError.Code, appError.Msg)
 		}
 		resp.Fail(ctx, appError)
 	}
