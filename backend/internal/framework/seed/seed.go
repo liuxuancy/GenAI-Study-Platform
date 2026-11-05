@@ -10,12 +10,12 @@ import (
 	"strings"
 	"time"
 
+	"github.com/liuxuancy/Libs/logs"
 	"gorm.io/gorm"
 
 	"caveclass/internal/framework/access"
 	"caveclass/internal/framework/identity"
 	"caveclass/internal/framework/model"
-	"caveclass/internal/platform/logs"
 )
 
 // Account 一个要写入的账号。演示数据的 users.json 也是这个格式。

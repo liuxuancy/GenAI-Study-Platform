@@ -1,10 +1,12 @@
 package ai
 
 import (
+	"context"
 	"encoding/json"
-	"log/slog"
 	"strings"
 	"unicode/utf8"
+
+	"github.com/liuxuancy/Libs/logs"
 
 	"caveclass/internal/ai/aierr"
 	"caveclass/internal/ai/course"
@@ -35,21 +37,13 @@ type chapterContextReport struct {
 	BodyRunes      int
 }
 
-func (report chapterContextReport) log() {
-	slog.Info("chapter qa context budget",
-		slog.String("model", report.Model),
-		slog.Int("systemTokens", report.SystemTokens),
-		slog.Int("contextTokens", report.ContextTokens),
-		slog.Int("historyTokens", report.HistoryTokens),
-		slog.Int("questionTokens", report.QuestionTokens),
-		slog.Int("totalTokens", report.TotalTokens),
-		slog.Int("totalBytes", report.TotalBytes),
-		slog.Int("historyTurns", report.HistoryTurns),
-		slog.Int("bodyRunes", report.BodyRunes),
-	)
+func (report chapterContextReport) log(ctx context.Context) {
+	logs.CtxInfo(ctx, "chapter qa context budget: model=%s systemTokens=%d contextTokens=%d historyTokens=%d questionTokens=%d totalTokens=%d totalBytes=%d historyTurns=%d bodyRunes=%d",
+		report.Model, report.SystemTokens, report.ContextTokens, report.HistoryTokens, report.QuestionTokens,
+		report.TotalTokens, report.TotalBytes, report.HistoryTurns, report.BodyRunes)
 }
 
-func fitChapterQuestion(chapter course.Chapter, language string, ask ChapterQuestion, model string) (prompt.ChapterQAData, error) {
+func fitChapterQuestion(ctx context.Context, chapter course.Chapter, language string, ask ChapterQuestion, model string) (prompt.ChapterQAData, error) {
 	question := strings.TrimSpace(ask.Question)
 	if question == "" || utf8.RuneCountInString(question) > 2000 {
 		return prompt.ChapterQAData{}, aierr.InvalidInput(nil, "question must contain 1 to 2000 characters")
@@ -85,7 +79,7 @@ func fitChapterQuestion(chapter course.Chapter, language string, ask ChapterQues
 				return prompt.ChapterQAData{}, renderErr
 			}
 			if len(rendered) <= budget {
-				reportChapterPrompt(model, rendered, data)
+				reportChapterPrompt(ctx, model, rendered, data)
 				return data, nil
 			}
 		}
@@ -101,16 +95,12 @@ func fitChapterQuestion(chapter course.Chapter, language string, ask ChapterQues
 			return prompt.ChapterQAData{}, renderErr
 		}
 		if len(rendered) <= budget {
-			reportChapterPrompt(model, rendered, data)
+			reportChapterPrompt(ctx, model, rendered, data)
 			return data, nil
 		}
 	}
-	slog.Warn("chapter qa context still over budget",
-		slog.String("model", model),
-		slog.String("aiCode", aierr.CodeInputTooLong),
-		slog.Int("questionTokens", utf8.RuneCountInString(question)),
-		slog.Int("budgetBytes", budget),
-	)
+	logs.CtxWarn(ctx, "chapter qa context still over budget: model=%s aiCode=%s questionTokens=%d budgetBytes=%d",
+		model, aierr.CodeInputTooLong, utf8.RuneCountInString(question), budget)
 	return prompt.ChapterQAData{}, aierr.InputTooLong(nil, "chapter prompt exceeds input budget after trimming history and section text")
 }
 
@@ -197,7 +187,7 @@ func renderChapterPrompt(data prompt.ChapterQAData) (string, error) {
 	return rendered, err
 }
 
-func reportChapterPrompt(model, rendered string, data prompt.ChapterQAData) {
+func reportChapterPrompt(ctx context.Context, model, rendered string, data prompt.ChapterQAData) {
 	historyRunes := 0
 	for _, turn := range data.History {
 		historyRunes += utf8.RuneCountInString(turn.Content) + utf8.RuneCountInString(turn.SectionTitle)
@@ -219,7 +209,7 @@ func reportChapterPrompt(model, rendered string, data prompt.ChapterQAData) {
 		TotalBytes:     len(rendered),
 		HistoryTurns:   len(data.History),
 		BodyRunes:      utf8.RuneCountInString(data.ActivityBody),
-	}.log()
+	}.log(ctx)
 }
 
 type promptOutline struct {

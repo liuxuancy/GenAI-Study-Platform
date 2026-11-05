@@ -6,6 +6,7 @@ import (
 	"net/http"
 
 	"github.com/gin-gonic/gin"
+	"github.com/liuxuancy/Libs/logs/ginlogs"
 	"gorm.io/gorm"
 
 	"caveclass/internal/ai"
@@ -34,8 +35,8 @@ func NewHTTPHandler(deps Deps) http.Handler {
 	_ = engine.SetTrustedProxies(nil) // 本地部署，不信任代理头，直接用连接地址作为客户端 IP
 
 	// -- 向gin中写入配置 --
-	// 1.所有请求依次经过三层中间件：RequestID 最先，后续日志才带 request_id；Logger 在 ErrorHandler 外层才能记到最终状态
-	engine.Use(middleware.RequestID(), middleware.Logger(), middleware.ErrorHandler())
+	// 1.所有请求依次经过三层中间件：AssignLogID 最先，后续日志才带 log_id；AccessLog 在 ErrorHandler 外层才能记到最终状态码
+	engine.Use(ginlogs.AssignLogID(), ginlogs.AccessLog("/api/health"), middleware.ErrorHandler())
 	// 2.如果没有匹配上，报错接口不存在
 	engine.NoRoute(resp.ToGinHandler(notFoundHandler))
 	// 3.初始化注册全局路由表，后续使用该表匹配

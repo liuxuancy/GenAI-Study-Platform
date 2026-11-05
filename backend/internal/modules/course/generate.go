@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/liuxuancy/Libs/logs"
 	"gorm.io/gorm"
 
 	"caveclass/internal/ai"
@@ -15,7 +16,6 @@ import (
 	"caveclass/internal/ai/llm"
 	"caveclass/internal/framework/access"
 	"caveclass/internal/platform/errs"
-	"caveclass/internal/platform/logs"
 	"caveclass/internal/usage"
 )
 

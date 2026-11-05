@@ -6,6 +6,7 @@ import (
 	"context"
 
 	"github.com/gin-gonic/gin"
+	"github.com/liuxuancy/Libs/logs"
 
 	"caveclass/internal/framework/access"
 	"caveclass/internal/framework/identity"
@@ -13,7 +14,6 @@ import (
 	"caveclass/internal/modules/course"
 	"caveclass/internal/modules/system"
 	"caveclass/internal/platform/cos"
-	"caveclass/internal/platform/logs"
 	"caveclass/internal/platform/resp"
 )
 

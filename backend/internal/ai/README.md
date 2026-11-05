@@ -280,11 +280,11 @@ activity 字段：`key`、`type`、`title`、`order`、`payload`。`type` 只能
   "usage": { "promptTokens": 0, "completionTokens": 0, "totalTokens": 0 },
   "warnings": [],
   "validation": { "passed": true, "repairedFields": [] },
-  "requestId": ""
+  "logId": ""
 }
 ```
 
-`scene` 为 `full_course`、`chapter`、`activity`、`evaluate`。`requestId` 来自 context 里已有的请求 ID，没有则留空。
+`scene` 为 `full_course`、`chapter`、`activity`、`evaluate`。`logId` 来自 context 里已有的 logid（响应头 `X-Log-Id`），没有则留空。
 
 ## 降级
 

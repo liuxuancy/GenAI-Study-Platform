@@ -7,15 +7,16 @@ import (
 	"log/slog"
 	"testing"
 
+	"github.com/liuxuancy/Libs/logs"
+
 	"caveclass/internal/ai"
 	"caveclass/internal/ai/aierr"
-	"caveclass/internal/platform/logs"
 )
 
-func TestNewMetaCopiesRequestID(t *testing.T) {
-	ctx := logs.WithRequestID(context.Background(), "req-42")
+func TestNewMetaCopiesLogID(t *testing.T) {
+	ctx := logs.WithLogID(context.Background(), "req-42")
 	meta := ai.NewMeta(ctx, ai.SceneFullCourse)
-	if meta.Scene != ai.SceneFullCourse || meta.RequestID != "req-42" {
+	if meta.Scene != ai.SceneFullCourse || meta.LogID != "req-42" {
 		t.Fatalf("meta = %+v", meta)
 	}
 	if meta.Warnings == nil || meta.Validation.RepairedFields == nil {
@@ -25,12 +26,12 @@ func TestNewMetaCopiesRequestID(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !bytes.Contains(encoded, []byte(`"requestId":"req-42"`)) || !bytes.Contains(encoded, []byte(`"templateId"`)) {
+	if !bytes.Contains(encoded, []byte(`"logId":"req-42"`)) || !bytes.Contains(encoded, []byte(`"templateId"`)) {
 		t.Fatalf("json = %s", encoded)
 	}
 
 	var empty *ai.Meta
-	empty.FillRequestID(ctx)
+	empty.FillLogID(ctx)
 }
 
 func TestLogErrorFields(t *testing.T) {
@@ -39,7 +40,7 @@ func TestLogErrorFields(t *testing.T) {
 	buffer := &bytes.Buffer{}
 	logs.Setup(slog.NewJSONHandler(buffer, nil))
 
-	ctx := logs.WithRequestID(context.Background(), "req-7")
+	ctx := logs.WithLogID(context.Background(), "req-7")
 	meta := ai.NewMeta(ctx, ai.SceneFullCourse)
 	meta.TemplateID = "full_course_v1"
 	err := aierr.OutputSchemaFailed(nil, "title: required")
@@ -55,15 +56,15 @@ func TestLogErrorFields(t *testing.T) {
 	if line["uid"] != float64(42) {
 		t.Fatalf("uid = %#v", line["uid"])
 	}
-	if line[logs.RequestIDKey] != "req-7" {
-		t.Fatalf("request_id = %#v", line[logs.RequestIDKey])
+	if line[logs.LogIDKey] != "req-7" {
+		t.Fatalf("log_id = %#v", line[logs.LogIDKey])
 	}
 	details, _ := line["details"].([]any)
 	if len(details) != 1 || details[0] != "title: required" {
 		t.Fatalf("details = %#v", line["details"])
 	}
 	loggedMeta, _ := line["meta"].(map[string]any)
-	if loggedMeta["requestId"] != "req-7" || loggedMeta["scene"] != ai.SceneFullCourse || loggedMeta["templateId"] != "full_course_v1" {
+	if loggedMeta["logId"] != "req-7" || loggedMeta["scene"] != ai.SceneFullCourse || loggedMeta["templateId"] != "full_course_v1" {
 		t.Fatalf("meta = %#v", loggedMeta)
 	}
 }
