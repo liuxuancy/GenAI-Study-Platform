@@ -8,6 +8,7 @@ import (
 	"time"
 	"unicode/utf8"
 
+	"github.com/liuxuancy/Libs/logs"
 	"gorm.io/gorm"
 
 	"caveclass/internal/ai"
@@ -84,6 +85,7 @@ type AIQuestionPreview struct {
 
 func (service *Service) ListTeacherQuestions(ctx context.Context, principal *access.Principal, courseID int64) ([]TeacherQuestionItem, error) {
 	if err := service.requireTeacherCourse(ctx, principal, courseID); err != nil {
+		logs.CtxError(ctx, "[ListTeacherQuestions] failed, err: %v", err)
 		return nil, err
 	}
 	var rows []struct {
@@ -102,6 +104,7 @@ func (service *Service) ListTeacherQuestions(ctx context.Context, principal *acc
 		courseID, principal.UserID,
 	).Scan(&rows).Error
 	if err != nil {
+		logs.CtxError(ctx, "[ListTeacherQuestions] failed, err: %v", err)
 		return nil, err
 	}
 	items := make([]TeacherQuestionItem, 0, len(rows))
@@ -113,15 +116,18 @@ func (service *Service) ListTeacherQuestions(ctx context.Context, principal *acc
 			CorrectAnswer: row.CorrectAnswer, Explanation: row.Explanation,
 		})
 	}
+	logs.CtxInfo(ctx, "[ListTeacherQuestions] done: course_id=%d len(items)=%d", courseID, len(items))
 	return items, nil
 }
 
 func (service *Service) CreateTeacherQuestion(ctx context.Context, principal *access.Principal, courseID int64, input TeacherQuestionInput) (*TeacherQuestionItem, error) {
 	if err := service.requireTeacherCourse(ctx, principal, courseID); err != nil {
+		logs.CtxError(ctx, "[CreateTeacherQuestion] failed, err: %v", err)
 		return nil, err
 	}
 	input = normalizeTeacherQuestion(input)
 	if err := validateTeacherQuestion(input); err != nil {
+		logs.CtxError(ctx, "[CreateTeacherQuestion] failed, err: %v", err)
 		return nil, err
 	}
 	var item TeacherQuestionItem
@@ -152,7 +158,12 @@ func (service *Service) CreateTeacherQuestion(ctx context.Context, principal *ac
 			Content: input.Content, Options: input.Options, CorrectAnswer: input.CorrectAnswer, Explanation: input.Explanation}
 		return nil
 	})
-	return &item, err
+	if err != nil {
+		logs.CtxError(ctx, "[CreateTeacherQuestion] failed, err: %v", err)
+		return &item, err
+	}
+	logs.CtxInfo(ctx, "[CreateTeacherQuestion] done: resp=%+v", item)
+	return &item, nil
 }
 
 func (service *Service) UpdateTeacherQuestion(ctx context.Context, principal *access.Principal, contentID int64, input TeacherQuestionInput) (*TeacherQuestionItem, error) {
@@ -161,6 +172,7 @@ func (service *Service) UpdateTeacherQuestion(ctx context.Context, principal *ac
 	}
 	input = normalizeTeacherQuestion(input)
 	if err := validateTeacherQuestion(input); err != nil {
+		logs.CtxError(ctx, "[UpdateTeacherQuestion] failed, err: %v", err)
 		return nil, err
 	}
 	result := service.database.WithContext(ctx).Exec(
@@ -170,6 +182,7 @@ func (service *Service) UpdateTeacherQuestion(ctx context.Context, principal *ac
 		input.Content, strings.Join(input.Options, "|"), input.CorrectAnswer, input.Explanation, contentID, principal.UserID,
 	)
 	if result.Error != nil {
+		logs.CtxError(ctx, "[UpdateTeacherQuestion] failed, err: %v", result.Error)
 		return nil, result.Error
 	}
 	if result.RowsAffected == 0 {
@@ -179,6 +192,7 @@ func (service *Service) UpdateTeacherQuestion(ctx context.Context, principal *ac
 		`UPDATE course_question SET difficulty = ? WHERE id = (SELECT question_id FROM course_question_content WHERE id = ?)`,
 		input.Difficulty, contentID,
 	).Error; err != nil {
+		logs.CtxError(ctx, "[UpdateTeacherQuestion] failed, err: %v", err)
 		return nil, err
 	}
 	var row struct {
@@ -190,10 +204,13 @@ func (service *Service) UpdateTeacherQuestion(ctx context.Context, principal *ac
 		 FROM course_question q JOIN course_question_content qc ON qc.question_id = q.id WHERE qc.id = ?`,
 		contentID,
 	).Scan(&row).Error; err != nil {
+		logs.CtxError(ctx, "[UpdateTeacherQuestion] failed, err: %v", err)
 		return nil, err
 	}
-	return &TeacherQuestionItem{ID: contentID, SetID: row.SetID, SetTitle: row.SetTitle, Difficulty: input.Difficulty,
-		Content: input.Content, Options: input.Options, CorrectAnswer: input.CorrectAnswer, Explanation: input.Explanation}, nil
+	output := &TeacherQuestionItem{ID: contentID, SetID: row.SetID, SetTitle: row.SetTitle, Difficulty: input.Difficulty,
+		Content: input.Content, Options: input.Options, CorrectAnswer: input.CorrectAnswer, Explanation: input.Explanation}
+	logs.CtxInfo(ctx, "[UpdateTeacherQuestion] done: resp=%+v", output)
+	return output, nil
 }
 
 // DeleteTeacherQuestion 删除一道题，并去掉学生在这道题上的作答。测验小节本身保留。
@@ -201,7 +218,7 @@ func (service *Service) DeleteTeacherQuestion(ctx context.Context, principal *ac
 	if principal.Role != access.RoleTeacher {
 		return errs.Forbidden("only teachers can delete questions")
 	}
-	return service.database.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+	err := service.database.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		var quizID int64
 		found := tx.Raw(
 			`SELECT q.id FROM course_question q
@@ -232,17 +249,27 @@ func (service *Service) DeleteTeacherQuestion(ctx context.Context, principal *ac
 			quizID, time.Now().UTC(), quizID,
 		).Error
 	})
+	if err != nil {
+		logs.CtxError(ctx, "[DeleteTeacherQuestion] failed, err: %v", err)
+		return err
+	}
+	logs.CtxInfo(ctx, "[DeleteTeacherQuestion] done: content_id=%d", contentID)
+	return nil
 }
 
 func (service *Service) PreviewQuestionImport(ctx context.Context, principal *access.Principal, courseID int64, input QuestionImportInput) (*QuestionImportPreview, error) {
 	if err := service.requireTeacherCourse(ctx, principal, courseID); err != nil {
+		logs.CtxError(ctx, "[PreviewQuestionImport] failed, err: %v", err)
 		return nil, err
 	}
-	return validateImportRows(input.Rows), nil
+	output := validateImportRows(input.Rows)
+	logs.CtxInfo(ctx, "[PreviewQuestionImport] done: course_id=%d valid_count=%d len(rows)=%d len(errors)=%d", courseID, output.ValidCount, len(output.Rows), len(output.Errors))
+	return output, nil
 }
 
 func (service *Service) ConfirmQuestionImport(ctx context.Context, principal *access.Principal, courseID int64, input QuestionImportInput) ([]TeacherQuestionItem, error) {
 	if err := service.requireTeacherCourse(ctx, principal, courseID); err != nil {
+		logs.CtxError(ctx, "[ConfirmQuestionImport] failed, err: %v", err)
 		return nil, err
 	}
 	preview := validateImportRows(input.Rows)
@@ -287,11 +314,17 @@ func (service *Service) ConfirmQuestionImport(ctx context.Context, principal *ac
 		}
 		return publishQuizWithQuestions(tx, setID, now)
 	})
-	return created, err
+	if err != nil {
+		logs.CtxError(ctx, "[ConfirmQuestionImport] failed, err: %v", err)
+		return created, err
+	}
+	logs.CtxInfo(ctx, "[ConfirmQuestionImport] done: course_id=%d len(created)=%d", courseID, len(created))
+	return created, nil
 }
 
 func (service *Service) GenerateTeacherQuestions(ctx context.Context, principal *access.Principal, courseID int64, input AIQuestionInput) (*AIQuestionPreview, error) {
 	if err := service.requireTeacherCourse(ctx, principal, courseID); err != nil {
+		logs.CtxError(ctx, "[GenerateTeacherQuestions] failed, err: %v", err)
 		return nil, err
 	}
 	if input.Count < 1 || input.Count > 20 {
@@ -308,11 +341,13 @@ func (service *Service) GenerateTeacherQuestions(ctx context.Context, principal 
 		courseID, principal.UserID,
 	).Scan(&row)
 	if found.Error != nil {
+		logs.CtxError(ctx, "[GenerateTeacherQuestions] failed, err: %v", found.Error)
 		return nil, found.Error
 	}
 	var contextCourse aicourse.StandardCourse
 	if row.ContentJSON != "" {
 		if err := json.Unmarshal([]byte(row.ContentJSON), &contextCourse); err != nil {
+			logs.CtxError(ctx, "[GenerateTeacherQuestions] failed, err: %v", err)
 			return nil, errs.Internal(err)
 		}
 	}
@@ -325,6 +360,7 @@ func (service *Service) GenerateTeacherQuestions(ctx context.Context, principal 
 	}
 	aiService, err := service.aiForGenerate(input.Provider)
 	if err != nil {
+		logs.CtxError(ctx, "[GenerateTeacherQuestions] failed, err: %v", err)
 		return nil, err
 	}
 	requirements := fmt.Sprintf("只生成 quiz_game，包含 %d 道%s选择题。%s", input.Count, input.Difficulty, input.ExtraRequirements)
@@ -336,6 +372,7 @@ func (service *Service) GenerateTeacherQuestions(ctx context.Context, principal 
 	})
 	service.recordUsage(ctx, principal.UserID, usage.SceneGenerateActivity, meta, err)
 	if err != nil {
+		logs.CtxError(ctx, "[GenerateTeacherQuestions] failed, err: %v", err)
 		return nil, businessAIError(err)
 	}
 	questions := activityQuizQuestions(activity)
@@ -344,7 +381,9 @@ func (service *Service) GenerateTeacherQuestions(ctx context.Context, principal 
 		items = append(items, TeacherQuestionInput{Content: question.Question, Options: question.Options,
 			CorrectAnswer: question.Options[question.CorrectIndex], Explanation: question.Explanation, Difficulty: input.Difficulty})
 	}
-	return &AIQuestionPreview{Questions: items, Meta: meta}, nil
+	output := &AIQuestionPreview{Questions: items, Meta: meta}
+	logs.CtxInfo(ctx, "[GenerateTeacherQuestions] done: course_id=%d len(questions)=%d meta=%+v", courseID, len(output.Questions), output.Meta)
+	return output, nil
 }
 
 func (service *Service) requireTeacherCourse(ctx context.Context, principal *access.Principal, courseID int64) error {

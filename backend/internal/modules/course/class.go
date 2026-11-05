@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"time"
 
+	"github.com/liuxuancy/Libs/logs"
 	"gorm.io/gorm"
 
 	aicourse "caveclass/internal/ai/course"
@@ -87,6 +88,7 @@ func (service *Service) GetClassList(ctx context.Context) ([]ClassItem, error) {
 		"SELECT id, name FROM study_class ORDER BY id",
 	).Scan(&rows).Error
 	if err != nil {
+		logs.CtxError(ctx, "[GetClassList] failed, err: %v", err)
 		return nil, err
 	}
 	classes := make([]ClassItem, 0, len(rows))
@@ -107,6 +109,7 @@ func (service *Service) GetClassList(ctx context.Context) ([]ClassItem, error) {
 		 ORDER BY m.class_id, u.id`,
 	).Scan(&members).Error
 	if err != nil {
+		logs.CtxError(ctx, "[GetClassList] failed, err: %v", err)
 		return nil, err
 	}
 	grouped := map[int64][]ClassMember{}
@@ -125,6 +128,7 @@ func (service *Service) GetClassList(ctx context.Context) ([]ClassItem, error) {
 		}
 		classes[index].Members = classMembers
 	}
+	logs.CtxInfo(ctx, "[GetClassList] done: len(classes)=%d", len(classes))
 	return classes, nil
 }
 
@@ -132,6 +136,7 @@ func (service *Service) GetClassList(ctx context.Context) ([]ClassItem, error) {
 func (service *Service) CreateClass(ctx context.Context, name string) (*ClassItem, error) {
 	normalized, err := requireText(name, maxClassNameRunes, "class name is required", "class name is too long")
 	if err != nil {
+		logs.CtxError(ctx, "[CreateClass] failed, err: %v", err)
 		return nil, err
 	}
 	now := time.Now().UTC()
@@ -143,15 +148,23 @@ func (service *Service) CreateClass(ctx context.Context, name string) (*ClassIte
 		return nil, errs.Conflict("class name already exists")
 	}
 	if result.Error != nil {
+		logs.CtxError(ctx, "[CreateClass] failed, err: %v", result.Error)
 		return nil, result.Error
 	}
-	return service.classByName(ctx, normalized)
+	output, err := service.classByName(ctx, normalized)
+	if err != nil {
+		logs.CtxError(ctx, "[CreateClass] failed, err: %v", err)
+		return nil, err
+	}
+	logs.CtxInfo(ctx, "[CreateClass] done: resp=%+v", output)
+	return output, nil
 }
 
 // RenameClass 只改名称，不动成员。
 func (service *Service) RenameClass(ctx context.Context, classID int64, name string) (*ClassItem, error) {
 	normalized, err := requireText(name, maxClassNameRunes, "class name is required", "class name is too long")
 	if err != nil {
+		logs.CtxError(ctx, "[RenameClass] failed, err: %v", err)
 		return nil, err
 	}
 	result := service.database.WithContext(ctx).Exec(
@@ -162,36 +175,48 @@ func (service *Service) RenameClass(ctx context.Context, classID int64, name str
 		return nil, errs.Conflict("class name already exists")
 	}
 	if result.Error != nil {
+		logs.CtxError(ctx, "[RenameClass] failed, err: %v", result.Error)
 		return nil, result.Error
 	}
 	if result.RowsAffected == 0 {
 		return nil, errs.NotFound("class not found")
 	}
-	return service.classByID(ctx, classID)
+	output, err := service.classByID(ctx, classID)
+	if err != nil {
+		logs.CtxError(ctx, "[RenameClass] failed, err: %v", err)
+		return nil, err
+	}
+	logs.CtxInfo(ctx, "[RenameClass] done: class_id=%d resp=%+v", classID, output)
+	return output, nil
 }
 
 // SetClassMembers 用这份用户名单替换成员。只能放教师和学生。
 func (service *Service) SetClassMembers(ctx context.Context, classID int64, userIDs []int64) (*ClassItem, error) {
 	ids, err := uniqueIDs(userIDs)
 	if err != nil {
+		logs.CtxError(ctx, "[SetClassMembers] failed, err: %v", err)
 		return nil, err
 	}
 	database := service.database.WithContext(ctx)
 	if _, err := service.classByID(ctx, classID); err != nil {
+		logs.CtxError(ctx, "[SetClassMembers] failed, err: %v", err)
 		return nil, err
 	}
 	tx := database.Begin()
 	if tx.Error != nil {
+		logs.CtxError(ctx, "[SetClassMembers] failed, err: %v", tx.Error)
 		return nil, tx.Error
 	}
 	for _, userID := range ids {
 		if err := requireClassUser(tx, userID); err != nil {
 			tx.Rollback()
+			logs.CtxError(ctx, "[SetClassMembers] failed, err: %v", err)
 			return nil, err
 		}
 	}
 	if err := tx.Exec("DELETE FROM study_class_member WHERE class_id = ?", classID).Error; err != nil {
 		tx.Rollback()
+		logs.CtxError(ctx, "[SetClassMembers] failed, err: %v", err)
 		return nil, err
 	}
 	for _, userID := range ids {
@@ -201,6 +226,7 @@ func (service *Service) SetClassMembers(ctx context.Context, classID int64, user
 		).Error
 		if err != nil {
 			tx.Rollback()
+			logs.CtxError(ctx, "[SetClassMembers] failed, err: %v", err)
 			return nil, err
 		}
 	}
@@ -212,9 +238,16 @@ func (service *Service) SetClassMembers(ctx context.Context, classID int64, user
 		return nil, err
 	}
 	if err := tx.Commit().Error; err != nil {
+		logs.CtxError(ctx, "[SetClassMembers] failed, err: %v", err)
 		return nil, err
 	}
-	return service.classByID(ctx, classID)
+	output, err := service.classByID(ctx, classID)
+	if err != nil {
+		logs.CtxError(ctx, "[SetClassMembers] failed, err: %v", err)
+		return nil, err
+	}
+	logs.CtxInfo(ctx, "[SetClassMembers] done: class_id=%d user_ids=%v len(members)=%d", classID, userIDs, len(output.Members))
+	return output, nil
 }
 
 func requireClassUser(tx *gorm.DB, userID int64) error {
@@ -271,11 +304,13 @@ func (service *Service) GetTeacherClasses(ctx context.Context, principal *access
 		principal.UserID,
 	).Scan(&items).Error
 	if err != nil {
+		logs.CtxError(ctx, "[GetTeacherClasses] failed, err: %v", err)
 		return nil, err
 	}
 	if items == nil {
 		items = []TeacherClassItem{}
 	}
+	logs.CtxInfo(ctx, "[GetTeacherClasses] done: len(classes)=%d resp=%+v", len(items), items)
 	return items, nil
 }
 
@@ -295,10 +330,12 @@ func (service *Service) GetTeacherCourseList(ctx context.Context, principal *acc
 		principal.UserID,
 	).Scan(&rows).Error
 	if err != nil {
+		logs.CtxError(ctx, "[GetTeacherCourseList] failed, err: %v", err)
 		return nil, err
 	}
 	classIDs, err := service.classIDsForOwner(ctx, principal.UserID)
 	if err != nil {
+		logs.CtxError(ctx, "[GetTeacherCourseList] failed, err: %v", err)
 		return nil, err
 	}
 	items := make([]TeacherCourseDetail, 0, len(rows))
@@ -320,6 +357,7 @@ func (service *Service) GetTeacherCourseList(ctx context.Context, principal *acc
 			HasContent:   row.ContentJSON != "",
 		})
 	}
+	logs.CtxInfo(ctx, "[GetTeacherCourseList] done: len(courses)=%d", len(items))
 	return items, nil
 }
 
@@ -338,12 +376,19 @@ func (service *Service) GetTeacherCourse(ctx context.Context, principal *access.
 		courseID, principal.UserID,
 	).Scan(&row)
 	if result.Error != nil {
+		logs.CtxError(ctx, "[GetTeacherCourse] failed, err: %v", result.Error)
 		return nil, result.Error
 	}
 	if result.RowsAffected == 0 {
 		return nil, errs.NotFound("course not found")
 	}
-	return service.teacherDetail(ctx, row)
+	output, err := service.teacherDetail(ctx, row)
+	if err != nil {
+		logs.CtxError(ctx, "[GetTeacherCourse] failed, err: %v", err)
+		return nil, err
+	}
+	logs.CtxInfo(ctx, "[GetTeacherCourse] done: id=%d title=%q published=%t class_ids=%v chapter_count=%d has_content=%t", output.ID, output.Title, output.Published, output.ClassIDs, output.ChapterCount, output.HasContent)
+	return output, nil
 }
 
 // PublishCourseToClasses 把课发到指定班，或在名单为空时整门撤回。
@@ -353,6 +398,7 @@ func (service *Service) PublishCourseToClasses(ctx context.Context, principal *a
 	}
 	ids, err := uniqueIDs(classIDs)
 	if err != nil {
+		logs.CtxError(ctx, "[PublishCourseToClasses] failed, err: %v", err)
 		return nil, err
 	}
 	database := service.database.WithContext(ctx)
@@ -362,6 +408,7 @@ func (service *Service) PublishCourseToClasses(ctx context.Context, principal *a
 		courseID, principal.UserID,
 	).Scan(&ownerID)
 	if found.Error != nil {
+		logs.CtxError(ctx, "[PublishCourseToClasses] failed, err: %v", found.Error)
 		return nil, found.Error
 	}
 	if found.RowsAffected == 0 {
@@ -370,6 +417,7 @@ func (service *Service) PublishCourseToClasses(ctx context.Context, principal *a
 
 	tx := database.Begin()
 	if tx.Error != nil {
+		logs.CtxError(ctx, "[PublishCourseToClasses] failed, err: %v", tx.Error)
 		return nil, tx.Error
 	}
 	now := time.Now().UTC()
@@ -379,12 +427,14 @@ func (service *Service) PublishCourseToClasses(ctx context.Context, principal *a
 		for _, classID := range ids {
 			if err := teacherOwnsClass(tx, classID, principal.UserID); err != nil {
 				tx.Rollback()
+				logs.CtxError(ctx, "[PublishCourseToClasses] failed, err: %v", err)
 				return nil, err
 			}
 		}
 	}
 	if err := tx.Exec("DELETE FROM course_class WHERE course_id = ?", courseID).Error; err != nil {
 		tx.Rollback()
+		logs.CtxError(ctx, "[PublishCourseToClasses] failed, err: %v", err)
 		return nil, err
 	}
 	for _, classID := range ids {
@@ -394,6 +444,7 @@ func (service *Service) PublishCourseToClasses(ctx context.Context, principal *a
 		).Error
 		if err != nil {
 			tx.Rollback()
+			logs.CtxError(ctx, "[PublishCourseToClasses] failed, err: %v", err)
 			return nil, err
 		}
 	}
@@ -405,9 +456,16 @@ func (service *Service) PublishCourseToClasses(ctx context.Context, principal *a
 		return nil, err
 	}
 	if err := tx.Commit().Error; err != nil {
+		logs.CtxError(ctx, "[PublishCourseToClasses] failed, err: %v", err)
 		return nil, err
 	}
-	return service.GetTeacherCourse(ctx, principal, courseID)
+	output, err := service.GetTeacherCourse(ctx, principal, courseID)
+	if err != nil {
+		logs.CtxError(ctx, "[PublishCourseToClasses] failed, err: %v", err)
+		return nil, err
+	}
+	logs.CtxInfo(ctx, "[PublishCourseToClasses] done: class_ids=%v id=%d title=%q published=%t class_ids=%v chapter_count=%d has_content=%t", classIDs, output.ID, output.Title, output.Published, output.ClassIDs, output.ChapterCount, output.HasContent)
+	return output, nil
 }
 
 func teacherOwnsClass(tx *gorm.DB, classID int64, userID int64) error {
@@ -443,6 +501,7 @@ func (service *Service) GetTeacherCourseProgress(ctx context.Context, principal 
 		courseID, principal.UserID,
 	).Scan(&ownerID)
 	if found.Error != nil {
+		logs.CtxError(ctx, "[GetTeacherCourseProgress] failed, err: %v", found.Error)
 		return nil, found.Error
 	}
 	if found.RowsAffected == 0 {
@@ -460,12 +519,15 @@ func (service *Service) GetTeacherCourseProgress(ctx context.Context, principal 
 		access.RoleStudent, courseID,
 	).Scan(&students).Error
 	if err != nil {
+		logs.CtxError(ctx, "[GetTeacherCourseProgress] failed, err: %v", err)
 		return nil, err
 	}
 	if students == nil {
 		students = []ClassStudentProgress{}
 	}
-	return &CourseClassProgress{Students: students}, nil
+	output := &CourseClassProgress{Students: students}
+	logs.CtxInfo(ctx, "[GetTeacherCourseProgress] done: course_id=%d len(students)=%d", courseID, len(output.Students))
+	return output, nil
 }
 
 func (service *Service) teacherDetail(ctx context.Context, row storedCourse) (*TeacherCourseDetail, error) {

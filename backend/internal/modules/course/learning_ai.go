@@ -8,6 +8,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/liuxuancy/Libs/logs"
+
 	"caveclass/internal/ai"
 	"caveclass/internal/ai/aierr"
 	aicourse "caveclass/internal/ai/course"
@@ -64,6 +66,7 @@ func (service *Service) AskChapterQuestion(ctx context.Context, principal *acces
 		append([]any{courseID}, studentVisibleCourseArgs(principal.UserID)...)...,
 	).Scan(&row)
 	if found.Error != nil {
+		logs.CtxError(ctx, "[AskChapterQuestion] failed, err: %v", found.Error)
 		return nil, found.Error
 	}
 	if found.RowsAffected == 0 {
@@ -71,6 +74,7 @@ func (service *Service) AskChapterQuestion(ctx context.Context, principal *acces
 	}
 	content, err := parseStoredContent(row.ContentJSON)
 	if err != nil {
+		logs.CtxError(ctx, "[AskChapterQuestion] failed, err: %v", err)
 		return nil, err
 	}
 	var chapter *aicourse.Chapter
@@ -85,10 +89,12 @@ func (service *Service) AskChapterQuestion(ctx context.Context, principal *acces
 	}
 	aiService, err := service.aiForGenerate(input.Provider)
 	if err != nil {
+		logs.CtxError(ctx, "[AskChapterQuestion] failed, err: %v", err)
 		return nil, err
 	}
 	history, err := service.recentConversationHistory(ctx, principal.UserID, courseID, input.ConversationID)
 	if err != nil {
+		logs.CtxError(ctx, "[AskChapterQuestion] failed, err: %v", err)
 		return nil, err
 	}
 	activityKey, sectionTitle := sectionTitleFor(chapter, input.ActivityKey)
@@ -104,6 +110,7 @@ func (service *Service) AskChapterQuestion(ctx context.Context, principal *acces
 		if aiError, ok := aierr.As(callErr); ok && aiError.Code == aierr.CodeInputTooLong {
 			return nil, errs.BadRequest("当前小节内容和对话历史超过了模型输入限制。请缩短问题，或新开对话后再试。")
 		}
+		logs.CtxError(ctx, "[AskChapterQuestion] failed, err: %v", callErr)
 		return nil, businessAIError(callErr)
 	}
 	conversationID, err := service.saveChapterExchange(
@@ -111,16 +118,20 @@ func (service *Service) AskChapterQuestion(ctx context.Context, principal *acces
 		strings.TrimSpace(chapterKey), activityKey, sectionTitle, strings.TrimSpace(input.Question), answer,
 	)
 	if err != nil {
+		logs.CtxError(ctx, "[AskChapterQuestion] failed, err: %v", err)
 		return nil, err
 	}
 	courseRef := courseID
 	chapterRef := strings.TrimSpace(chapterKey)
 	service.recordLearningEvent(ctx, principal.UserID, EventChapterQA, &courseRef, nil, chapterRef, 0)
-	return &ChapterQAResult{Answer: answer, ConversationID: conversationID, Meta: meta}, nil
+	output := &ChapterQAResult{Answer: answer, ConversationID: conversationID, Meta: meta}
+	logs.CtxInfo(ctx, "[AskChapterQuestion] done: course_id=%d chapter_key=%s conversation_id=%d len(answer)=%d meta=%+v", courseID, chapterKey, output.ConversationID, len(output.Answer), output.Meta)
+	return output, nil
 }
 
 func (service *Service) GetCourseQualityReport(ctx context.Context, principal *access.Principal, courseID int64) (*StoredQualityReport, error) {
 	if err := service.requireTeacherCourse(ctx, principal, courseID); err != nil {
+		logs.CtxError(ctx, "[GetCourseQualityReport] failed, err: %v", err)
 		return nil, err
 	}
 	var row CourseQualityReport
@@ -128,6 +139,7 @@ func (service *Service) GetCourseQualityReport(ctx context.Context, principal *a
 		"SELECT course_id, overall_score, report_json, created_at FROM course_quality_report WHERE course_id = ?", courseID,
 	).Scan(&row)
 	if found.Error != nil {
+		logs.CtxError(ctx, "[GetCourseQualityReport] failed, err: %v", found.Error)
 		return nil, found.Error
 	}
 	if found.RowsAffected == 0 {
@@ -135,13 +147,17 @@ func (service *Service) GetCourseQualityReport(ctx context.Context, principal *a
 	}
 	var report quality.Report
 	if err := json.Unmarshal([]byte(row.ReportJSON), &report); err != nil {
+		logs.CtxError(ctx, "[GetCourseQualityReport] failed, err: %v", err)
 		return nil, errs.Internal(err)
 	}
-	return &StoredQualityReport{Report: report, CreatedAt: row.CreatedAt}, nil
+	output := &StoredQualityReport{Report: report, CreatedAt: row.CreatedAt}
+	logs.CtxInfo(ctx, "[GetCourseQualityReport] done: course_id=%d overall_score=%d len(dimensions)=%d len(suggestions)=%d", courseID, output.Report.OverallScore, len(output.Report.Dimensions), len(output.Report.Suggestions))
+	return output, nil
 }
 
 func (service *Service) GenerateCourseQualityReport(ctx context.Context, principal *access.Principal, courseID int64, input QualityReportInput) (*StoredQualityReport, error) {
 	if err := service.requireTeacherCourse(ctx, principal, courseID); err != nil {
+		logs.CtxError(ctx, "[GenerateCourseQualityReport] failed, err: %v", err)
 		return nil, err
 	}
 	var raw string
@@ -149,24 +165,29 @@ func (service *Service) GenerateCourseQualityReport(ctx context.Context, princip
 		"SELECT COALESCE(content_json, '') FROM course WHERE id = ? AND owner_id = ?", courseID, principal.UserID,
 	).Scan(&raw)
 	if found.Error != nil {
+		logs.CtxError(ctx, "[GenerateCourseQualityReport] failed, err: %v", found.Error)
 		return nil, found.Error
 	}
 	content, err := parseStoredContent(raw)
 	if err != nil {
+		logs.CtxError(ctx, "[GenerateCourseQualityReport] failed, err: %v", err)
 		return nil, err
 	}
 	aiService, err := service.aiForGenerate(input.Provider)
 	if err != nil {
+		logs.CtxError(ctx, "[GenerateCourseQualityReport] failed, err: %v", err)
 		return nil, err
 	}
 	report, meta, callErr := aiService.EvaluateCourse(ctx, content, input.Rubric)
 	service.recordUsage(ctx, principal.UserID, usage.SceneEvaluateCourse, meta, callErr)
 	if callErr != nil {
 		ai.LogError(ctx, callErr, meta, principal.UserID)
+		logs.CtxError(ctx, "[GenerateCourseQualityReport] failed, err: %v", callErr)
 		return nil, businessAIError(callErr)
 	}
 	encoded, err := json.Marshal(report)
 	if err != nil {
+		logs.CtxError(ctx, "[GenerateCourseQualityReport] failed, err: %v", err)
 		return nil, err
 	}
 	createdAt := time.Now().UTC()
@@ -178,26 +199,34 @@ func (service *Service) GenerateCourseQualityReport(ctx context.Context, princip
 		courseID, report.OverallScore, string(encoded), createdAt,
 	).Error
 	if err != nil {
+		logs.CtxError(ctx, "[GenerateCourseQualityReport] failed, err: %v", err)
 		return nil, err
 	}
-	return &StoredQualityReport{Report: report, Meta: &meta, CreatedAt: createdAt}, nil
+	output := &StoredQualityReport{Report: report, Meta: &meta, CreatedAt: createdAt}
+	logs.CtxInfo(ctx, "[GenerateCourseQualityReport] done: course_id=%d overall_score=%d len(dimensions)=%d len(suggestions)=%d", courseID, output.Report.OverallScore, len(output.Report.Dimensions), len(output.Report.Suggestions))
+	return output, nil
 }
 
 func (service *Service) GetCourseMermaid(ctx context.Context, principal *access.Principal, courseID int64) (*MermaidResult, error) {
 	if err := service.requireTeacherCourse(ctx, principal, courseID); err != nil {
+		logs.CtxError(ctx, "[GetCourseMermaid] failed, err: %v", err)
 		return nil, err
 	}
 	var raw string
 	if err := service.database.WithContext(ctx).Raw(
 		"SELECT COALESCE(content_json, '') FROM course WHERE id = ? AND owner_id = ?", courseID, principal.UserID,
 	).Scan(&raw).Error; err != nil {
+		logs.CtxError(ctx, "[GetCourseMermaid] failed, err: %v", err)
 		return nil, err
 	}
 	content, err := parseStoredContent(raw)
 	if err != nil {
+		logs.CtxError(ctx, "[GetCourseMermaid] failed, err: %v", err)
 		return nil, err
 	}
-	return &MermaidResult{Source: courseMermaid(content)}, nil
+	output := &MermaidResult{Source: courseMermaid(content)}
+	logs.CtxInfo(ctx, "[GetCourseMermaid] done: course_id=%d len(source)=%d", courseID, len(output.Source))
+	return output, nil
 }
 
 func parseStoredContent(raw string) (aicourse.StandardCourse, error) {

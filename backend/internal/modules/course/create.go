@@ -4,6 +4,8 @@ import (
 	"context"
 	"time"
 
+	"github.com/liuxuancy/Libs/logs"
+
 	"caveclass/internal/framework/access"
 	"caveclass/internal/platform/errs"
 )
@@ -30,7 +32,13 @@ func (service *Service) CreateStudentCourse(ctx context.Context, principal *acce
 	if principal.Role != access.RoleStudent {
 		return nil, errs.Forbidden("only students can create courses")
 	}
-	return service.createCourse(ctx, principal.UserID, input)
+	output, err := service.createCourse(ctx, principal.UserID, input)
+	if err != nil {
+		logs.CtxError(ctx, "[CreateStudentCourse] failed, err: %v", err)
+		return nil, err
+	}
+	logs.CtxInfo(ctx, "[CreateStudentCourse] done: resp=%+v", output)
+	return output, nil
 }
 
 // CreateTeacherCourse 教师创建未发布的课。发布时再写 course_class。
@@ -40,9 +48,16 @@ func (service *Service) CreateTeacherCourse(ctx context.Context, principal *acce
 	}
 	created, err := service.createCourse(ctx, principal.UserID, input)
 	if err != nil {
+		logs.CtxError(ctx, "[CreateTeacherCourse] failed, err: %v", err)
 		return nil, err
 	}
-	return service.GetTeacherCourse(ctx, principal, created.ID)
+	output, err := service.GetTeacherCourse(ctx, principal, created.ID)
+	if err != nil {
+		logs.CtxError(ctx, "[CreateTeacherCourse] failed, err: %v", err)
+		return nil, err
+	}
+	logs.CtxInfo(ctx, "[CreateTeacherCourse] done: id=%d title=%q published=%t class_ids=%v chapter_count=%d has_content=%t", output.ID, output.Title, output.Published, output.ClassIDs, output.ChapterCount, output.HasContent)
+	return output, nil
 }
 
 func (service *Service) createCourse(ctx context.Context, ownerID int64, input CreateCourseInput) (*CourseListItem, error) {
@@ -76,6 +91,7 @@ func (service *Service) SetCourseSharing(ctx context.Context, principal *access.
 		courseID, principal.UserID,
 	).Scan(&ownerID)
 	if found.Error != nil {
+		logs.CtxError(ctx, "[SetCourseSharing] failed, err: %v", found.Error)
 		return nil, found.Error
 	}
 	if found.RowsAffected == 0 {
@@ -88,6 +104,7 @@ func (service *Service) SetCourseSharing(ctx context.Context, principal *access.
 	}
 	tx := database.Begin()
 	if tx.Error != nil {
+		logs.CtxError(ctx, "[SetCourseSharing] failed, err: %v", tx.Error)
 		return nil, tx.Error
 	}
 	updated := tx.Exec(
@@ -96,19 +113,25 @@ func (service *Service) SetCourseSharing(ctx context.Context, principal *access.
 	)
 	if updated.Error != nil {
 		tx.Rollback()
+		logs.CtxError(ctx, "[SetCourseSharing] failed, err: %v", updated.Error)
 		return nil, updated.Error
 	}
 	cleared := tx.Exec("DELETE FROM course_class WHERE course_id = ?", courseID)
 	if cleared.Error != nil {
 		tx.Rollback()
+		logs.CtxError(ctx, "[SetCourseSharing] failed, err: %v", cleared.Error)
 		return nil, cleared.Error
 	}
 	if err := tx.Commit().Error; err != nil {
+		logs.CtxError(ctx, "[SetCourseSharing] failed, err: %v", err)
 		return nil, err
 	}
 	classmates, err := service.countClassmates(ctx, principal.UserID)
 	if err != nil {
+		logs.CtxError(ctx, "[SetCourseSharing] failed, err: %v", err)
 		return nil, err
 	}
-	return &SharingResult{Shared: shared, ClassmateCount: classmates}, nil
+	output := &SharingResult{Shared: shared, ClassmateCount: classmates}
+	logs.CtxInfo(ctx, "[SetCourseSharing] done: course_id=%d resp=%+v", courseID, output)
+	return output, nil
 }
