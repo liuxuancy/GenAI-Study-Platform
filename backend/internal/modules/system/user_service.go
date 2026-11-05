@@ -92,6 +92,7 @@ func (service *UserService) GetUserList(ctx context.Context, query UserListQuery
 
 	var total int64
 	if err := service.database.WithContext(ctx).Raw(countUsersSQL, filterArgs...).Scan(&total).Error; err != nil {
+		logs.CtxError(ctx, "[GetUserList] failed, err: %v", err)
 		return nil, err
 	}
 
@@ -99,11 +100,15 @@ func (service *UserService) GetUserList(ctx context.Context, query UserListQuery
 	var items []UserItem
 	pageArgs := append(filterArgs, pageSize, (page-1)*pageSize)
 	if err := service.database.WithContext(ctx).Raw(listUsersSQL, pageArgs...).Scan(&items).Error; err != nil {
+		logs.CtxError(ctx, "[GetUserList] failed, err: %v", err)
 		return nil, err
 	}
 	for index := range items {
 		items[index].RoleName = access.GetRoleName(items[index].Role)
 	}
+	// 列表可能很长，只记总数和本页条数
+	logs.CtxInfo(ctx, "[GetUserList] done: keyword=%q role=%q status=%s page=%d pageSize=%d total=%d len(items)=%d",
+		query.Keyword, query.Role, formatOptionalInt(query.Status), page, pageSize, total, len(items))
 	return &UserListResult{Items: items, Total: total}, nil
 }
 
@@ -127,6 +132,7 @@ func (service *UserService) CreateUser(ctx context.Context, input CreateUserInpu
 
 	var count int64
 	if err := service.database.WithContext(ctx).Raw("SELECT COUNT(*) FROM sys_user WHERE username = ?", username).Scan(&count).Error; err != nil {
+		logs.CtxError(ctx, "[CreateUser] failed, err: %v", err)
 		return nil, err
 	}
 	if count > 0 {
@@ -135,6 +141,7 @@ func (service *UserService) CreateUser(ctx context.Context, input CreateUserInpu
 
 	hash, err := identity.HashPassword(input.Password)
 	if err != nil {
+		logs.CtxError(ctx, "[CreateUser] failed, err: %v", err)
 		return nil, err
 	}
 	now := time.Now().UTC()
@@ -145,10 +152,16 @@ func (service *UserService) CreateUser(ctx context.Context, input CreateUserInpu
 		input.Role, model.UserStatusActive, now, now,
 	).Error
 	if err != nil {
+		logs.CtxError(ctx, "[CreateUser] failed, err: %v", err)
 		return nil, err
 	}
-	logs.CtxInfo(ctx, "user created: username=%s role=%s", username, input.Role)
-	return service.getUserItemByUsername(ctx, username)
+	item, err := service.getUserItemByUsername(ctx, username)
+	if err != nil {
+		logs.CtxError(ctx, "[CreateUser] failed, err: %v", err)
+		return nil, err
+	}
+	logs.CtxInfo(ctx, "[CreateUser] done: resp=%+v", *item)
+	return item, nil
 }
 
 type UpdateUserInput struct {
@@ -162,6 +175,7 @@ type UpdateUserInput struct {
 func (service *UserService) UpdateUser(ctx context.Context, operator *access.Principal, userID int64, input UpdateUserInput) error {
 	user, err := service.getUserByID(ctx, userID)
 	if err != nil {
+		logs.CtxError(ctx, "[UpdateUser] failed, err: %v", err)
 		return err
 	}
 	newStatus := *input.Status
@@ -183,12 +197,14 @@ func (service *UserService) UpdateUser(ctx context.Context, operator *access.Pri
 		time.Now().UTC(), userID,
 	).Error
 	if err != nil {
+		logs.CtxError(ctx, "[UpdateUser] failed, err: %v", err)
 		return err
 	}
 	if user.Status != newStatus {
 		service.cache.Reset() // 状态变了，下一个请求立即按新状态判断
-		logs.CtxInfo(ctx, "user status changed: user_id=%d %d -> %d", userID, user.Status, newStatus)
 	}
+	logs.CtxInfo(ctx, "[UpdateUser] done: operator_id=%d user_id=%d nickname=%q email=%q status %d -> %d major %q -> %q",
+		operator.UserID, userID, input.Nickname, input.Email, user.Status, newStatus, user.Major, major)
 	return nil
 }
 
@@ -199,10 +215,12 @@ type ResetPasswordInput struct {
 // ResetUserPassword 管理员重置别人的密码：token 版本加一，该用户所有旧 token 立即失效。
 func (service *UserService) ResetUserPassword(ctx context.Context, userID int64, input ResetPasswordInput) error {
 	if _, err := service.getUserByID(ctx, userID); err != nil {
+		logs.CtxError(ctx, "[ResetUserPassword] failed, err: %v", err)
 		return err
 	}
 	hash, err := identity.HashPassword(input.Password)
 	if err != nil {
+		logs.CtxError(ctx, "[ResetUserPassword] failed, err: %v", err)
 		return err
 	}
 	err = service.database.WithContext(ctx).Exec(
@@ -210,10 +228,11 @@ func (service *UserService) ResetUserPassword(ctx context.Context, userID int64,
 		hash, time.Now().UTC(), userID,
 	).Error
 	if err != nil {
+		logs.CtxError(ctx, "[ResetUserPassword] failed, err: %v", err)
 		return err
 	}
 	service.cache.Reset()
-	logs.CtxInfo(ctx, "password reset by admin: user_id=%d", userID)
+	logs.CtxInfo(ctx, "[ResetUserPassword] done: user_id=%d, token_version+1", userID)
 	return nil
 }
 
@@ -222,19 +241,23 @@ func (service *UserService) DeleteUser(ctx context.Context, operator *access.Pri
 	if userID == operator.UserID {
 		return errs.BadRequest("you cannot delete your own account")
 	}
-	if _, err := service.getUserByID(ctx, userID); err != nil {
+	user, err := service.getUserByID(ctx, userID)
+	if err != nil {
+		logs.CtxError(ctx, "[DeleteUser] failed, err: %v", err)
 		return err
 	}
 	for _, guard := range service.deletionGuards {
 		if err := guard.CheckUserDeletion(ctx, service.database.WithContext(ctx), userID); err != nil {
+			logs.CtxError(ctx, "[DeleteUser] failed, err: %v", err)
 			return err
 		}
 	}
 	if err := service.database.WithContext(ctx).Exec("DELETE FROM sys_user WHERE id = ?", userID).Error; err != nil {
+		logs.CtxError(ctx, "[DeleteUser] failed, err: %v", err)
 		return err
 	}
 	service.cache.Reset()
-	logs.CtxInfo(ctx, "user deleted: user_id=%d", userID)
+	logs.CtxInfo(ctx, "[DeleteUser] done: user_id=%d username=%s role=%s", userID, user.Username, user.Role)
 	return nil
 }
 
@@ -292,4 +315,12 @@ func normalizePage(page, pageSize int) (int, int) {
 func escapeLikePattern(keyword string) string {
 	replacer := strings.NewReplacer(`\`, `\\`, `%`, `\%`, `_`, `\_`)
 	return replacer.Replace(keyword)
+}
+
+// formatOptionalInt 打日志用：可选的整数参数，没传写 nil，传了写值（直接 %v 会打出指针地址）。
+func formatOptionalInt(value *int) string {
+	if value == nil {
+		return "nil"
+	}
+	return fmt.Sprintf("%d", *value)
 }

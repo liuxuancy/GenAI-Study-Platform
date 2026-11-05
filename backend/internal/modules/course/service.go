@@ -5,9 +5,11 @@ package course
 import (
 	"context"
 	"encoding/json"
+	"strconv"
 	"strings"
 	"time"
 
+	"github.com/liuxuancy/Libs/logs"
 	"gorm.io/gorm"
 
 	"caveclass/internal/ai"
@@ -91,6 +93,7 @@ func (service *Service) GetCourseList(ctx context.Context, principal *access.Pri
 		append([]any{principal.UserID}, studentVisibleCourseArgs(principal.UserID)...)...,
 	).Scan(&rows).Error
 	if err != nil {
+		logs.CtxError(ctx, "[GetCourseList] failed, err: %v", err)
 		return nil, err
 	}
 	items := make([]CourseListItem, 0, len(rows))
@@ -106,6 +109,7 @@ func (service *Service) GetCourseList(ctx context.Context, principal *access.Pri
 			ChapterCount: courseChapterCount(row.ContentJSON),
 		})
 	}
+	logs.CtxInfo(ctx, "[GetCourseList] done: len(items)=%d", len(items))
 	return items, nil
 }
 
@@ -209,6 +213,7 @@ func (service *Service) GetQuestionList(ctx context.Context, principal *access.P
 		append(append([]any{principal.UserID, SubmitOn, principal.UserID, principal.UserID, principal.UserID, principal.UserID}, studentVisibleCourseArgs(principal.UserID)...), principal.UserID)...,
 	).Scan(&rows).Error
 	if err != nil {
+		logs.CtxError(ctx, "[GetQuestionList] failed, err: %v", err)
 		return nil, err
 	}
 
@@ -238,6 +243,7 @@ func (service *Service) GetQuestionList(ctx context.Context, principal *access.P
 			AttemptID:      row.AttemptID,
 		})
 	}
+	logs.CtxInfo(ctx, "[GetQuestionList] done: len(items)=%d", len(items))
 	return items, nil
 }
 
@@ -284,12 +290,19 @@ func (service *Service) GetCourse(ctx context.Context, principal *access.Princip
 		append([]any{courseID}, studentVisibleCourseArgs(principal.UserID)...)...,
 	).Scan(&row)
 	if result.Error != nil {
+		logs.CtxError(ctx, "[GetCourse] failed, err: %v", result.Error)
 		return nil, result.Error
 	}
 	if result.RowsAffected == 0 {
 		return nil, errs.NotFound("course not found")
 	}
-	return service.studentCourseDetail(ctx, principal.UserID, row)
+	output, err := service.studentCourseDetail(ctx, principal.UserID, row)
+	if err != nil {
+		logs.CtxError(ctx, "[GetCourse] failed, err: %v", err)
+		return nil, err
+	}
+	logs.CtxInfo(ctx, "[GetCourse] done: id=%d title=%q visibility=%s owned=%t percent=%d", output.ID, output.Title, output.Visibility, output.Owned, output.Percent)
+	return output, nil
 }
 
 func (service *Service) studentCourseDetail(ctx context.Context, viewerID int64, row storedCourse) (*CourseDetail, error) {
@@ -341,6 +354,7 @@ func (service *Service) UpdateCourseProgress(ctx context.Context, principal *acc
 		return nil, errs.BadRequest("percent must be from 0 to 100")
 	}
 	if _, err := service.GetCourse(ctx, principal, courseID); err != nil {
+		logs.CtxError(ctx, "[UpdateCourseProgress] failed, err: %v", err)
 		return nil, err
 	}
 
@@ -349,6 +363,7 @@ func (service *Service) UpdateCourseProgress(ctx context.Context, principal *acc
 		percent, principal.UserID, courseID,
 	)
 	if result.Error != nil {
+		logs.CtxError(ctx, "[UpdateCourseProgress] failed, err: %v", result.Error)
 		return nil, result.Error
 	}
 	if result.RowsAffected == 0 {
@@ -357,12 +372,15 @@ func (service *Service) UpdateCourseProgress(ctx context.Context, principal *acc
 			principal.UserID, courseID, percent,
 		)
 		if result.Error != nil {
+			logs.CtxError(ctx, "[UpdateCourseProgress] failed, err: %v", result.Error)
 			return nil, result.Error
 		}
 	}
 	courseRef := courseID
 	service.recordLearningEvent(ctx, principal.UserID, EventCourseProgress, &courseRef, nil, "", 0)
-	return &CourseProgress{Percent: percent}, nil
+	output := &CourseProgress{Percent: percent}
+	logs.CtxInfo(ctx, "[UpdateCourseProgress] done: course_id=%d percent=%d", courseID, output.Percent)
+	return output, nil
 }
 
 // QuestionDetail 一套题的标题、所属课程、进度，以及按 id 排序的题目。未交卷时不返回答案与解析。
@@ -443,6 +461,7 @@ func (service *Service) GetQuestion(ctx context.Context, principal *access.Princ
 		append(append([]any{SubmitOn, principal.UserID, principal.UserID, principal.UserID, questionID, principal.UserID}, studentVisibleCourseArgs(principal.UserID)...), principal.UserID)...,
 	).Scan(&row)
 	if result.Error != nil {
+		logs.CtxError(ctx, "[GetQuestion] failed, err: %v", result.Error)
 		return nil, result.Error
 	}
 	if result.RowsAffected == 0 {
@@ -460,6 +479,7 @@ func (service *Service) GetQuestion(ctx context.Context, principal *access.Princ
 		principal.UserID, questionID,
 	).Scan(&contents).Error
 	if err != nil {
+		logs.CtxError(ctx, "[GetQuestion] failed, err: %v", err)
 		return nil, err
 	}
 
@@ -479,7 +499,7 @@ func (service *Service) GetQuestion(ctx context.Context, principal *access.Princ
 		}
 		questions = append(questions, item)
 	}
-	return &QuestionDetail{
+	output := &QuestionDetail{
 		ID:            row.ID,
 		Title:         row.Title,
 		CourseTitle:   row.CourseTitle,
@@ -489,7 +509,9 @@ func (service *Service) GetQuestion(ctx context.Context, principal *access.Princ
 		IsSubmit:      submitted,
 		Score:         row.Score,
 		Questions:     questions,
-	}, nil
+	}
+	logs.CtxInfo(ctx, "[GetQuestion] done: id=%d title=%q question_count=%d percent=%d is_submit=%t score=%s", output.ID, output.Title, output.QuestionCount, output.Percent, output.IsSubmit, formatOptionalInt(output.Score))
+	return output, nil
 }
 
 func splitOptions(options string) []string {
@@ -517,6 +539,7 @@ func (service *Service) AnswerQuestion(ctx context.Context, principal *access.Pr
 		append(append([]any{contentID, questionID, principal.UserID}, studentVisibleCourseArgs(principal.UserID)...), principal.UserID)...,
 	).Scan(&content)
 	if result.Error != nil {
+		logs.CtxError(ctx, "[AnswerQuestion] failed, err: %v", result.Error)
 		return nil, result.Error
 	}
 	if result.RowsAffected == 0 {
@@ -527,18 +550,27 @@ func (service *Service) AnswerQuestion(ctx context.Context, principal *access.Pr
 	}
 
 	if err := saveStudentAnswer(service.database.WithContext(ctx), principal.UserID, questionID, contentID, option); err != nil {
+		logs.CtxError(ctx, "[AnswerQuestion] failed, err: %v", err)
 		return nil, err
 	}
 	if submit {
 		if err := markQuestionSubmitted(service.database.WithContext(ctx), principal.UserID, questionID); err != nil {
+			logs.CtxError(ctx, "[AnswerQuestion] failed, err: %v", err)
 			return nil, err
 		}
 	}
 	if err := syncQuizAttemptFromLegacy(ctx, service.database, principal.UserID, questionID); err != nil {
+		logs.CtxError(ctx, "[AnswerQuestion] failed, err: %v", err)
 		return nil, err
 	}
 	service.recordQuizLearningEvents(ctx, principal.UserID, questionID, submit)
-	return service.GetQuestion(ctx, principal, questionID)
+	output, err := service.GetQuestion(ctx, principal, questionID)
+	if err != nil {
+		logs.CtxError(ctx, "[AnswerQuestion] failed, err: %v", err)
+		return nil, err
+	}
+	logs.CtxInfo(ctx, "[AnswerQuestion] done: content_id=%d option=%q submit=%t id=%d title=%q question_count=%d percent=%d is_submit=%t score=%s", contentID, option, submit, output.ID, output.Title, output.QuestionCount, output.Percent, output.IsSubmit, formatOptionalInt(output.Score))
+	return output, nil
 }
 
 func saveStudentAnswer(database *gorm.DB, userID int64, questionID int64, contentID int64, option string) error {
@@ -597,6 +629,7 @@ func (service *Service) CreateQuestion(ctx context.Context, principal *access.Pr
 		return nil, errs.Forbidden("only students can create questions")
 	}
 	if err := validateCreateQuestion(input); err != nil {
+		logs.CtxError(ctx, "[CreateQuestion] failed, err: %v", err)
 		return nil, err
 	}
 
@@ -611,6 +644,7 @@ func (service *Service) CreateQuestion(ctx context.Context, principal *access.Pr
 		append([]any{input.CourseID}, studentVisibleCourseArgs(principal.UserID)...)...,
 	).Scan(&course)
 	if result.Error != nil {
+		logs.CtxError(ctx, "[CreateQuestion] failed, err: %v", result.Error)
 		return nil, result.Error
 	}
 	if result.RowsAffected == 0 {
@@ -621,17 +655,20 @@ func (service *Service) CreateQuestion(ctx context.Context, principal *access.Pr
 	title := questionSetTitle(course.Title, input.Difficulty, now)
 	tx := service.database.WithContext(ctx).Begin()
 	if tx.Error != nil {
+		logs.CtxError(ctx, "[CreateQuestion] failed, err: %v", tx.Error)
 		return nil, tx.Error
 	}
 	questionID, err := insertQuestionSet(tx, title, course.ID, principal.UserID, input.Difficulty, input.Questions)
 	if err != nil {
 		tx.Rollback()
+		logs.CtxError(ctx, "[CreateQuestion] failed, err: %v", err)
 		return nil, err
 	}
 	if err := tx.Commit().Error; err != nil {
+		logs.CtxError(ctx, "[CreateQuestion] failed, err: %v", err)
 		return nil, err
 	}
-	return &QuestionListItem{
+	output := &QuestionListItem{
 		ID:            questionID,
 		Title:         title,
 		CourseTitle:   course.Title,
@@ -642,7 +679,9 @@ func (service *Service) CreateQuestion(ctx context.Context, principal *access.Pr
 		CourseID:      course.ID,
 		CreatorID:     principal.UserID,
 		CreatorRole:   principal.Role,
-	}, nil
+	}
+	logs.CtxInfo(ctx, "[CreateQuestion] done: resp=%+v", output)
+	return output, nil
 }
 
 func validateCreateQuestion(input CreateQuestionInput) error {
@@ -741,4 +780,12 @@ func optionAllowed(options string, option string) bool {
 		}
 	}
 	return false
+}
+
+// formatOptionalInt 打日志用：可选的整数（如未交卷时的分数），没有写 nil，有就写值（直接 %v 会打出指针地址）。
+func formatOptionalInt(value *int) string {
+	if value == nil {
+		return "nil"
+	}
+	return strconv.Itoa(*value)
 }

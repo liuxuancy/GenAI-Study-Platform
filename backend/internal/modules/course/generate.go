@@ -63,6 +63,7 @@ func (service *Service) GenerateOwnedCourse(ctx context.Context, principal *acce
 	}
 	aiService, err := service.aiForGenerate(input.Provider)
 	if err != nil {
+		logs.CtxError(ctx, "[GenerateOwnedCourse] failed, err: %v", err)
 		return nil, err
 	}
 	if aiService == nil {
@@ -76,6 +77,7 @@ func (service *Service) GenerateOwnedCourse(ctx context.Context, principal *acce
 		courseID, principal.UserID,
 	).Scan(&stored)
 	if found.Error != nil {
+		logs.CtxError(ctx, "[GenerateOwnedCourse] failed, err: %v", found.Error)
 		return nil, found.Error
 	}
 	if found.RowsAffected == 0 {
@@ -106,17 +108,21 @@ func (service *Service) GenerateOwnedCourse(ctx context.Context, principal *acce
 	service.recordUsage(ctx, principal.UserID, usage.SceneGenerateCourse, meta, err)
 	if err != nil {
 		ai.LogError(ctx, err, meta, principal.UserID)
+		logs.CtxError(ctx, "[GenerateOwnedCourse] failed, err: %v", err)
 		return nil, businessAIError(err)
 	}
 
 	if input.OutlineOnly {
 		if err := stripCourseToOutline(&generated); err != nil {
+			logs.CtxError(ctx, "[GenerateOwnedCourse] failed, err: %v", err)
 			return nil, errs.Internal(err)
 		}
 	} else if err := service.fillMissingQuizzes(ctx, principal.UserID, topic, &generated, &meta, aiService); err != nil {
+		logs.CtxError(ctx, "[GenerateOwnedCourse] failed, err: %v", err)
 		return nil, err
 	}
 	if err := service.storeGeneratedCourse(ctx, principal, courseID, &generated); err != nil {
+		logs.CtxError(ctx, "[GenerateOwnedCourse] failed, err: %v", err)
 		return nil, err
 	}
 
@@ -127,15 +133,19 @@ func (service *Service) GenerateOwnedCourse(ctx context.Context, principal *acce
 		detail, err = service.GetCourse(ctx, principal, courseID)
 	}
 	if err != nil {
+		logs.CtxError(ctx, "[GenerateOwnedCourse] failed, err: %v", err)
 		return nil, err
 	}
-	return &GeneratedCourse{Course: detail, Meta: meta}, nil
+	output := &GeneratedCourse{Course: detail, Meta: meta}
+	logs.CtxInfo(ctx, "[GenerateOwnedCourse] done: course_id=%d meta=%+v", courseID, output.Meta)
+	return output, nil
 }
 
 // GenerateOwnedChapter 生成并按稳定 key 替换（不存在则追加）单章。
 func (service *Service) GenerateOwnedChapter(ctx context.Context, principal *access.Principal, courseID int64, input GenerateChapterInput) (*GeneratedCourse, error) {
 	stored, generated, err := service.loadOwnedGeneratedCourse(ctx, principal, courseID)
 	if err != nil {
+		logs.CtxError(ctx, "[GenerateOwnedChapter] failed, err: %v", err)
 		return nil, err
 	}
 	targetKey := strings.TrimSpace(input.TargetChapterKey)
@@ -144,6 +154,7 @@ func (service *Service) GenerateOwnedChapter(ctx context.Context, principal *acc
 	}
 	aiService, err := service.aiForGenerate(input.Provider)
 	if err != nil {
+		logs.CtxError(ctx, "[GenerateOwnedChapter] failed, err: %v", err)
 		return nil, err
 	}
 	topic := strings.TrimSpace(input.Topic)
@@ -161,6 +172,7 @@ func (service *Service) GenerateOwnedChapter(ctx context.Context, principal *acc
 	service.recordUsage(ctx, principal.UserID, usage.SceneGenerateChapter, meta, callErr)
 	if callErr != nil {
 		ai.LogError(ctx, callErr, meta, principal.UserID)
+		logs.CtxError(ctx, "[GenerateOwnedChapter] failed, err: %v", callErr)
 		return nil, businessAIError(callErr)
 	}
 	replaced := false
@@ -176,13 +188,20 @@ func (service *Service) GenerateOwnedChapter(ctx context.Context, principal *acc
 		chapter.Order = len(generated.Chapters) + 1
 		generated.Chapters = append(generated.Chapters, chapter)
 	}
-	return service.storeFragmentResult(ctx, principal, courseID, &generated, meta)
+	output, err := service.storeFragmentResult(ctx, principal, courseID, &generated, meta)
+	if err != nil {
+		logs.CtxError(ctx, "[GenerateOwnedChapter] failed, err: %v", err)
+		return nil, err
+	}
+	logs.CtxInfo(ctx, "[GenerateOwnedChapter] done: course_id=%d meta=%+v", courseID, output.Meta)
+	return output, nil
 }
 
 // GenerateOwnedActivity 生成并按稳定 key 替换（不存在则追加）章内活动。
 func (service *Service) GenerateOwnedActivity(ctx context.Context, principal *access.Principal, courseID int64, input GenerateActivityInput) (*GeneratedCourse, error) {
 	stored, generated, err := service.loadOwnedGeneratedCourse(ctx, principal, courseID)
 	if err != nil {
+		logs.CtxError(ctx, "[GenerateOwnedActivity] failed, err: %v", err)
 		return nil, err
 	}
 	chapterKey := strings.TrimSpace(input.TargetChapterKey)
@@ -202,6 +221,7 @@ func (service *Service) GenerateOwnedActivity(ctx context.Context, principal *ac
 	}
 	aiService, err := service.aiForGenerate(input.Provider)
 	if err != nil {
+		logs.CtxError(ctx, "[GenerateOwnedActivity] failed, err: %v", err)
 		return nil, err
 	}
 	topic := strings.TrimSpace(input.Topic)
@@ -220,6 +240,7 @@ func (service *Service) GenerateOwnedActivity(ctx context.Context, principal *ac
 	service.recordUsage(ctx, principal.UserID, usage.SceneGenerateActivity, meta, callErr)
 	if callErr != nil {
 		ai.LogError(ctx, callErr, meta, principal.UserID)
+		logs.CtxError(ctx, "[GenerateOwnedActivity] failed, err: %v", callErr)
 		return nil, businessAIError(callErr)
 	}
 	activities := generated.Chapters[chapterIndex].Activities
@@ -237,7 +258,13 @@ func (service *Service) GenerateOwnedActivity(ctx context.Context, principal *ac
 		activities = append(activities, activity)
 	}
 	generated.Chapters[chapterIndex].Activities = activities
-	return service.storeFragmentResult(ctx, principal, courseID, &generated, meta)
+	output, err := service.storeFragmentResult(ctx, principal, courseID, &generated, meta)
+	if err != nil {
+		logs.CtxError(ctx, "[GenerateOwnedActivity] failed, err: %v", err)
+		return nil, err
+	}
+	logs.CtxInfo(ctx, "[GenerateOwnedActivity] done: course_id=%d meta=%+v", courseID, output.Meta)
+	return output, nil
 }
 
 func (service *Service) loadOwnedGeneratedCourse(ctx context.Context, principal *access.Principal, courseID int64) (fragmentCourse, aicourse.StandardCourse, error) {

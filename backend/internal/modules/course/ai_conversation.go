@@ -6,6 +6,7 @@ import (
 	"time"
 	"unicode/utf8"
 
+	"github.com/liuxuancy/Libs/logs"
 	"gorm.io/gorm"
 
 	"caveclass/internal/ai"
@@ -63,6 +64,7 @@ func (service *Service) requireStudentCourse(ctx context.Context, principal *acc
 
 func (service *Service) ListAIConversations(ctx context.Context, principal *access.Principal, courseID int64) ([]AIConversationItem, error) {
 	if err := service.requireStudentCourse(ctx, principal, courseID); err != nil {
+		logs.CtxError(ctx, "[ListAIConversations] failed, err: %v", err)
 		return nil, err
 	}
 	var items []AIConversationItem
@@ -76,11 +78,13 @@ func (service *Service) ListAIConversations(ctx context.Context, principal *acce
 		principal.UserID, courseID,
 	).Scan(&items).Error
 	if err != nil {
+		logs.CtxError(ctx, "[ListAIConversations] failed, err: %v", err)
 		return nil, err
 	}
 	if items == nil {
 		items = []AIConversationItem{}
 	}
+	logs.CtxInfo(ctx, "[ListAIConversations] done: course_id=%d len(items)=%d", courseID, len(items))
 	return items, nil
 }
 
@@ -108,6 +112,7 @@ func (service *Service) ListOwnedAIConversations(ctx context.Context, principal 
 		principal.UserID,
 	).Scan(&rows).Error
 	if err != nil {
+		logs.CtxError(ctx, "[ListOwnedAIConversations] failed, err: %v", err)
 		return nil, err
 	}
 	visible := map[int64]struct{}{}
@@ -122,6 +127,7 @@ func (service *Service) ListOwnedAIConversations(ctx context.Context, principal 
 		visibleArgs = studentVisibleCourseArgs(principal.UserID)
 	}
 	if err := service.database.WithContext(ctx).Raw(visibleQuery, visibleArgs...).Scan(&visibleIDs).Error; err != nil {
+		logs.CtxError(ctx, "[ListOwnedAIConversations] failed, err: %v", err)
 		return nil, err
 	}
 	for _, id := range visibleIDs {
@@ -139,22 +145,27 @@ func (service *Service) ListOwnedAIConversations(ctx context.Context, principal 
 			CourseAccessible: accessible, UpdatedAt: row.UpdatedAt, MessageCount: row.MessageCount,
 		})
 	}
+	logs.CtxInfo(ctx, "[ListOwnedAIConversations] done: len(items)=%d", len(items))
 	return items, nil
 }
 
 func (service *Service) GetAIConversation(ctx context.Context, principal *access.Principal, courseID, conversationID int64) (*AIConversationDetail, error) {
 	if err := service.requireStudentCourse(ctx, principal, courseID); err != nil {
+		logs.CtxError(ctx, "[GetAIConversation] failed, err: %v", err)
 		return nil, err
 	}
 	detail, err := service.ownedConversation(ctx, principal.UserID, courseID, conversationID)
 	if err != nil {
+		logs.CtxError(ctx, "[GetAIConversation] failed, err: %v", err)
 		return nil, err
 	}
 	messages, err := service.conversationMessages(ctx, conversationID)
 	if err != nil {
+		logs.CtxError(ctx, "[GetAIConversation] failed, err: %v", err)
 		return nil, err
 	}
 	detail.Messages = messages
+	logs.CtxInfo(ctx, "[GetAIConversation] done: course_id=%d conversation_id=%d title=%q len(messages)=%d", courseID, conversationID, detail.Title, len(detail.Messages))
 	return detail, nil
 }
 
@@ -173,6 +184,7 @@ func (service *Service) GetOwnedAIConversation(ctx context.Context, principal *a
 		`SELECT id, title, user_id, course_id, updated_at FROM student_ai_conversation WHERE id = ?`, conversationID,
 	).Scan(&row)
 	if found.Error != nil {
+		logs.CtxError(ctx, "[GetOwnedAIConversation] failed, err: %v", found.Error)
 		return nil, found.Error
 	}
 	if found.RowsAffected == 0 || row.UserID != principal.UserID {
@@ -180,19 +192,24 @@ func (service *Service) GetOwnedAIConversation(ctx context.Context, principal *a
 	}
 	messages, err := service.conversationMessages(ctx, conversationID)
 	if err != nil {
+		logs.CtxError(ctx, "[GetOwnedAIConversation] failed, err: %v", err)
 		return nil, err
 	}
-	return &AIConversationDetail{ID: row.ID, Title: row.Title, UpdatedAt: row.UpdatedAt, Messages: messages}, nil
+	output := &AIConversationDetail{ID: row.ID, Title: row.Title, UpdatedAt: row.UpdatedAt, Messages: messages}
+	logs.CtxInfo(ctx, "[GetOwnedAIConversation] done: conversation_id=%d title=%q len(messages)=%d", conversationID, output.Title, len(output.Messages))
+	return output, nil
 }
 
 func (service *Service) DeleteAIConversation(ctx context.Context, principal *access.Principal, courseID, conversationID int64) error {
 	if err := service.requireStudentCourse(ctx, principal, courseID); err != nil {
+		logs.CtxError(ctx, "[DeleteAIConversation] failed, err: %v", err)
 		return err
 	}
 	if _, err := service.ownedConversation(ctx, principal.UserID, courseID, conversationID); err != nil {
+		logs.CtxError(ctx, "[DeleteAIConversation] failed, err: %v", err)
 		return err
 	}
-	return service.database.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+	err := service.database.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		if err := tx.Exec(`DELETE FROM student_ai_message WHERE conversation_id = ?`, conversationID).Error; err != nil {
 			return err
 		}
@@ -208,6 +225,12 @@ func (service *Service) DeleteAIConversation(ctx context.Context, principal *acc
 		}
 		return nil
 	})
+	if err != nil {
+		logs.CtxError(ctx, "[DeleteAIConversation] failed, err: %v", err)
+		return err
+	}
+	logs.CtxInfo(ctx, "[DeleteAIConversation] done: course_id=%d conversation_id=%d", courseID, conversationID)
+	return nil
 }
 
 func (service *Service) ownedConversation(ctx context.Context, userID, courseID, conversationID int64) (*AIConversationDetail, error) {

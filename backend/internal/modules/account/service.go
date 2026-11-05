@@ -45,6 +45,7 @@ func (service *Service) Login(ctx context.Context, input LoginInput) (*LoginResu
 	identifier := strings.ToLower(strings.TrimSpace(input.Username))
 	user, found, err := service.findUserForLogin(ctx, identifier)
 	if err != nil {
+		logs.CtxError(ctx, "[Login] failed, err: %v", err)
 		return nil, err
 	}
 	if !found {
@@ -60,10 +61,12 @@ func (service *Service) Login(ctx context.Context, input LoginInput) (*LoginResu
 
 	token, expiresAt, err := service.tokenIssuer.Issue(user.ID, user.TokenVersion)
 	if err != nil {
+		logs.CtxError(ctx, "[Login] failed, err: %v", err)
 		return nil, err
 	}
-	logs.CtxInfo(ctx, "login succeeded: user_id=%d username=%s", user.ID, user.Username)
-	return &LoginResult{Token: token, ExpiresAt: expiresAt}, nil
+	result := &LoginResult{Token: token, ExpiresAt: expiresAt}
+	logs.CtxInfo(ctx, "[Login] done: user_id=%d username=%s resp=%+v", user.ID, user.Username, *result)
+	return result, nil
 }
 
 func (service *Service) findUserForLogin(ctx context.Context, identifier string) (*model.User, bool, error) {
@@ -93,7 +96,7 @@ func (service *Service) findUserForLogin(ctx context.Context, identifier string)
 
 // Logout token 是无状态的，后端只记一条日志，前端丢弃 token 即可。
 func (service *Service) Logout(ctx context.Context, principal *access.Principal) {
-	logs.CtxInfo(ctx, "logout: user_id=%d", principal.UserID)
+	logs.CtxInfo(ctx, "[Logout] done: user_id=%d username=%s", principal.UserID, principal.Username)
 }
 
 // CurrentUserResult 当前用户的资料和权限，前端据此决定显示哪些菜单和按钮。
@@ -113,9 +116,10 @@ type CurrentUserResult struct {
 func (service *Service) GetCurrentUser(ctx context.Context, principal *access.Principal) (*CurrentUserResult, error) {
 	user, err := service.getUserByID(ctx, principal.UserID)
 	if err != nil {
+		logs.CtxError(ctx, "[GetCurrentUser] failed, err: %v", err)
 		return nil, err
 	}
-	return &CurrentUserResult{
+	result := &CurrentUserResult{
 		ID:          user.ID,
 		Username:    user.Username,
 		Nickname:    user.Nickname,
@@ -125,7 +129,9 @@ func (service *Service) GetCurrentUser(ctx context.Context, principal *access.Pr
 		RoleName:    access.GetRoleName(user.Role),
 		IsAdmin:     principal.IsAdmin(),
 		Permissions: principal.Permissions,
-	}, nil
+	}
+	logs.CtxInfo(ctx, "[GetCurrentUser] done: resp=%+v", *result)
+	return result, nil
 }
 
 type UpdateProfileInput struct {
@@ -135,10 +141,16 @@ type UpdateProfileInput struct {
 
 // UpdateProfile 只能改自己的昵称和邮箱。
 func (service *Service) UpdateProfile(ctx context.Context, principal *access.Principal, input UpdateProfileInput) error {
-	return service.database.WithContext(ctx).Exec(
+	err := service.database.WithContext(ctx).Exec(
 		"UPDATE sys_user SET nickname = ?, email = ?, updated_at = ? WHERE id = ?",
 		strings.TrimSpace(input.Nickname), strings.TrimSpace(input.Email), time.Now().UTC(), principal.UserID,
 	).Error
+	if err != nil {
+		logs.CtxError(ctx, "[UpdateProfile] failed, err: %v", err)
+		return err
+	}
+	logs.CtxInfo(ctx, "[UpdateProfile] done: user_id=%d req=%+v", principal.UserID, input)
+	return nil
 }
 
 type ChangePasswordInput struct {
@@ -151,6 +163,7 @@ type ChangePasswordInput struct {
 func (service *Service) ChangePassword(ctx context.Context, principal *access.Principal, input ChangePasswordInput) error {
 	user, err := service.getUserByID(ctx, principal.UserID)
 	if err != nil {
+		logs.CtxError(ctx, "[ChangePassword] failed, err: %v", err)
 		return err
 	}
 	if !identity.CheckPassword(user.PasswordHash, input.OldPassword) {
@@ -161,6 +174,7 @@ func (service *Service) ChangePassword(ctx context.Context, principal *access.Pr
 	}
 	hash, err := identity.HashPassword(input.NewPassword)
 	if err != nil {
+		logs.CtxError(ctx, "[ChangePassword] failed, err: %v", err)
 		return err
 	}
 	err = service.database.WithContext(ctx).Exec(
@@ -168,10 +182,11 @@ func (service *Service) ChangePassword(ctx context.Context, principal *access.Pr
 		hash, time.Now().UTC(), user.ID,
 	).Error
 	if err != nil {
+		logs.CtxError(ctx, "[ChangePassword] failed, err: %v", err)
 		return err
 	}
 	service.cache.Reset() // 让新的 token_version 在下一个请求立即生效
-	logs.CtxInfo(ctx, "password changed: user_id=%d", user.ID)
+	logs.CtxInfo(ctx, "[ChangePassword] done: user_id=%d, token_version+1", user.ID)
 	return nil
 }
 

@@ -8,6 +8,8 @@ import (
 	"context"
 	"time"
 
+	"github.com/liuxuancy/Libs/logs"
+
 	"caveclass/internal/framework/access"
 	"caveclass/internal/platform/errs"
 )
@@ -53,9 +55,12 @@ func (service *Service) GetAdminCourseList(ctx context.Context) (*AdminCourseLis
 	var rows []AdminCourseItem
 	err := service.database.WithContext(ctx).Raw(adminCourseSelectSQL + ` ORDER BY c.created_at DESC, c.id DESC`).Scan(&rows).Error
 	if err != nil {
+		logs.CtxError(ctx, "[GetAdminCourseList] failed, err: %v", err)
 		return nil, err
 	}
-	return adminCourseList(rows), nil
+	output := adminCourseList(rows)
+	logs.CtxInfo(ctx, "[GetAdminCourseList] done: total=%d published_count=%d len(items)=%d", output.Total, output.PublishedCount, len(output.Items))
+	return output, nil
 }
 
 // SetAdminCoursePublished 下架或恢复一门课。没有这门课返回 404。
@@ -64,6 +69,7 @@ func (service *Service) SetAdminCoursePublished(ctx context.Context, courseID in
 	database := service.database.WithContext(ctx)
 	var count int64
 	if err := database.Raw("SELECT COUNT(*) FROM course WHERE id = ?", courseID).Scan(&count).Error; err != nil {
+		logs.CtxError(ctx, "[SetAdminCoursePublished] failed, err: %v", err)
 		return nil, err
 	}
 	if count == 0 {
@@ -78,17 +84,20 @@ func (service *Service) SetAdminCoursePublished(ctx context.Context, courseID in
 		publish, time.Now().UTC(), courseID,
 	).Error
 	if err != nil {
+		logs.CtxError(ctx, "[SetAdminCoursePublished] failed, err: %v", err)
 		return nil, err
 	}
 	var rows []AdminCourseItem
 	err = database.Raw(adminCourseSelectSQL+` WHERE c.id = ?`, courseID).Scan(&rows).Error
 	if err != nil {
+		logs.CtxError(ctx, "[SetAdminCoursePublished] failed, err: %v", err)
 		return nil, err
 	}
 	if len(rows) == 0 {
 		return nil, errs.NotFound("course not found")
 	}
 	item := fillAdminCourse(rows[0])
+	logs.CtxInfo(ctx, "[SetAdminCoursePublished] done: course_id=%d published=%t resp=%+v", courseID, published, item)
 	return &item, nil
 }
 

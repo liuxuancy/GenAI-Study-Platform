@@ -3,6 +3,8 @@ package course
 import (
 	"context"
 
+	"github.com/liuxuancy/Libs/logs"
+
 	"caveclass/internal/framework/access"
 	"caveclass/internal/platform/errs"
 )
@@ -51,6 +53,7 @@ func (service *Service) GetTeacherCourseLearningOverview(ctx context.Context, pr
 		courseID, principal.UserID,
 	).Scan(&ownerID)
 	if found.Error != nil {
+		logs.CtxError(ctx, "[GetTeacherCourseLearningOverview] failed, err: %v", found.Error)
 		return nil, found.Error
 	}
 	if found.RowsAffected == 0 {
@@ -69,6 +72,7 @@ func (service *Service) GetTeacherCourseLearningOverview(ctx context.Context, pr
 		courseID,
 	).Scan(&quizzes).Error
 	if err != nil {
+		logs.CtxError(ctx, "[GetTeacherCourseLearningOverview] failed, err: %v", err)
 		return nil, err
 	}
 	if quizzes == nil {
@@ -92,6 +96,7 @@ func (service *Service) GetTeacherCourseLearningOverview(ctx context.Context, pr
 		access.RoleStudent, courseID,
 	).Scan(&students).Error
 	if err != nil {
+		logs.CtxError(ctx, "[GetTeacherCourseLearningOverview] failed, err: %v", err)
 		return nil, err
 	}
 
@@ -145,6 +150,7 @@ func (service *Service) GetTeacherCourseLearningOverview(ctx context.Context, pr
 			SubmitOn, courseID,
 		).Scan(&statRows).Error
 		if err != nil {
+			logs.CtxError(ctx, "[GetTeacherCourseLearningOverview] failed, err: %v", err)
 			return nil, err
 		}
 	}
@@ -186,5 +192,7 @@ func (service *Service) GetTeacherCourseLearningOverview(ctx context.Context, pr
 		studentRows = []TeacherStudentLearningRow{}
 	}
 
-	return &TeacherCourseLearningOverview{Quizzes: quizzes, Students: studentRows}, nil
+	output := &TeacherCourseLearningOverview{Quizzes: quizzes, Students: studentRows}
+	logs.CtxInfo(ctx, "[GetTeacherCourseLearningOverview] done: course_id=%d len(quizzes)=%d len(students)=%d", courseID, len(output.Quizzes), len(output.Students))
+	return output, nil
 }
