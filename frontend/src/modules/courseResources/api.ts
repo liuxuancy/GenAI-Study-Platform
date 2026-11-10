@@ -91,6 +91,14 @@ export function listStudentCourseResources(
   return http.get<CourseResourceListResult>(`/student/courses/${courseId}/resources${q ? `?${q}` : ''}`)
 }
 
+export function uploadStudentCourseResource(
+  courseId: number,
+  formData: FormData,
+  onProgress?: (percent: number) => void,
+) {
+  return uploadForm<CourseResourceItem>(`/student/courses/${courseId}/resources`, formData, onProgress)
+}
+
 export function getCourseResourcePreview(courseId: number, resourceId: number) {
   return http.get<ResourcePreviewResult>(`/courses/${courseId}/resources/${resourceId}/preview`)
 }

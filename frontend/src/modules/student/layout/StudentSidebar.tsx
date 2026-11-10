@@ -3,6 +3,7 @@ import {
   BookOutlined,
   CheckSquareOutlined,
   CommentOutlined,
+  TrophyOutlined,
   UserOutlined,
 } from '@ant-design/icons'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
@@ -31,6 +32,9 @@ function NavIcon({ icon }: { icon: StudentNavItem['icon'] }) {
   }
   if (icon === 'spark') {
     return <CommentOutlined className={styles.navIcon} aria-hidden />
+  }
+  if (icon === 'trophy') {
+    return <TrophyOutlined className={styles.navIcon} aria-hidden />
   }
   return <UserOutlined className={styles.navIcon} aria-hidden />
 }

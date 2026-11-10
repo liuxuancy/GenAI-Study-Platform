@@ -32,6 +32,9 @@ func ParseCourseJSON(rawText string, repair bool) (course.StandardCourse, Report
 
 	report := Report{}
 	if repair {
+		if !json.Valid([]byte(extracted)) {
+			extracted = RelaxJSON(extracted)
+		}
 		fields, warnings, err := repairDefaults(&parsed, extracted)
 		if err != nil {
 			return course.StandardCourse{}, Report{}, aierr.OutputParseFailed(err, "invalid JSON")

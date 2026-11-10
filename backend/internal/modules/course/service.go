@@ -49,14 +49,16 @@ func (service *Service) UseCOS(client *cos.Client, limits cos.Limits) {
 // CourseListItem 一门课在学生列表里的样子。
 // Visibility：private 仅自己，class 同班可见，assigned 教师发到自己所在的班。
 type CourseListItem struct {
-	ID           int64  `json:"id"`
-	Title        string `json:"title"`
-	CourseType   string `json:"courseType"`
-	Description  string `json:"description"`
-	Percent      int    `json:"percent"`
-	Visibility   string `json:"visibility"`
-	Owned        bool   `json:"owned"`
-	ChapterCount int    `json:"chapterCount"`
+	ID           int64         `json:"id"`
+	Title        string        `json:"title"`
+	CourseType   string        `json:"courseType"`
+	Description  string        `json:"description"`
+	Percent      int           `json:"percent"`
+	Visibility   string        `json:"visibility"`
+	Owned        bool          `json:"owned"`
+	ChapterCount int           `json:"chapterCount"`
+	Affection    int           `json:"affection"`
+	Avatar       *CourseAvatar `json:"avatar"`
 }
 
 type storedCourse struct {
@@ -71,6 +73,8 @@ type storedCourse struct {
 	OwnerID     int64
 	Percent     int
 	ClassCount  int
+	HasProgress int
+	Affection   int
 }
 
 // GetCourseList 当前学生可见的课程和自己的进度。没有进度行时 percent 为 0。
@@ -83,7 +87,9 @@ func (service *Service) GetCourseList(ctx context.Context, principal *access.Pri
 	err := service.database.WithContext(ctx).Raw(
 		`SELECT c.id, c.title, COALESCE(c.course_type, '') AS course_type, COALESCE(c.description, '') AS description,
 		        COALESCE(c.content_json, '') AS content_json, COALESCE(p.percent, 0) AS percent, c.is_publish, c.owner_id,
-		        (SELECT COUNT(*) FROM course_class cc WHERE cc.course_id = c.id) AS class_count
+		        (SELECT COUNT(*) FROM course_class cc WHERE cc.course_id = c.id) AS class_count,
+		        CASE WHEN p.user_id IS NULL THEN 0 ELSE 1 END AS has_progress,
+		        CASE WHEN p.user_id IS NULL THEN 0 ELSE p.affection END AS affection
 		 FROM course c
 		 LEFT JOIN student_course_progress p ON p.course_id = c.id AND p.user_id = ?
 		 WHERE `+studentVisibleCourseSQL("c")+`
@@ -93,8 +99,28 @@ func (service *Service) GetCourseList(ctx context.Context, principal *access.Pri
 	if err != nil {
 		return nil, err
 	}
+	courseIDs := make([]int64, 0, len(rows))
+	missingProgress := make([]int64, 0)
+	for _, row := range rows {
+		courseIDs = append(courseIDs, row.ID)
+		if row.HasProgress == 0 {
+			missingProgress = append(missingProgress, row.ID)
+		}
+	}
+	avatars, err := service.loadAvatarViews(ctx, courseIDs)
+	if err != nil {
+		return nil, err
+	}
+	quizPercents, err := service.quizPercentsForCourses(ctx, principal.UserID, missingProgress)
+	if err != nil {
+		return nil, err
+	}
 	items := make([]CourseListItem, 0, len(rows))
 	for _, row := range rows {
+		affection := row.Affection
+		if row.HasProgress == 0 {
+			affection = affectionBase(0, quizPercents[row.ID])
+		}
 		items = append(items, CourseListItem{
 			ID:           row.ID,
 			Title:        row.Title,
@@ -104,6 +130,8 @@ func (service *Service) GetCourseList(ctx context.Context, principal *access.Pri
 			Visibility:   visibilityLabel(row.IsPublish, row.ClassCount),
 			Owned:        row.OwnerID == principal.UserID,
 			ChapterCount: courseChapterCount(row.ContentJSON),
+			Affection:    affection,
+			Avatar:       avatars[row.ID],
 		})
 	}
 	return items, nil
@@ -254,17 +282,19 @@ func answerPercent(answered int, questionCount int) int {
 
 // CourseDetail 学生看到的一门课。没有正文时 Tree 为 null。
 type CourseDetail struct {
-	ID             int64       `json:"id"`
-	Title          string      `json:"title"`
-	Description    string      `json:"description"`
-	Audience       string      `json:"audience"`
-	Language       string      `json:"language"`
-	Visibility     string      `json:"visibility"`
-	Shared         bool        `json:"shared"`
-	ClassmateCount int         `json:"classmateCount"`
-	Owned          bool        `json:"owned"`
-	Percent        int         `json:"percent"`
-	Tree           *BubbleNode `json:"tree"`
+	ID             int64         `json:"id"`
+	Title          string        `json:"title"`
+	Description    string        `json:"description"`
+	Audience       string        `json:"audience"`
+	Language       string        `json:"language"`
+	Visibility     string        `json:"visibility"`
+	Shared         bool          `json:"shared"`
+	ClassmateCount int           `json:"classmateCount"`
+	Owned          bool          `json:"owned"`
+	Percent        int           `json:"percent"`
+	Affection      int           `json:"affection"`
+	Avatar         *CourseAvatar `json:"avatar"`
+	Tree           *BubbleNode   `json:"tree"`
 }
 
 // GetCourse 学生打开自己能看见的课。看不见和没有这门课都是 404。
@@ -312,6 +342,14 @@ func (service *Service) studentCourseDetail(ctx context.Context, viewerID int64,
 	).Scan(&percent).Error; err != nil {
 		return nil, err
 	}
+	affection, err := service.studentAffection(ctx, viewerID, row.ID)
+	if err != nil {
+		return nil, err
+	}
+	avatar, err := service.loadAvatarView(ctx, row.ID)
+	if err != nil {
+		return nil, err
+	}
 	return &CourseDetail{
 		ID:             row.ID,
 		Title:          row.Title,
@@ -323,6 +361,8 @@ func (service *Service) studentCourseDetail(ctx context.Context, viewerID int64,
 		ClassmateCount: classmates,
 		Owned:          row.OwnerID == viewerID,
 		Percent:        percent,
+		Affection:      affection,
+		Avatar:         avatar,
 		Tree:           tree,
 	}, nil
 }
@@ -344,21 +384,8 @@ func (service *Service) UpdateCourseProgress(ctx context.Context, principal *acc
 		return nil, err
 	}
 
-	result := service.database.WithContext(ctx).Exec(
-		`UPDATE student_course_progress SET percent = ? WHERE user_id = ? AND course_id = ?`,
-		percent, principal.UserID, courseID,
-	)
-	if result.Error != nil {
-		return nil, result.Error
-	}
-	if result.RowsAffected == 0 {
-		result = service.database.WithContext(ctx).Exec(
-			`INSERT INTO student_course_progress (user_id, course_id, percent) VALUES (?, ?, ?)`,
-			principal.UserID, courseID, percent,
-		)
-		if result.Error != nil {
-			return nil, result.Error
-		}
+	if err := service.syncAffectionOnCoursePercent(ctx, principal.UserID, courseID, percent); err != nil {
+		return nil, err
 	}
 	courseRef := courseID
 	service.recordLearningEvent(ctx, principal.UserID, EventCourseProgress, &courseRef, nil, "", 0)
@@ -370,6 +397,7 @@ type QuestionDetail struct {
 	ID            int64                 `json:"id"`
 	Title         string                `json:"title"`
 	CourseTitle   string                `json:"courseTitle"`
+	ChapterName   string                `json:"chapterName,omitempty"`
 	Difficulty    string                `json:"difficulty"`
 	QuestionCount int                   `json:"questionCount"`
 	Percent       int                   `json:"percent"`
@@ -408,6 +436,8 @@ type questionDetailHeaderRow struct {
 	ID            int64
 	Title         string
 	CourseTitle   string
+	ChapterKey    string
+	ContentJSON   string
 	Difficulty    string
 	QuestionCount int
 	Answered      int
@@ -424,6 +454,7 @@ func (service *Service) GetQuestion(ctx context.Context, principal *access.Princ
 	var row questionDetailHeaderRow
 	result := service.database.WithContext(ctx).Raw(
 		`SELECT q.id, q.title, c.title AS course_title, COALESCE(q.difficulty, '') AS difficulty, q.question_count,
+		        COALESCE(q.chapter_key, '') AS chapter_key, COALESCE(c.content_json, '') AS content_json,
 		        SUM(CASE WHEN p.user_option <> '' THEN 1 ELSE 0 END) AS answered,
 		        COALESCE(r.is_submit, 0) AS is_submit,
 		        CASE WHEN COALESCE(r.is_submit, 0) = ?
@@ -439,7 +470,7 @@ func (service *Service) GetQuestion(ctx context.Context, principal *access.Princ
 		 LEFT JOIN student_question_record r ON r.question_id = q.id AND r.user_id = ?
 		 WHERE q.id = ? AND (q.creator_id = ? OR `+studentVisibleCourseSQL("c")+`)
 		   AND (q.creator_id = ? OR (`+effectivePublishStatusSQL+` = '`+PublishStatusPublished+`' AND COALESCE(q.publish_status, '') <> '`+PublishStatusArchived+`'))
-		 GROUP BY q.id, q.title, c.title, q.difficulty, q.question_count, r.is_submit`,
+		 GROUP BY q.id, q.title, c.title, q.difficulty, q.question_count, r.is_submit, q.chapter_key, c.content_json`,
 		append(append([]any{SubmitOn, principal.UserID, principal.UserID, principal.UserID, questionID, principal.UserID}, studentVisibleCourseArgs(principal.UserID)...), principal.UserID)...,
 	).Scan(&row)
 	if result.Error != nil {
@@ -483,6 +514,7 @@ func (service *Service) GetQuestion(ctx context.Context, principal *access.Princ
 		ID:            row.ID,
 		Title:         row.Title,
 		CourseTitle:   row.CourseTitle,
+		ChapterName:   chapterTitleFromJSON(row.ContentJSON, row.ChapterKey),
 		Difficulty:    row.Difficulty,
 		QuestionCount: row.QuestionCount,
 		Percent:       answerPercent(row.Answered, row.QuestionCount),
@@ -526,15 +558,36 @@ func (service *Service) AnswerQuestion(ctx context.Context, principal *access.Pr
 		return nil, errs.BadRequest("option is not one of the choices")
 	}
 
-	if err := saveStudentAnswer(service.database.WithContext(ctx), principal.UserID, questionID, contentID, option); err != nil {
-		return nil, err
+	var courseID int64
+	courseFound := service.database.WithContext(ctx).Raw(
+		`SELECT course_id FROM course_question WHERE id = ?`, questionID,
+	).Scan(&courseID)
+	if courseFound.Error != nil {
+		return nil, courseFound.Error
 	}
-	if submit {
-		if err := markQuestionSubmitted(service.database.WithContext(ctx), principal.UserID, questionID); err != nil {
-			return nil, err
+	err := service.withAffectionAchievements(ctx, principal.UserID, func(txService *Service) error {
+		oldQuiz, err := txService.quizPercent(ctx, principal.UserID, courseID)
+		if err != nil {
+			return err
 		}
-	}
-	if err := syncQuizAttemptFromLegacy(ctx, service.database, principal.UserID, questionID); err != nil {
+		if err := saveStudentAnswer(txService.database.WithContext(ctx), principal.UserID, questionID, contentID, option); err != nil {
+			return err
+		}
+		newQuiz, err := txService.quizPercent(ctx, principal.UserID, courseID)
+		if err != nil {
+			return err
+		}
+		if err := txService.updateAffectionOnQuizChange(ctx, principal.UserID, courseID, oldQuiz, newQuiz); err != nil {
+			return err
+		}
+		if submit {
+			if err := markQuestionSubmitted(txService.database.WithContext(ctx), principal.UserID, questionID); err != nil {
+				return err
+			}
+		}
+		return syncQuizAttemptFromLegacy(ctx, txService.database, principal.UserID, questionID)
+	})
+	if err != nil {
 		return nil, err
 	}
 	service.recordQuizLearningEvents(ctx, principal.UserID, questionID, submit)

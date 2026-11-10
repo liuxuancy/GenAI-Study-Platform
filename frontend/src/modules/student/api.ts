@@ -1,7 +1,8 @@
 // 学生课程和套题的列表与详情。
 import { http } from '@/core/http'
-import type { AiGenerationResult, GenerateCourseRequest } from '@/core/api/ai'
+import type { AiGenerateProvider, AiGenerationResult, GenerateCourseRequest } from '@/core/api/ai'
 import type { BubbleNode } from '@/modules/student/bubbleTree'
+import type { CourseAvatar } from '@/modules/student/PixelSprite'
 
 export interface StudentCourse {
   id: number
@@ -12,6 +13,8 @@ export interface StudentCourse {
   visibility: string
   owned: boolean
   chapterCount: number
+  affection: number
+  avatar: CourseAvatar | null
 }
 
 export interface StudentQuestion {
@@ -57,11 +60,16 @@ export interface StudentCourseDetail {
   classmateCount: number
   owned: boolean
   percent: number
+  affection: number
+  avatar: CourseAvatar | null
   tree: BubbleNode | null
 }
 
-export function createStudentCourse(input: { title: string; description: string }) {
-  return http.post<StudentCourse>('/student/courses', input)
+export function createStudentCourse(input: { title: string; description: string; provider: AiGenerateProvider }) {
+  return http.post<StudentCourse>('/student/courses', input).then((result) => {
+    window.dispatchEvent(new Event('student-achievements-changed'))
+    return result
+  })
 }
 
 export function setStudentCourseSharing(courseId: number, shared: boolean) {
@@ -89,6 +97,7 @@ export interface StudentQuestionDetail {
   id: number
   title: string
   courseTitle: string
+  chapterName?: string
   difficulty: string
   questionCount: number
   percent: number
@@ -102,7 +111,10 @@ export function getStudentCourse(courseId: string) {
 }
 
 export function updateStudentCourseProgress(courseId: string, percent: number) {
-  return http.put<{ percent: number }>(`/student/courses/${courseId}/progress`, { percent })
+  return http.put<{ percent: number }>(`/student/courses/${courseId}/progress`, { percent }).then((result) => {
+    window.dispatchEvent(new Event('student-achievements-changed'))
+    return result
+  })
 }
 
 export interface ChapterQAMessage {
@@ -173,7 +185,10 @@ export function answerStudentQuestion(questionId: string, contentId: number, opt
   if (submit) {
     body.submit = true
   }
-  return http.put<StudentQuestionDetail>(`/student/questions/${questionId}/contents/${contentId}`, body)
+  return http.put<StudentQuestionDetail>(`/student/questions/${questionId}/contents/${contentId}`, body).then((result) => {
+    window.dispatchEvent(new Event('student-achievements-changed'))
+    return result
+  })
 }
 
 export interface CreatedStudentQuestion {

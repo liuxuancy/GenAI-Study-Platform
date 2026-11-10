@@ -1,15 +1,18 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 
 import {
-  ancestorIds,
   bubbleLinks,
   findBubble,
   fitScale,
-  mapExtent,
+  mapBounds,
   parentBubbleId,
   placeBubbles,
 } from '@/modules/student/bubbleLayout'
 import type { BubbleNode } from '@/modules/student/bubbleTree'
+import { bubbleWalkRoute } from '@/modules/student/bubbleWalk'
+import { BubbleWalker } from '@/modules/student/BubbleWalker'
+import type { CourseAvatar, PixelSprite } from '@/modules/student/PixelSprite'
+import { completedBubbleIds } from '@/modules/student/courseTreeNav'
 import { useI18n } from '@/core/i18n/useI18n'
 import styles from '@/modules/student/CourseBubbleMap.module.css'
 
@@ -41,14 +44,6 @@ function closeOpenBelow(openIds: Set<string>, root: BubbleNode, id: string) {
   walk(id, node)
 }
 
-function trimNote(text: string, max = 320) {
-  const clean = text.replace(/\s+/g, ' ').trim()
-  if (clean.length <= max) {
-    return clean
-  }
-  return `${clean.slice(0, max - 1)}…`
-}
-
 function depthClass(depth: number) {
   if (depth === 0) {
     return styles.nodeDepth0
@@ -66,37 +61,40 @@ export function CourseBubbleMap({
   tree,
   code,
   embedded,
+  doneIds,
+  sprite,
+  dialogue,
 }: {
   tree: BubbleNode
   code?: string
   embedded?: boolean
+  doneIds?: ReadonlySet<string>
+  sprite?: PixelSprite | null
+  dialogue?: CourseAvatar['dialogue']
 }) {
   const { t } = useI18n()
   const stageRef = useRef<HTMLDivElement>(null)
-  const canvasBoxRef = useRef<number>(0)
+  const canvasBoxRef = useRef('')
   const panRef = useRef({ down: false, sx: 0, sy: 0, left: 0, top: 0 })
   const [openIds, setOpenIds] = useState<ReadonlySet<string>>(() => new Set())
   const [focusId, setFocusId] = useState(ROOT_ID)
-  const [scale, setScale] = useState(1)
   const [stageSize, setStageSize] = useState({ width: 800, height: 600 })
   const [panning, setPanning] = useState(false)
   const [poppingId, setPoppingId] = useState<string | null>(null)
   const [hintVisible, setHintVisible] = useState(true)
 
-  const focusNode = useMemo(() => findBubble(tree, focusId) ?? tree, [focusId, tree])
+  const completedIds = useMemo(() => doneIds ? completedBubbleIds(tree, doneIds) : new Set<string>(), [tree, doneIds])
 
   const layout = useMemo(() => {
-    const extent = mapExtent(tree, openIds)
-    const nextScale = fitScale(extent, stageSize.width, stageSize.height)
+    const bounds = mapBounds(placeBubbles(tree, openIds, 1))
+    const padding = sprite ? 48 : 16
+    const nextScale = fitScale(bounds, stageSize.width - (padding - 16) * 2, stageSize.height - (padding - 16) * 2)
     const bubbles = placeBubbles(tree, openIds, nextScale)
     const links = bubbleLinks(bubbles)
-    const box = Math.ceil(extent * 2 * nextScale) + 8
-    return { bubbles, links, box, nextScale }
-  }, [openIds, stageSize.height, stageSize.width, tree])
+    return { bubbles, links, width: Math.ceil(bounds.width * nextScale) + padding * 2, height: Math.ceil(bounds.height * nextScale) + padding * 2, nextScale }
+  }, [openIds, stageSize.height, stageSize.width, tree, sprite])
 
-  useLayoutEffect(() => {
-    setScale(layout.nextScale)
-  }, [layout.nextScale])
+  const walkRoute = useMemo(() => bubbleWalkRoute(layout.bubbles, layout.links), [layout.bubbles, layout.links])
 
   useEffect(() => {
     const stage = stageRef.current
@@ -113,16 +111,18 @@ export function CourseBubbleMap({
 
   useEffect(() => {
     const stage = stageRef.current
-    if (!stage || canvasBoxRef.current === layout.box) {
-      canvasBoxRef.current = layout.box
+    const box = `${layout.width}:${layout.height}`
+    if (!stage || canvasBoxRef.current === box) {
+      canvasBoxRef.current = box
       return
     }
-    canvasBoxRef.current = layout.box
+    canvasBoxRef.current = box
     requestAnimationFrame(() => {
-      stage.scrollLeft = (stage.scrollWidth - stage.clientWidth) / 2
-      stage.scrollTop = (stage.scrollHeight - stage.clientHeight) / 2
+      const focused = layout.bubbles.find((bubble) => bubble.id === focusId)
+      stage.scrollLeft = (stage.scrollWidth - stage.clientWidth) / 2 + (focused?.x ?? 0)
+      stage.scrollTop = (stage.scrollHeight - stage.clientHeight) / 2 + (focused?.y ?? 0)
     })
-  }, [layout.box])
+  }, [layout.width, layout.height, layout.bubbles, focusId])
 
   const selectBubble = useCallback(
     (id: string) => {
@@ -150,19 +150,6 @@ export function CourseBubbleMap({
       }
     },
     [hintVisible, tree],
-  )
-
-  const collapseTo = useCallback(
-    (id: string) => {
-      setOpenIds((current) => {
-        const next = new Set(current)
-        closeOpenBelow(next, tree, id)
-        next.delete(id)
-        return next
-      })
-      setFocusId(id)
-    },
-    [tree],
   )
 
   const collapseAll = useCallback(() => {
@@ -228,8 +215,6 @@ export function CourseBubbleMap({
     return depth + 1
   }, [layout.bubbles])
 
-  const breadcrumb = ancestorIds(focusId).slice(1)
-
   return (
     <div className={`${styles.root}${embedded ? ` ${styles.rootEmbedded}` : ''}`}>
       <div
@@ -252,7 +237,7 @@ export function CourseBubbleMap({
           setPanning(true)
         }}
       >
-        <div className={styles.canvas} style={{ width: layout.box, height: layout.box }}>
+        <div className={styles.canvas} style={{ width: layout.width, height: layout.height }}>
           {layout.links.map((link) => (
             <span
               key={link.id}
@@ -266,7 +251,8 @@ export function CourseBubbleMap({
           {layout.bubbles.map((bubble) => {
             const hasChildren = Boolean(bubble.node.children?.length)
             const isOpen = openIds.has(bubble.id) && hasChildren
-            const ariaLabel = `${levelName(bubble.depth, t)}：${bubble.node.label}${hasChildren ? '' : t('student.bubbleMap.noChildren')}`
+            const completed = completedIds.has(bubble.id)
+            const ariaLabel = `${levelName(bubble.depth, t)}：${bubble.node.label}${hasChildren ? '' : t('student.bubbleMap.noChildren')}${completed ? t('student.bubbleMap.completed') : ''}`
             return (
               <button
                 key={bubble.id}
@@ -275,6 +261,7 @@ export function CourseBubbleMap({
                   styles.node,
                   depthClass(bubble.depth),
                   isOpen ? styles.nodeOpen : '',
+                  completed ? styles.nodeCompleted : '',
                   poppingId === bubble.id ? styles.nodePopping : '',
                 ]
                   .filter(Boolean)
@@ -290,11 +277,12 @@ export function CourseBubbleMap({
               >
                 <span className={styles.bubble}>
                   {bubble.depth === 0 && code ? <span className={styles.codeTag}>{code}</span> : null}
-                  <BubbleLabel depth={bubble.depth} scale={scale} text={bubble.node.label} />
+                  <BubbleLabel depth={bubble.depth} scale={layout.nextScale} text={bubble.node.label} />
                 </span>
               </button>
             )
           })}
+          {sprite ? <BubbleWalker sprite={sprite} route={walkRoute} bubbles={layout.bubbles} dialogue={dialogue ?? null} /> : null}
         </div>
       </div>
 
@@ -309,31 +297,6 @@ export function CourseBubbleMap({
           {t('student.bubbleMap.collapseAll')}
         </button>
       </div>
-
-      <footer className={`${styles.hud} ${styles.hudBl}`}>
-        {breadcrumb.length > 0 ? (
-          <nav className={styles.crumb} aria-label={t('student.bubbleMap.pathAria')}>
-            {breadcrumb.map((id, index) => {
-              const node = findBubble(tree, id)
-              if (!node) {
-                return null
-              }
-              const label = index === 0 && code ? code : node.label
-              return (
-                <span key={id}>
-                  {index > 0 ? <span className={styles.crumbSep}>/</span> : null}
-                  <button type="button" title={t('student.bubbleMap.collapseTo', { label: node.label })} onClick={() => collapseTo(id)}>
-                    {label}
-                  </button>
-                </span>
-              )
-            })}
-          </nav>
-        ) : null}
-        <p className={styles.note}>
-          <b>{focusNode.label}</b> — {trimNote(focusNode.note)}
-        </p>
-      </footer>
 
       <div className={`${styles.hud} ${styles.hudBr}`}>
         <p className={`${styles.hint}${hintVisible ? '' : ` ${styles.hintGone}`}`} hidden={!hintVisible}>
@@ -351,7 +314,7 @@ function BubbleLabel({ depth, scale, text }: { depth: number; scale: number; tex
     if (!label) {
       return
     }
-    let size = BASE_FONT[depth] * Math.max(scale, 0.86)
+    let size = (BASE_FONT[depth] ?? BASE_FONT[BASE_FONT.length - 1]) * Math.max(scale, 0.86)
     label.style.fontSize = `${size}px`
     let guard = 0
     while (label.scrollHeight > label.clientHeight + 0.5 && size > 7.2 && guard < 40) {

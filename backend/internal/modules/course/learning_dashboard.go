@@ -32,13 +32,13 @@ type LearningRecommendedAction struct {
 
 // LearningDashboard 学习中心汇总。
 type LearningDashboard struct {
-	Tasks               []LearningDashboardTask   `json:"tasks"`
-	WeeklyMinutes       []int                     `json:"weeklyMinutes"`
-	ActiveDays          []int                     `json:"activeDays"`
-	Year                int                       `json:"year"`
-	Month               int                       `json:"month"`
-	RuleSuggestion      string                    `json:"ruleSuggestion"`
-	RecommendedAction   LearningRecommendedAction `json:"recommendedAction"`
+	Tasks             []LearningDashboardTask   `json:"tasks"`
+	WeeklyMinutes     []int                     `json:"weeklyMinutes"`
+	ActiveDays        []int                     `json:"activeDays"`
+	Year              int                       `json:"year"`
+	Month             int                       `json:"month"`
+	RuleSuggestion    string                    `json:"ruleSuggestion"`
+	RecommendedAction LearningRecommendedAction `json:"recommendedAction"`
 }
 
 // LearningInsightInput 生成 AI 建议。

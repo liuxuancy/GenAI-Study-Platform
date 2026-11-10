@@ -11,6 +11,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
 
+	"caveclass/internal/ai"
 	"caveclass/internal/framework/access"
 	"caveclass/internal/framework/identity"
 	"caveclass/internal/framework/module"
@@ -37,6 +38,11 @@ func newTestServer(t *testing.T, extraModules ...module.Module) *testServer {
 		t.Fatal(err)
 	}
 	database := testutil.NewDB(t, modules...)
+	t.Setenv("AI_PROVIDER", "mock")
+	aiService, err := ai.NewFromEnv()
+	if err != nil {
+		t.Fatal(err)
+	}
 	httpHandler := NewHTTPHandler(Deps{
 		DB:          database,
 		Catalog:     registry.GetCatalog(),
@@ -44,6 +50,7 @@ func newTestServer(t *testing.T, extraModules ...module.Module) *testServer {
 		TokenIssuer: identity.NewTokenIssuer("test-secret", time.Hour),
 
 		UserDeletionGuards: registry.GetUserDeletionGuards(),
+		AI:                 aiService,
 	})
 	return &testServer{database: database, httpHandler: httpHandler}
 }

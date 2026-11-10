@@ -17,9 +17,11 @@ func (Module) GetDefaultGrants() map[string][]string  { return nil }
 func (Module) GetModels() []any {
 	return []any{
 		&Course{},
+		&CoursePixelAvatar{},
 		&CourseChapter{},
 		&CourseSection{},
 		&StudentCourseProgress{},
+		&StudentAchievement{},
 		&StudentLearningEvent{},
 		&StudentAIConversation{},
 		&StudentAIMessage{},

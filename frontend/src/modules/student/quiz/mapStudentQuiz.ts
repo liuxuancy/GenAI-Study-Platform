@@ -25,7 +25,7 @@ function parseDifficulty(value: string): QuizDifficulty | null {
   return null
 }
 
-function displayTitle(title: string, chapterName?: string | null) {
+export function displayQuizTitle(title: string, chapterName?: string | null) {
   const locale = getAppLocale()
   const studentMatch = studentGeneratedTitle.exec(title)
   if (studentMatch) {
@@ -122,7 +122,7 @@ export function mapStudentQuestionToView(
     id: String(item.id),
     courseId,
     courseName: course?.title || item.courseTitle,
-    title: displayTitle(item.title, item.chapterName),
+    title: displayQuizTitle(item.title, item.chapterName),
     targetType: sectionKey ? 'section' : chapterKey ? 'chapter' : 'unlinked',
     chapterKey,
     chapterName: item.chapterName?.trim() || null,

@@ -1,0 +1,71 @@
+.title {
+  margin: 0;
+  font-size: 28px;
+}
+
+.subtitle {
+  color: var(--color-text-secondary);
+  margin-bottom: 28px;
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 16px;
+}
+
+.card {
+  padding: 24px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface);
+  text-align: center;
+}
+
+.card h3 {
+  margin: 14px 0 8px;
+}
+
+.card p {
+  margin: 0;
+  color: var(--color-text-secondary);
+}
+
+.icon {
+  font-size: 36px;
+  color: var(--color-primary);
+}
+
+.locked .icon,
+.locked p {
+  color: #a4a4a4;
+}
+
+.locked p {
+  margin-top: 14px;
+}
+
+.notifications {
+  position: fixed;
+  top: 20px;
+  right: 20px;
+  z-index: 1100;
+  display: grid;
+  gap: 10px;
+  width: min(340px, calc(100vw - 40px));
+}
+
+.notification {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  padding: 16px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  background: var(--color-surface);
+  box-shadow: 0 8px 24px rgb(0 0 0 / 14%);
+}
+
+.notification > span {
+  font-size: 28px;
+}

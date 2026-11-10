@@ -286,6 +286,26 @@ func (service *Service) UploadTeacherCourseResource(ctx context.Context, princip
 	if err := service.requireTeacherCourse(ctx, principal, courseID); err != nil {
 		return nil, err
 	}
+	return service.uploadCourseResource(ctx, principal, courseID, filename, size, reader, input, PublishStatusDraft)
+}
+
+func (service *Service) UploadStudentCourseResource(ctx context.Context, principal *access.Principal, courseID int64, filename string, size int64, reader io.Reader, input UploadCourseResourceInput) (*CourseResourceItem, error) {
+	if principal.Role != access.RoleStudent {
+		return nil, errs.Forbidden("only students can upload student course resources")
+	}
+	var count int64
+	if err := service.database.WithContext(ctx).Raw(
+		`SELECT COUNT(*) FROM course WHERE id = ? AND owner_id = ?`, courseID, principal.UserID,
+	).Scan(&count).Error; err != nil {
+		return nil, err
+	}
+	if count == 0 {
+		return nil, errs.NotFound("course not found")
+	}
+	return service.uploadCourseResource(ctx, principal, courseID, filename, size, reader, input, PublishStatusPublished)
+}
+
+func (service *Service) uploadCourseResource(ctx context.Context, principal *access.Principal, courseID int64, filename string, size int64, reader io.Reader, input UploadCourseResourceInput, publishStatus string) (*CourseResourceItem, error) {
 	client, limits, err := service.requireCOS()
 	if err != nil {
 		return nil, err
@@ -343,7 +363,7 @@ func (service *Service) UploadTeacherCourseResource(ctx context.Context, princip
 		FileSize:         size,
 		StorageProvider:  ResourceStorageTencentCOS,
 		ScopeType:        scopeType,
-		PublishStatus:    PublishStatusDraft,
+		PublishStatus:    publishStatus,
 		PreviewStatus:    initialPreviewStatus(ext),
 		PreviewObjectKey: "",
 		CreatedAt:        now,

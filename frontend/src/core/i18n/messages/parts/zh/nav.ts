@@ -14,6 +14,7 @@ export const zhNav: MessageTree = {
       aiWorkspace: 'AI 工作台',
       quizzes: '测验中心',
       account: '我的账号',
+      achievements: '我的成就',
       quizAttempt: '测验作答',
       courseStudy: '课程学习',
       brandSubtitle: '学生',

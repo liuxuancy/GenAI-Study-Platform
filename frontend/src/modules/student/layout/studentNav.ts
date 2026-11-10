@@ -2,7 +2,7 @@ export interface StudentNavItem {
   to: string
   labelKey: string
   end?: boolean
-  icon: 'dashboard' | 'book' | 'clipboard' | 'user' | 'spark'
+  icon: 'dashboard' | 'book' | 'clipboard' | 'user' | 'spark' | 'trophy'
 }
 
 export interface StudentNavSection {
@@ -22,7 +22,10 @@ export const studentNavSections: StudentNavSection[] = [
   },
   {
     titleKey: 'nav.student.sectionPersonal',
-    items: [{ to: '/student/account', labelKey: 'nav.student.account', icon: 'user' }],
+    items: [
+      { to: '/student/achievements', labelKey: 'nav.student.achievements', icon: 'trophy' },
+      { to: '/student/account', labelKey: 'nav.student.account', icon: 'user' },
+    ],
   },
 ]
 
@@ -32,6 +35,7 @@ const studentPageTitleKeys: Record<string, string> = {
   '/student/ai': 'nav.student.aiWorkspace',
   '/student/quizzes': 'nav.student.quizzes',
   '/student/account': 'nav.student.account',
+  '/student/achievements': 'nav.student.achievements',
 }
 
 export function studentPageTitle(pathname: string, t: (key: string) => string) {

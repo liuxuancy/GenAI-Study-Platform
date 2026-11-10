@@ -38,7 +38,7 @@ export function setupHttpAuth(hooks: HttpAuthHooks) {
   authHooks = hooks
 }
 
-export async function request<T>(method: HttpMethod, path: string, body?: unknown): Promise<T> {
+export async function request<T>(method: HttpMethod, path: string, body?: unknown, signal?: AbortSignal): Promise<T> {
   const token = authHooks.getToken()
   const headers: Record<string, string> = {}
   if (token) {
@@ -54,8 +54,10 @@ export async function request<T>(method: HttpMethod, path: string, body?: unknow
       method,
       headers,
       body: body === undefined ? undefined : JSON.stringify(body),
+      signal,
     })
-  } catch {
+  } catch (error) {
+    if (signal?.aborted) throw error
     throw new ApiError(0, translateApp(getAppLocale(), 'http.networkError'))
   }
 
@@ -72,7 +74,7 @@ export async function request<T>(method: HttpMethod, path: string, body?: unknow
 
 export const http = {
   get: <T>(path: string) => request<T>('GET', path),
-  post: <T>(path: string, body?: unknown) => request<T>('POST', path, body),
+  post: <T>(path: string, body?: unknown, signal?: AbortSignal) => request<T>('POST', path, body, signal),
   put: <T>(path: string, body?: unknown) => request<T>('PUT', path, body),
   patch: <T>(path: string, body?: unknown) => request<T>('PATCH', path, body),
   delete: <T>(path: string) => request<T>('DELETE', path),

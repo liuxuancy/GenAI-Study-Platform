@@ -4,17 +4,19 @@ import { getAiProviderOptions, type AiGenerateProvider } from '@/core/api/ai'
 import { useI18n } from '@/core/i18n/useI18n'
 
 const storageKey = 'caveclass.ai.provider'
+const courseStorageKey = 'caveclass.ai.courseAvatarProvider'
 
-function savedProvider(): AiGenerateProvider | null {
-  const value = window.localStorage.getItem(storageKey)
+function savedProvider(courseAvatar: boolean): AiGenerateProvider | null {
+  const value = window.localStorage.getItem(courseAvatar ? courseStorageKey : storageKey)
+    ?? (courseAvatar ? window.localStorage.getItem(storageKey) : null)
   return value === 'deepseek' || value === 'teamily' ? value : null
 }
 
-export function useAiProviderSelect() {
+export function useAiProviderSelect({ courseAvatar = false }: { courseAvatar?: boolean } = {}) {
   const { t } = useI18n()
-  const [provider, setProviderState] = useState<AiGenerateProvider>(() => savedProvider() ?? 'deepseek')
+  const [provider, setProviderState] = useState<AiGenerateProvider>(() => savedProvider(courseAvatar) ?? 'deepseek')
   const [loading, setLoading] = useState(true)
-  const [available, setAvailable] = useState<{ deepseek: boolean; teamily: boolean }>({
+  const [available, setAvailable] = useState<Record<AiGenerateProvider, boolean>>({
     deepseek: false,
     teamily: false,
   })
@@ -22,11 +24,12 @@ export function useAiProviderSelect() {
 
   function setProvider(next: AiGenerateProvider) {
     setProviderState(next)
-    window.localStorage.setItem(storageKey, next)
+    window.localStorage.setItem(courseAvatar ? courseStorageKey : storageKey, next)
   }
 
   useEffect(() => {
     let cancelled = false
+    setLoading(true)
     getAiProviderOptions()
       .then((options) => {
         if (cancelled) {
@@ -42,7 +45,7 @@ export function useAiProviderSelect() {
           : options.providers.teamily
             ? 'teamily'
             : 'deepseek'
-        const preferred = savedProvider()
+        const preferred = savedProvider(courseAvatar)
         const configuredDefault =
           options.default === 'deepseek' || options.default === 'teamily' ? options.default : fallback
         const initial = preferred && options.providers[preferred] ? preferred : configuredDefault
@@ -62,10 +65,11 @@ export function useAiProviderSelect() {
     return () => {
       cancelled = true
     }
-  }, [t])
+  }, [t, courseAvatar])
 
   const options = useMemo(() => {
-    return (['deepseek', 'teamily'] as AiGenerateProvider[]).map((value) => ({
+    const providers: AiGenerateProvider[] = ['deepseek', 'teamily']
+    return providers.map((value) => ({
       value,
       label: available[value]
         ? t(`ai.providers.${value}`)
@@ -89,6 +93,8 @@ export function useAiProviderSelect() {
   return {
     provider,
     selector,
+    options,
+    setProvider,
     loading,
     available,
     error: loadError,

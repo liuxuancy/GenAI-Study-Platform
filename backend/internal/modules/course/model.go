@@ -91,14 +91,51 @@ type CourseSection struct {
 func (CourseSection) TableName() string { return "course_section" }
 
 // StudentCourseProgress 对应 student_course_progress，记录某个学生对某门课的进度。
+// Affection 不加 gorm default，否则写入 0 会被当成未赋值。
 type StudentCourseProgress struct {
-	UserID   int64 `gorm:"primaryKey"`
-	CourseID int64 `gorm:"primaryKey"`
-	Percent  int   `gorm:"not null"`
+	UserID    int64 `gorm:"primaryKey"`
+	CourseID  int64 `gorm:"primaryKey"`
+	Percent   int   `gorm:"not null"`
+	Affection int   `gorm:"not null"`
 }
+
+// CoursePixelAvatar 一门课的像素小人。外观属性组合唯一，五张图是同一角色的不同姿态。
+type CoursePixelAvatar struct {
+	ID               int64   `gorm:"primaryKey"`
+	CourseID         int64   `gorm:"not null;uniqueIndex:uidx_course_pixel_avatar_course"`
+	RoleType         string  `gorm:"size:32;not null;uniqueIndex:uidx_pixel_avatar_appearance,priority:1"`
+	BodyType         string  `gorm:"size:32;not null;uniqueIndex:uidx_pixel_avatar_appearance,priority:2"`
+	HairColor        string  `gorm:"size:32;not null;uniqueIndex:uidx_pixel_avatar_appearance,priority:3"`
+	HairStyle        string  `gorm:"size:32;not null;uniqueIndex:uidx_pixel_avatar_appearance,priority:4"`
+	FacialFeature    string  `gorm:"size:32;not null;uniqueIndex:uidx_pixel_avatar_appearance,priority:5"`
+	Accessory        string  `gorm:"size:32;not null;uniqueIndex:uidx_pixel_avatar_appearance,priority:6"`
+	SilhouetteKey    string  `gorm:"size:32;not null;uniqueIndex:uidx_pixel_avatar_appearance,priority:7"`
+	Personality      string  `gorm:"size:32;not null;uniqueIndex:uidx_pixel_avatar_appearance,priority:8"`
+	PixelJSON        string  `gorm:"type:text;not null"`
+	PixelJSON25      string  `gorm:"column:pixel_json_25;type:text;not null"`
+	PixelJSON50      string  `gorm:"column:pixel_json_50;type:text;not null"`
+	PixelJSON75      string  `gorm:"column:pixel_json_75;type:text;not null"`
+	PixelJSON100     string  `gorm:"column:pixel_json_100;type:text;not null"`
+	DialogueJSON     *string `gorm:"type:text"`
+	DialogueLease    string  `gorm:"type:text;not null;default:''"`
+	DialogueRetryAt  int64   `gorm:"not null;default:0"`
+	DialogueAttempts int     `gorm:"not null;default:0"`
+	CreatedAt        time.Time
+}
+
+func (CoursePixelAvatar) TableName() string { return "course_pixel_avatar" }
 
 // TableName 方法名是 GORM 规定的，不能改成 GetTableName。
 func (StudentCourseProgress) TableName() string { return "student_course_progress" }
+
+type StudentAchievement struct {
+	UserID      int64     `gorm:"primaryKey"`
+	Achievement string    `gorm:"primaryKey;size:64"`
+	UnlockedAt  time.Time `gorm:"not null"`
+	NotifiedAt  *time.Time
+}
+
+func (StudentAchievement) TableName() string { return "student_achievement" }
 
 // StudentLearningEvent 记录学生学习活动，供趋势与日历聚合。
 type StudentLearningEvent struct {
@@ -293,11 +330,11 @@ const (
 
 	ResourceStorageTencentCOS = "tencent_cos"
 
-	ResourcePreviewPending      = "pending"
-	ResourcePreviewProcessing = "processing"
-	ResourcePreviewReady        = "ready"
-	ResourcePreviewFailed       = "failed"
-	ResourcePreviewUnsupported  = "unsupported"
+	ResourcePreviewPending     = "pending"
+	ResourcePreviewProcessing  = "processing"
+	ResourcePreviewReady       = "ready"
+	ResourcePreviewFailed      = "failed"
+	ResourcePreviewUnsupported = "unsupported"
 )
 
 // CourseResource 课程资料元数据；文件字节存 COS，Key 见 platform/cos/keys.go。

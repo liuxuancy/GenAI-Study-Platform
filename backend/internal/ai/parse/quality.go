@@ -19,6 +19,9 @@ func ParseQualityJSON(rawText string, repair bool) (quality.Report, Report, erro
 	if err := unmarshalQualityJSON(extracted, &parsed); err != nil {
 		return quality.Report{}, Report{}, err
 	}
+	if !json.Valid([]byte(extracted)) {
+		extracted = RelaxJSON(extracted)
+	}
 	var present map[string]json.RawMessage
 	if err := json.Unmarshal([]byte(extracted), &present); err != nil {
 		return quality.Report{}, Report{}, aierr.OutputParseFailed(err, "invalid JSON")

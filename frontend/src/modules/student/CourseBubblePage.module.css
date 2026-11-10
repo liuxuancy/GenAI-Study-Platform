@@ -27,9 +27,11 @@
 }
 
 .backLink {
+  flex: none;
   color: #74808b;
   font-size: 13px;
   text-decoration: none;
+  white-space: nowrap;
 }
 
 .backLink:hover {
@@ -37,10 +39,12 @@
 }
 
 .topSep {
+  flex: none;
   color: #c5cbc7;
 }
 
 .courseTitle {
+  min-width: 0;
   overflow: hidden;
   font-size: 15px;
   font-weight: 700;
@@ -129,7 +133,7 @@
   flex: 1;
   min-height: 0;
   overflow: auto;
-  padding: 8px clamp(16px, 3vw, 40px) 16px;
+  padding: 8px 0 16px clamp(16px, 3vw, 40px);
 }
 
 .mapWorkspace {
@@ -168,7 +172,7 @@
   padding: 8px 20px 20px;
 }
 
-.columnsResources {
+.columns.columnsResources {
   min-height: 420px;
   grid-template-columns: minmax(0, 260px) minmax(0, 1fr);
 }
@@ -201,6 +205,10 @@
   flex-direction: column;
   min-height: 0;
   padding: 0 clamp(16px, 3vw, 40px) 16px;
+}
+
+.workspaceResources {
+  padding-right: 0;
 }
 
 .progressStrip {
@@ -928,6 +936,10 @@
     transition: none;
   }
 
+  .columns.columnsResources {
+    grid-template-columns: minmax(200px, 240px) minmax(0, 1fr);
+  }
+
   .syllabus,
   .contentPane,
   .paneSplit {
@@ -961,6 +973,10 @@
   .columns {
     grid-template-columns: 1fr;
     min-height: auto;
+  }
+
+  .columns.columnsResources {
+    grid-template-columns: minmax(0, 1fr);
   }
 
   .contentScroll {

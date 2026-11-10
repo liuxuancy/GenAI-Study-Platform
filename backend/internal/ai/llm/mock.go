@@ -77,6 +77,10 @@ func mockTextForPrompt(promptText, courseText string) string {
 		return "这是仅根据当前章节内容生成的回答。"
 	case "templateId: learning_insight_v1":
 		return `{"suggestion":"根据你的进度，建议先完成进行中的课程章节，再处理待办测验。","recommendedAction":{"title":"继续学习","detail":"打开当前进度最高的课程，完成下一节内容。"}}`
+	case "templateId: pixel_sprite_v1":
+		return mockPixelSpriteText(promptText)
+	case "templateId: pixel_dialogue_v1":
+		return mockPixelDialogueText(promptText)
 	default:
 		return courseText
 	}

@@ -84,6 +84,8 @@ export const zhResources: MessageTree = {
       uploadFailed: '上传失败',
     },
     studentPanel: {
+      upload: '上传课程资料',
+      uploadVisibility: '资料随课程分享，同班可见。',
       loadFailed: '加载失败',
       previewFailed: '预览失败',
       downloadFailed: '下载失败',

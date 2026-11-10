@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useState } from 'react'
-import { Button, Empty, Input, Select, Space, Table, Tag, message } from 'antd'
+import { useCallback, useEffect, useRef, useState } from 'react'
+import { Button, Empty, Input, Progress, Select, Space, Table, Tag, message } from 'antd'
 
 import { FilePreview } from '@/modules/shared/FilePreview/FilePreview'
 import type { CourseContent } from '@/modules/teacher/api'
@@ -8,6 +8,7 @@ import {
   getCourseResourceDownload,
   getCourseResourcePreview,
   listStudentCourseResources,
+  uploadStudentCourseResource,
   scopeLabel,
   type CourseResourceItem,
 } from '@/modules/courseResources/api'
@@ -18,9 +19,10 @@ import styles from './studentResources.module.css'
 interface Props {
   courseId: number
   content?: CourseContent | null
+  canUpload?: boolean
 }
 
-export function StudentCourseResourcesPanel({ courseId, content = null }: Props) {
+export function StudentCourseResourcesPanel({ courseId, content = null, canUpload = false }: Props) {
   const { t } = useI18n()
   const [items, setItems] = useState<CourseResourceItem[]>([])
   const [loading, setLoading] = useState(false)
@@ -31,6 +33,9 @@ export function StudentCourseResourcesPanel({ courseId, content = null }: Props)
   const [preview, setPreview] = useState<Awaited<ReturnType<typeof getCourseResourcePreview>> | null>(null)
   const [previewLoading, setPreviewLoading] = useState(false)
   const [previewError, setPreviewError] = useState('')
+  const [uploading, setUploading] = useState(false)
+  const [uploadPercent, setUploadPercent] = useState(0)
+  const fileInput = useRef<HTMLInputElement>(null)
 
   const reload = useCallback(async () => {
     setLoading(true)
@@ -75,7 +80,24 @@ export function StudentCourseResourcesPanel({ courseId, content = null }: Props)
     }
   }
 
-  if (!loading && items.length === 0 && !search && typeFilter === 'all' && chapterFilter === 'all') {
+  async function upload(file: File) {
+    setUploading(true)
+    setUploadPercent(0)
+    const form = new FormData()
+    form.append('file', file)
+    form.append('scopeType', 'course')
+    try {
+      await uploadStudentCourseResource(courseId, form, setUploadPercent)
+      message.success(t('courseResources.uploadModal.uploadDone'))
+      await reload()
+    } catch (error) {
+      message.error(mapCourseResourceError(error, t('courseResources.uploadModal.uploadFailed')))
+    } finally {
+      setUploading(false)
+    }
+  }
+
+  if (!canUpload && !loading && items.length === 0 && !search && typeFilter === 'all' && chapterFilter === 'all') {
     return (
       <div className={styles.emptyWrap}>
         <Empty description={t('courseResources.studentPanel.notPublished')} />
@@ -85,6 +107,26 @@ export function StudentCourseResourcesPanel({ courseId, content = null }: Props)
 
   return (
     <div className={styles.panel}>
+      {canUpload ? (
+        <div className={styles.uploadBar}>
+          <input
+            ref={fileInput}
+            type="file"
+            accept=".pdf,.ppt,.pptx,.doc,.docx,.xls,.xlsx,.zip,.rar,.7z,.png,.jpg,.jpeg,.gif,.webp,.txt,.md"
+            hidden
+            onChange={(event) => {
+              const file = event.target.files?.[0]
+              event.target.value = ''
+              if (file) void upload(file)
+            }}
+          />
+          <Button type="primary" loading={uploading} onClick={() => fileInput.current?.click()}>
+            {t('courseResources.studentPanel.upload')}
+          </Button>
+          <span>{t('courseResources.studentPanel.uploadVisibility')}</span>
+          {uploading ? <Progress percent={uploadPercent} size="small" /> : null}
+        </div>
+      ) : null}
       <div className={styles.filters}>
         <Select
           value={typeFilter}

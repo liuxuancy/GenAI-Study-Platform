@@ -80,6 +80,34 @@ func TestParseTrailingComma(t *testing.T) {
 	}
 }
 
+func TestParseTrailingCommaWithRepairPreservesStringContent(t *testing.T) {
+	raw := strings.TrimSpace(miniCourseJSON(t))
+	raw = strings.Replace(raw, `"Introduction to Git for Beginners"`, `"Example, } title"`, 1)
+	raw = strings.TrimSuffix(raw, "}") + ",}"
+	parsed, _, err := parse.ParseCourseJSON(raw, true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if parsed.Title != "Example, } title" {
+		t.Fatalf("title = %q", parsed.Title)
+	}
+}
+
+func TestRelaxJSONPreservesStringValues(t *testing.T) {
+	raw := `{"text":"a, } and \"quoted, ]\"","list":[1,],}`
+	relaxed := parse.RelaxJSON(raw)
+	var parsed struct {
+		Text string `json:"text"`
+		List []int  `json:"list"`
+	}
+	if err := json.Unmarshal([]byte(relaxed), &parsed); err != nil {
+		t.Fatal(err)
+	}
+	if parsed.Text != `a, } and "quoted, ]"` || len(parsed.List) != 1 {
+		t.Fatalf("parsed = %+v", parsed)
+	}
+}
+
 func TestExtractJSONIgnoresFenceInsideObject(t *testing.T) {
 	raw := "{\"markdown\":\"运行\\n```\\ngit status\\n```\\n\"}"
 	got, err := parse.ExtractJSON(raw)

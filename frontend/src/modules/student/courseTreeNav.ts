@@ -66,6 +66,21 @@ export function isActivityDone(id: string, doneIds: ReadonlySet<string>) {
   return doneIds.has(id)
 }
 
+export function completedBubbleIds(tree: BubbleNode, doneIds: ReadonlySet<string>): Set<string> {
+  const completed = new Set<string>()
+  function visit(node: BubbleNode, id: string): boolean {
+    const children = node.children ?? []
+    const childStates = children.map((child, index) => visit(child, `${id}.${index}`))
+    const done = children.length > 0 ? childStates.every(Boolean) : doneIds.has(id)
+    if (done) {
+      completed.add(id)
+    }
+    return done
+  }
+  visit(tree, 'r')
+  return completed
+}
+
 export function leafPercent(tree: BubbleNode, doneIds: ReadonlySet<string>) {
   const total = countLeaves(tree)
   if (total <= 0) {
