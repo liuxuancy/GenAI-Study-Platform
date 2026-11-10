@@ -7,11 +7,11 @@ import (
 	"fmt"
 	"slices"
 
+	"github.com/liuxuancy/Libs/logs"
 	"gorm.io/gorm"
 
 	"caveclass/internal/framework/access"
 	"caveclass/internal/platform/errs"
-	"caveclass/internal/platform/logs"
 )
 
 type RoleService struct {
@@ -47,6 +47,7 @@ func (service *RoleService) GetRoleList(ctx context.Context) ([]RoleItem, error)
 		"SELECT role, permission_code FROM sys_role_permission ORDER BY role, permission_code",
 	).Scan(&rows).Error
 	if err != nil {
+		logs.CtxError(ctx, "[GetRoleList] failed, err: %v", err)
 		return nil, err
 	}
 
@@ -73,6 +74,7 @@ func (service *RoleService) GetRoleList(ctx context.Context) ([]RoleItem, error)
 		}
 		items = append(items, item)
 	}
+	logs.CtxInfo(ctx, "[GetRoleList] done: resp=%+v", items)
 	return items, nil
 }
 
@@ -92,6 +94,7 @@ func (service *RoleService) AssignRolePermissions(ctx context.Context, roleCode 
 	codes := []string{}
 	for _, code := range *input.Permissions {
 		if err := service.catalog.ValidateGrant(code); err != nil {
+			logs.CtxError(ctx, "[AssignRolePermissions] failed, err: %v", err)
 			return nil, err
 		}
 		if !slices.Contains(codes, code) {
@@ -102,10 +105,11 @@ func (service *RoleService) AssignRolePermissions(ctx context.Context, roleCode 
 
 	replacement := &permissionReplacement{role: roleCode, codes: codes}
 	if err := service.database.WithContext(ctx).Transaction(replacement.run); err != nil {
+		logs.CtxError(ctx, "[AssignRolePermissions] failed, err: %v", err)
 		return nil, err
 	}
 	service.cache.Reset() // 授权变了，该角色所有用户的下一个请求立即按新授权判断
-	logs.CtxInfo(ctx, "role permissions replaced: role=%s permissions=%v", roleCode, codes)
+	logs.CtxInfo(ctx, "[AssignRolePermissions] done: role=%s len=%d resp=%v", roleCode, len(codes), codes)
 	return codes, nil
 }
 

@@ -7,6 +7,7 @@ import (
 	"time"
 	"unicode/utf8"
 
+	"github.com/liuxuancy/Libs/logs"
 	"gorm.io/gorm"
 
 	"caveclass/internal/ai/aierr"
@@ -68,10 +69,12 @@ func (service *Service) SaveCourseContent(ctx context.Context, principal *access
 	}
 	parsed, _, err := parse.ParseCourseJSON(raw, false)
 	if err != nil {
+		logs.CtxError(ctx, "[SaveCourseContent] failed, err: %v", err)
 		return invalidContent(err)
 	}
 	encoded, err := json.Marshal(parsed)
 	if err != nil {
+		logs.CtxError(ctx, "[SaveCourseContent] failed, err: %v", err)
 		return err
 	}
 	result := service.database.WithContext(ctx).Exec(
@@ -81,6 +84,7 @@ func (service *Service) SaveCourseContent(ctx context.Context, principal *access
 		nullIfEmpty(parsed.Description), parsed.Audience, parsed.Language, string(encoded), time.Now().UTC(), courseID, principal.UserID,
 	)
 	if result.Error != nil {
+		logs.CtxError(ctx, "[SaveCourseContent] failed, err: %v", result.Error)
 		return result.Error
 	}
 	if result.RowsAffected == 0 {
@@ -90,9 +94,15 @@ func (service *Service) SaveCourseContent(ctx context.Context, principal *access
 	if err := service.database.WithContext(ctx).Raw(
 		"SELECT COALESCE(content_json, '') FROM course WHERE id = ?", courseID,
 	).Scan(&contentJSON).Error; err != nil {
+		logs.CtxError(ctx, "[SaveCourseContent] failed, err: %v", err)
 		return err
 	}
-	return SyncCourseStructureFromJSON(ctx, service.database, courseID, contentJSON)
+	if err := SyncCourseStructureFromJSON(ctx, service.database, courseID, contentJSON); err != nil {
+		logs.CtxError(ctx, "[SaveCourseContent] failed, err: %v", err)
+		return err
+	}
+	logs.CtxInfo(ctx, "[SaveCourseContent] done: course_id=%d len(raw)=%d", courseID, len(raw))
+	return nil
 }
 
 func invalidContent(err error) error {

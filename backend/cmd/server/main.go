@@ -27,8 +27,9 @@ import (
 	"caveclass/internal/modules/system"
 	"caveclass/internal/platform/config"
 	"caveclass/internal/platform/db"
-	"caveclass/internal/platform/logs"
 	"caveclass/internal/router"
+
+	"github.com/liuxuancy/Libs/logs"
 )
 
 // getEnabledModules 返回要加载的业务模块，新增模块时在这里加一行。
@@ -59,6 +60,7 @@ func run() error {
 		return err
 	}
 	setupLogger(cfg)
+	defer shutdownLogger()
 	if cfg.UsesDevSecret() {
 		logs.CtxWarn(context.Background(), "JWT_SECRET 未设置，正在使用内置开发密钥，仅限本地开发")
 	}
@@ -99,7 +101,7 @@ func run() error {
 		return fmt.Errorf("ai: %w", err)
 	}
 
-	gin.SetMode(gin.ReleaseMode) // 请求日志由我们自己的 Logger 输出
+	gin.SetMode(gin.ReleaseMode) // 请求日志由 ginlogs.AccessLog 输出
 	server := &http.Server{
 		Addr: cfg.HTTPAddr,
 		Handler: router.NewHTTPHandler(router.Deps{
@@ -177,23 +179,28 @@ func prepareDatabase(database *gorm.DB, registry *module.Registry, loadDemo bool
 	return nil
 }
 
+// setupLogger 按 LOG_ 环境变量配好日志（终端 JSON、可选抄送日志平台），服务名和环境没配时跟随本服务。
+// 全局只初始化一次：启动时由 run 调用，必须在 loadDotEnv 之后。
 func setupLogger(cfg config.Config) {
-	var handler slog.Handler
-	if cfg.IsDev() {
-		// dev 输出易读的文本日志
-		handler = slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{
-			Level:       slog.LevelDebug,
-			AddSource:   true,
-			ReplaceAttr: logs.ShortSource,
-		})
-	} else {
-		// prod 输出 JSON 便于采集
-		handler = slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{
-			Level:       slog.LevelInfo,
-			AddSource:   true,
-			ReplaceAttr: logs.ShortSource,
-		})
+	logConfig := logs.LoadConfigFromEnv()
+	if logConfig.ServiceName == "" {
+		logConfig.ServiceName = "cave_class"
 	}
-	// 包一层 ContextHandler，自动带出 ctx 里的 request_id 等字段
-	logs.Setup(handler)
+	if logConfig.Environment == "" {
+		logConfig.Environment = cfg.Env
+	}
+	// 本地开发没单独配 LOG_LEVEL 时打开 debug
+	if os.Getenv(logs.LevelEnv) == "" && cfg.IsDev() {
+		logConfig.Level = slog.LevelDebug
+	}
+	logs.Init(logConfig)
+}
+
+// shutdownLogger 退出前把还没抄送到日志平台的日志发完，最多等 3 秒。
+func shutdownLogger() {
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+	if err := logs.Shutdown(ctx); err != nil {
+		fmt.Fprintf(os.Stderr, "logs shutdown: %v\n", err)
+	}
 }

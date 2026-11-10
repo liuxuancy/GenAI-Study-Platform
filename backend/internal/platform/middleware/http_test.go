@@ -18,7 +18,7 @@ func init() { gin.SetMode(gin.TestMode) }
 
 func newEngine() *gin.Engine {
 	engine := gin.New()
-	engine.Use(Logger(), ErrorHandler())
+	engine.Use(ErrorHandler())
 	engine.GET("/ok", resp.ToGinHandler(okHandler))
 	engine.GET("/forbidden", resp.ToGinHandler(forbiddenHandler))
 	engine.GET("/plain-error", resp.ToGinHandler(plainErrorHandler))

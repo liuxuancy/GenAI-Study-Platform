@@ -4,18 +4,30 @@ import (
 	"context"
 	"time"
 
+	"github.com/liuxuancy/Libs/logs"
+
 	"caveclass/internal/framework/access"
 	"caveclass/internal/platform/errs"
 )
 
 // PublishQuiz 将测验设为已发布。
 func (service *Service) PublishQuiz(ctx context.Context, principal *access.Principal, quizID int64) error {
-	return service.setQuizPublishStatus(ctx, principal, quizID, PublishStatusPublished, PublishOn)
+	if err := service.setQuizPublishStatus(ctx, principal, quizID, PublishStatusPublished, PublishOn); err != nil {
+		logs.CtxError(ctx, "[PublishQuiz] failed, err: %v", err)
+		return err
+	}
+	logs.CtxInfo(ctx, "[PublishQuiz] done: quiz_id=%d", quizID)
+	return nil
 }
 
 // ArchiveQuiz 将测验归档；学生侧不可见（创建者除外由列表逻辑处理）。
 func (service *Service) ArchiveQuiz(ctx context.Context, principal *access.Principal, quizID int64) error {
-	return service.setQuizPublishStatus(ctx, principal, quizID, PublishStatusArchived, PublishOff)
+	if err := service.setQuizPublishStatus(ctx, principal, quizID, PublishStatusArchived, PublishOff); err != nil {
+		logs.CtxError(ctx, "[ArchiveQuiz] failed, err: %v", err)
+		return err
+	}
+	logs.CtxInfo(ctx, "[ArchiveQuiz] done: quiz_id=%d", quizID)
+	return nil
 }
 
 func (service *Service) setQuizPublishStatus(ctx context.Context, principal *access.Principal, quizID int64, status string, legacyPublish int) error {

@@ -6,12 +6,13 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/liuxuancy/Libs/logs"
+
 	"caveclass/internal/ai"
 	"caveclass/internal/ai/aierr"
 	"caveclass/internal/ai/course"
 	"caveclass/internal/ai/llm"
 	"caveclass/internal/ai/prompt"
-	"caveclass/internal/platform/logs"
 )
 
 func TestGenerateChapterAndActivityFromMock(t *testing.T) {
@@ -23,7 +24,7 @@ func TestGenerateChapterAndActivityFromMock(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	ctx := logs.WithRequestID(context.Background(), "req-fragment")
+	ctx := logs.WithLogID(context.Background(), "req-fragment")
 
 	chapter, chapterMeta, err := service.GenerateChapter(ctx, ai.GenerateChapterInput{
 		Topic:            "Git 入门",
@@ -42,7 +43,7 @@ func TestGenerateChapterAndActivityFromMock(t *testing.T) {
 	if chapterMeta.Scene != ai.SceneChapter || chapterMeta.TemplateID != prompt.ChapterV1 || chapterMeta.TemplateVersion != prompt.Version1 {
 		t.Fatalf("chapter meta = %+v", chapterMeta)
 	}
-	if chapterMeta.ModelUsed == "" || chapterMeta.RequestID != "req-fragment" || !chapterMeta.Validation.Passed {
+	if chapterMeta.ModelUsed == "" || chapterMeta.LogID != "req-fragment" || !chapterMeta.Validation.Passed {
 		t.Fatalf("chapter meta = %+v", chapterMeta)
 	}
 	if !containsWarning(chapterMeta.Warnings, "contextCourse was not provided") {

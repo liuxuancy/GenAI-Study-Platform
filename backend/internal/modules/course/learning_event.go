@@ -4,13 +4,14 @@ import (
 	"context"
 	"time"
 
+	"github.com/liuxuancy/Libs/logs"
+
 	"caveclass/internal/framework/access"
 	"caveclass/internal/platform/errs"
-	"caveclass/internal/platform/logs"
 )
 
 const (
-	estimatedProgressMinutes = 5
+	estimatedProgressMinutes   = 5
 	estimatedQuizAnswerMinutes = 3
 	estimatedChapterQAMinutes  = 5
 )
@@ -31,9 +32,11 @@ func (service *Service) RecordCourseHeartbeat(ctx context.Context, principal *ac
 		seconds = 120
 	}
 	if _, err := service.GetCourse(ctx, principal, courseID); err != nil {
+		logs.CtxError(ctx, "[RecordCourseHeartbeat] failed, err: %v", err)
 		return err
 	}
 	service.recordLearningEvent(ctx, principal.UserID, EventCourseSession, &courseID, nil, "", seconds)
+	logs.CtxInfo(ctx, "[RecordCourseHeartbeat] done: course_id=%d seconds=%d", courseID, seconds)
 	return nil
 }
 

@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/liuxuancy/Libs/logs"
 	"gorm.io/gorm"
 
 	aicourse "caveclass/internal/ai/course"
@@ -220,6 +221,7 @@ func rowToItem(row CourseResource) CourseResourceItem {
 // ListTeacherCourseResources GET /api/teacher/courses/:id/resources
 func (service *Service) ListTeacherCourseResources(ctx context.Context, principal *access.Principal, courseID int64, publishFilter, extFilter, chapterKey, search string) (*CourseResourceListResult, error) {
 	if err := service.requireTeacherCourse(ctx, principal, courseID); err != nil {
+		logs.CtxError(ctx, "[ListTeacherCourseResources] failed, err: %v", err)
 		return nil, err
 	}
 	query := service.database.WithContext(ctx).Model(&CourseResource{}).Where("course_id = ?", courseID)
@@ -243,18 +245,22 @@ func (service *Service) ListTeacherCourseResources(ctx context.Context, principa
 	}
 	var rows []CourseResource
 	if err := query.Order("created_at DESC, id DESC").Find(&rows).Error; err != nil {
+		logs.CtxError(ctx, "[ListTeacherCourseResources] failed, err: %v", err)
 		return nil, err
 	}
 	items := make([]CourseResourceItem, 0, len(rows))
 	for _, row := range rows {
 		items = append(items, rowToItem(row))
 	}
-	return &CourseResourceListResult{Items: items, Total: len(items)}, nil
+	output := &CourseResourceListResult{Items: items, Total: len(items)}
+	logs.CtxInfo(ctx, "[ListTeacherCourseResources] done: course_id=%d total=%d", courseID, output.Total)
+	return output, nil
 }
 
 // ListStudentCourseResources GET /api/student/courses/:id/resources
 func (service *Service) ListStudentCourseResources(ctx context.Context, principal *access.Principal, courseID int64, extFilter, chapterKey, search string) (*CourseResourceListResult, error) {
 	if err := service.requireStudentCourse(ctx, principal, courseID); err != nil {
+		logs.CtxError(ctx, "[ListStudentCourseResources] failed, err: %v", err)
 		return nil, err
 	}
 	query := service.database.WithContext(ctx).Model(&CourseResource{}).
@@ -272,18 +278,22 @@ func (service *Service) ListStudentCourseResources(ctx context.Context, principa
 	}
 	var rows []CourseResource
 	if err := query.Order("created_at DESC, id DESC").Find(&rows).Error; err != nil {
+		logs.CtxError(ctx, "[ListStudentCourseResources] failed, err: %v", err)
 		return nil, err
 	}
 	items := make([]CourseResourceItem, 0, len(rows))
 	for _, row := range rows {
 		items = append(items, rowToItem(row))
 	}
-	return &CourseResourceListResult{Items: items, Total: len(items)}, nil
+	output := &CourseResourceListResult{Items: items, Total: len(items)}
+	logs.CtxInfo(ctx, "[ListStudentCourseResources] done: course_id=%d total=%d", courseID, output.Total)
+	return output, nil
 }
 
 // UploadTeacherCourseResource POST multipart
 func (service *Service) UploadTeacherCourseResource(ctx context.Context, principal *access.Principal, courseID int64, filename string, size int64, reader io.Reader, input UploadCourseResourceInput) (*CourseResourceItem, error) {
 	if err := service.requireTeacherCourse(ctx, principal, courseID); err != nil {
+		logs.CtxError(ctx, "[UploadTeacherCourseResource] failed, err: %v", err)
 		return nil, err
 	}
 	return service.uploadCourseResource(ctx, principal, courseID, filename, size, reader, input, PublishStatusDraft)
@@ -308,6 +318,7 @@ func (service *Service) UploadStudentCourseResource(ctx context.Context, princip
 func (service *Service) uploadCourseResource(ctx context.Context, principal *access.Principal, courseID int64, filename string, size int64, reader io.Reader, input UploadCourseResourceInput, publishStatus string) (*CourseResourceItem, error) {
 	client, limits, err := service.requireCOS()
 	if err != nil {
+		logs.CtxError(ctx, "[UploadTeacherCourseResource] failed, err: %v", err)
 		return nil, err
 	}
 	head := make([]byte, 512)
@@ -320,17 +331,21 @@ func (service *Service) uploadCourseResource(ctx context.Context, principal *acc
 
 	ext, mimeType, err := validateResourceFile(filename, size, head, limits)
 	if err != nil {
+		logs.CtxError(ctx, "[UploadTeacherCourseResource] failed, err: %v", err)
 		return nil, err
 	}
 	scopeType, chapterKey, sectionKey, err := normalizeResourceScope(input.ScopeType, input.ChapterKey, input.SectionKey)
 	if err != nil {
+		logs.CtxError(ctx, "[UploadTeacherCourseResource] failed, err: %v", err)
 		return nil, err
 	}
 	if err := service.validateResourceScopeKeys(ctx, courseID, scopeType, chapterKey, sectionKey); err != nil {
+		logs.CtxError(ctx, "[UploadTeacherCourseResource] failed, err: %v", err)
 		return nil, err
 	}
 	objectKey, err := cos.OriginalObjectKey(courseID, filename)
 	if err != nil {
+		logs.CtxError(ctx, "[UploadTeacherCourseResource] failed, err: %v", err)
 		return nil, errs.BadRequest(err.Error())
 	}
 	if err := client.PutReader(ctx, objectKey, mimeType, stream, size); err != nil {
@@ -371,19 +386,23 @@ func (service *Service) uploadCourseResource(ctx context.Context, principal *acc
 	}
 	if err := service.database.WithContext(ctx).Create(&row).Error; err != nil {
 		_ = client.Delete(ctx, objectKey)
+		logs.CtxError(ctx, "[UploadTeacherCourseResource] failed, err: %v", err)
 		return nil, err
 	}
 	item := rowToItem(row)
+	logs.CtxInfo(ctx, "[UploadTeacherCourseResource] done: resp=%+v", item)
 	return &item, nil
 }
 
 // PatchTeacherCourseResource PATCH metadata
 func (service *Service) PatchTeacherCourseResource(ctx context.Context, principal *access.Principal, courseID, resourceID int64, input PatchCourseResourceInput) (*CourseResourceItem, error) {
 	if err := service.requireTeacherCourse(ctx, principal, courseID); err != nil {
+		logs.CtxError(ctx, "[PatchTeacherCourseResource] failed, err: %v", err)
 		return nil, err
 	}
 	row, err := service.loadCourseResource(ctx, courseID, resourceID)
 	if err != nil {
+		logs.CtxError(ctx, "[PatchTeacherCourseResource] failed, err: %v", err)
 		return nil, err
 	}
 	scopeType := row.ScopeType
@@ -404,6 +423,7 @@ func (service *Service) PatchTeacherCourseResource(ctx context.Context, principa
 		}
 	}
 	if err := service.validateResourceScopeKeys(ctx, courseID, scopeType, chapterKey, sectionKey); err != nil {
+		logs.CtxError(ctx, "[PatchTeacherCourseResource] failed, err: %v", err)
 		return nil, err
 	}
 	updates := map[string]any{"updated_at": time.Now().UTC()}
@@ -420,13 +440,16 @@ func (service *Service) PatchTeacherCourseResource(ctx context.Context, principa
 		updates["section_key"] = sectionKey
 	}
 	if err := service.database.WithContext(ctx).Model(row).Updates(updates).Error; err != nil {
+		logs.CtxError(ctx, "[PatchTeacherCourseResource] failed, err: %v", err)
 		return nil, err
 	}
 	updated, err := service.loadCourseResource(ctx, courseID, resourceID)
 	if err != nil {
+		logs.CtxError(ctx, "[PatchTeacherCourseResource] failed, err: %v", err)
 		return nil, err
 	}
 	item := rowToItem(*updated)
+	logs.CtxInfo(ctx, "[PatchTeacherCourseResource] done: resp=%+v", item)
 	return &item, nil
 }
 
@@ -440,10 +463,12 @@ func coalesceStr(p *string, fallback string) string {
 // PublishTeacherCourseResource PATCH publish
 func (service *Service) PublishTeacherCourseResource(ctx context.Context, principal *access.Principal, courseID, resourceID int64, input PublishCourseResourceInput) (*CourseResourceItem, error) {
 	if err := service.requireTeacherCourse(ctx, principal, courseID); err != nil {
+		logs.CtxError(ctx, "[PublishTeacherCourseResource] failed, err: %v", err)
 		return nil, err
 	}
 	row, err := service.loadCourseResource(ctx, courseID, resourceID)
 	if err != nil {
+		logs.CtxError(ctx, "[PublishTeacherCourseResource] failed, err: %v", err)
 		return nil, err
 	}
 	status := PublishStatusDraft
@@ -458,24 +483,29 @@ func (service *Service) PublishTeacherCourseResource(ctx context.Context, princi
 	}
 	row.PublishStatus = status
 	item := rowToItem(*row)
+	logs.CtxInfo(ctx, "[PublishTeacherCourseResource] done: resp=%+v", item)
 	return &item, nil
 }
 
 // DeleteTeacherCourseResource soft delete + COS delete
 func (service *Service) DeleteTeacherCourseResource(ctx context.Context, principal *access.Principal, courseID, resourceID int64) error {
 	if err := service.requireTeacherCourse(ctx, principal, courseID); err != nil {
+		logs.CtxError(ctx, "[DeleteTeacherCourseResource] failed, err: %v", err)
 		return err
 	}
 	row, err := service.loadCourseResource(ctx, courseID, resourceID)
 	if err != nil {
+		logs.CtxError(ctx, "[DeleteTeacherCourseResource] failed, err: %v", err)
 		return err
 	}
 	if err := service.database.WithContext(ctx).Delete(row).Error; err != nil {
+		logs.CtxError(ctx, "[DeleteTeacherCourseResource] failed, err: %v", err)
 		return err
 	}
 	if service.cosClient != nil {
 		_ = service.cosClient.Delete(ctx, row.ObjectKey)
 	}
+	logs.CtxInfo(ctx, "[DeleteTeacherCourseResource] done: course_id=%d resource_id=%d", courseID, resourceID)
 	return nil
 }
 
@@ -483,10 +513,12 @@ func (service *Service) DeleteTeacherCourseResource(ctx context.Context, princip
 func (service *Service) GetCourseResourcePreview(ctx context.Context, principal *access.Principal, courseID, resourceID int64) (*ResourcePreviewResult, error) {
 	row, err := service.loadCourseResource(ctx, courseID, resourceID)
 	if err != nil {
+		logs.CtxError(ctx, "[GetCourseResourcePreview] failed, err: %v", err)
 		return nil, err
 	}
 	requirePublished := principal.Role == access.RoleStudent
 	if err := service.canAccessResource(ctx, principal, row, requirePublished); err != nil {
+		logs.CtxError(ctx, "[GetCourseResourcePreview] failed, err: %v", err)
 		return nil, err
 	}
 	kind := previewKindForResource(row)
@@ -498,34 +530,46 @@ func (service *Service) GetCourseResourcePreview(ctx context.Context, principal 
 	case "pdf", "image":
 		client, _, err := service.requireCOS()
 		if err != nil {
+			logs.CtxError(ctx, "[GetCourseResourcePreview] failed, err: %v", err)
 			return nil, err
 		}
 		url, err := client.PresignedInlineGetURL(ctx, row.ObjectKey, row.DisplayName, limits.PresignTTL)
 		if err != nil {
+			logs.CtxError(ctx, "[GetCourseResourcePreview] failed, err: %v", err)
 			return nil, errs.Internal(fmt.Errorf("presign preview: %w", err))
 		}
-		return &ResourcePreviewResult{Kind: kind, URL: url}, nil
+		output := &ResourcePreviewResult{Kind: kind, URL: url}
+		logs.CtxInfo(ctx, "[GetCourseResourcePreview] done: resource_id=%d resp=%+v", resourceID, output)
+		return output, nil
 	case "office":
 		if limits.DocPreviewEnabled {
 			client, _, err := service.requireCOS()
 			if err != nil {
+				logs.CtxError(ctx, "[GetCourseResourcePreview] failed, err: %v", err)
 				return nil, err
 			}
 			url, err := client.PresignedDocPreviewURL(ctx, row.ObjectKey, limits.PresignTTL)
 			if err != nil {
+				logs.CtxError(ctx, "[GetCourseResourcePreview] failed, err: %v", err)
 				return nil, errs.Internal(fmt.Errorf("presign doc preview: %w", err))
 			}
-			return &ResourcePreviewResult{Kind: "iframe", URL: url}, nil
+			output := &ResourcePreviewResult{Kind: "iframe", URL: url}
+			logs.CtxInfo(ctx, "[GetCourseResourcePreview] done: resource_id=%d resp=%+v", resourceID, output)
+			return output, nil
 		}
-		return &ResourcePreviewResult{
+		output := &ResourcePreviewResult{
 			Kind:    "unsupported",
 			Message: "当前文件暂不支持在线预览，请下载查看",
-		}, nil
+		}
+		logs.CtxInfo(ctx, "[GetCourseResourcePreview] done: resource_id=%d resp=%+v", resourceID, output)
+		return output, nil
 	default:
-		return &ResourcePreviewResult{
+		output := &ResourcePreviewResult{
 			Kind:    "unsupported",
 			Message: "当前文件暂不支持在线预览，请下载查看",
-		}, nil
+		}
+		logs.CtxInfo(ctx, "[GetCourseResourcePreview] done: resource_id=%d resp=%+v", resourceID, output)
+		return output, nil
 	}
 }
 
@@ -533,27 +577,33 @@ func (service *Service) GetCourseResourcePreview(ctx context.Context, principal 
 func (service *Service) GetCourseResourceDownload(ctx context.Context, principal *access.Principal, courseID, resourceID int64) (*ResourceDownloadResult, error) {
 	row, err := service.loadCourseResource(ctx, courseID, resourceID)
 	if err != nil {
+		logs.CtxError(ctx, "[GetCourseResourceDownload] failed, err: %v", err)
 		return nil, err
 	}
 	requirePublished := principal.Role == access.RoleStudent
 	if err := service.canAccessResource(ctx, principal, row, requirePublished); err != nil {
+		logs.CtxError(ctx, "[GetCourseResourceDownload] failed, err: %v", err)
 		return nil, err
 	}
 	client, limits, err := service.requireCOS()
 	if err != nil {
+		logs.CtxError(ctx, "[GetCourseResourceDownload] failed, err: %v", err)
 		return nil, err
 	}
 	url, err := client.PresignedGetURL(ctx, row.ObjectKey, row.DisplayName, limits.PresignTTL)
 	if err != nil {
+		logs.CtxError(ctx, "[GetCourseResourceDownload] failed, err: %v", err)
 		return nil, errs.Internal(fmt.Errorf("presign download: %w", err))
 	}
 	ttlSec := int64(limits.PresignTTL.Seconds())
 	if ttlSec <= 0 {
 		ttlSec = 900
 	}
-	return &ResourceDownloadResult{
+	output := &ResourceDownloadResult{
 		URL:       url,
 		FileName:  row.DisplayName,
 		ExpiresIn: ttlSec,
-	}, nil
+	}
+	logs.CtxInfo(ctx, "[GetCourseResourceDownload] done: resource_id=%d resp=%+v", resourceID, output)
+	return output, nil
 }

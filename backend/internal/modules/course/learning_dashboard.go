@@ -9,6 +9,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/liuxuancy/Libs/logs"
+
 	"caveclass/internal/ai"
 	"caveclass/internal/framework/access"
 	"caveclass/internal/platform/errs"
@@ -75,20 +77,24 @@ func (service *Service) GetLearningDashboard(ctx context.Context, principal *acc
 
 	courses, err := service.GetCourseList(ctx, principal)
 	if err != nil {
+		logs.CtxError(ctx, "[GetLearningDashboard] failed, err: %v", err)
 		return nil, err
 	}
 	questions, err := service.GetQuestionList(ctx, principal)
 	if err != nil {
+		logs.CtxError(ctx, "[GetLearningDashboard] failed, err: %v", err)
 		return nil, err
 	}
 
 	tasks := buildLearningTasks(courses, questions)
 	weeklyMinutes, err := service.aggregateWeeklyMinutes(ctx, principal.UserID, now)
 	if err != nil {
+		logs.CtxError(ctx, "[GetLearningDashboard] failed, err: %v", err)
 		return nil, err
 	}
 	activeDays, err := service.aggregateActiveDays(ctx, principal.UserID, year, month)
 	if err != nil {
+		logs.CtxError(ctx, "[GetLearningDashboard] failed, err: %v", err)
 		return nil, err
 	}
 
@@ -97,7 +103,7 @@ func (service *Service) GetLearningDashboard(ctx context.Context, principal *acc
 	ruleSuggestion := buildRuleSuggestion(courses, continueCourse, pendingQuiz)
 	recommended := buildRecommendedAction(continueCourse, pendingQuiz)
 
-	return &LearningDashboard{
+	output := &LearningDashboard{
 		Tasks:             tasks,
 		WeeklyMinutes:     weeklyMinutes,
 		ActiveDays:        activeDays,
@@ -105,7 +111,9 @@ func (service *Service) GetLearningDashboard(ctx context.Context, principal *acc
 		Month:             month,
 		RuleSuggestion:    ruleSuggestion,
 		RecommendedAction: recommended,
-	}, nil
+	}
+	logs.CtxInfo(ctx, "[GetLearningDashboard] done: year=%d month=%d len(tasks)=%d weekly_minutes=%v active_days=%v recommended=%+v", output.Year, output.Month, len(output.Tasks), output.WeeklyMinutes, output.ActiveDays, output.RecommendedAction)
+	return output, nil
 }
 
 func pickContinueCourseListItem(courses []CourseListItem) *CourseListItem {
@@ -338,10 +346,12 @@ func (service *Service) GenerateLearningInsight(ctx context.Context, principal *
 	}
 	courses, err := service.GetCourseList(ctx, principal)
 	if err != nil {
+		logs.CtxError(ctx, "[GenerateLearningInsight] failed, err: %v", err)
 		return nil, err
 	}
 	questions, err := service.GetQuestionList(ctx, principal)
 	if err != nil {
+		logs.CtxError(ctx, "[GenerateLearningInsight] failed, err: %v", err)
 		return nil, err
 	}
 
@@ -364,17 +374,20 @@ func (service *Service) GenerateLearningInsight(ctx context.Context, principal *
 
 	encoded, err := json.Marshal(payload)
 	if err != nil {
+		logs.CtxError(ctx, "[GenerateLearningInsight] failed, err: %v", err)
 		return nil, err
 	}
 
 	aiService, err := service.aiForGenerate(input.Provider)
 	if err != nil {
+		logs.CtxError(ctx, "[GenerateLearningInsight] failed, err: %v", err)
 		return nil, err
 	}
 	response, meta, callErr := aiService.GenerateLearningInsight(ctx, string(encoded), input.Language)
 	service.recordUsage(ctx, principal.UserID, usage.SceneLearningInsight, meta, callErr)
 	if callErr != nil {
 		ai.LogError(ctx, callErr, meta, principal.UserID)
+		logs.CtxError(ctx, "[GenerateLearningInsight] failed, err: %v", callErr)
 		return nil, businessAIError(callErr)
 	}
 
@@ -383,20 +396,24 @@ func (service *Service) GenerateLearningInsight(ctx context.Context, principal *
 		RecommendedAction LearningRecommendedAction `json:"recommendedAction"`
 	}
 	if err := json.Unmarshal([]byte(response), &parsed); err != nil || strings.TrimSpace(parsed.Suggestion) == "" {
-		return &LearningInsightResult{
+		output := &LearningInsightResult{
 			Suggestion:        strings.TrimSpace(response),
 			RecommendedAction: buildRecommendedAction(continueCourse, payload.PendingQuizCount),
 			Meta:              meta,
-		}, nil
+		}
+		logs.CtxInfo(ctx, "[GenerateLearningInsight] done: suggestion=%q recommended=%+v meta=%+v", output.Suggestion, output.RecommendedAction, output.Meta)
+		return output, nil
 	}
 	if strings.TrimSpace(parsed.RecommendedAction.Title) == "" {
 		parsed.RecommendedAction = buildRecommendedAction(continueCourse, payload.PendingQuizCount)
 	}
-	return &LearningInsightResult{
+	output := &LearningInsightResult{
 		Suggestion:        parsed.Suggestion,
 		RecommendedAction: parsed.RecommendedAction,
 		Meta:              meta,
-	}, nil
+	}
+	logs.CtxInfo(ctx, "[GenerateLearningInsight] done: suggestion=%q recommended=%+v meta=%+v", output.Suggestion, output.RecommendedAction, output.Meta)
+	return output, nil
 }
 
 func parseDashboardMonth(queryYear, queryMonth string) (int, int) {

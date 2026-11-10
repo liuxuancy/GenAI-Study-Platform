@@ -7,12 +7,13 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/liuxuancy/Libs/logs"
+
 	"caveclass/internal/ai"
 	"caveclass/internal/ai/aierr"
 	"caveclass/internal/ai/course"
 	"caveclass/internal/ai/llm"
 	"caveclass/internal/ai/prompt"
-	"caveclass/internal/platform/logs"
 )
 
 type stubClient struct {
@@ -49,7 +50,7 @@ func TestGenerateCourseFromMockProvider(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	ctx := logs.WithRequestID(context.Background(), "req-course")
+	ctx := logs.WithLogID(context.Background(), "req-course")
 	parsed, meta, err := service.GenerateCourse(ctx, ai.GenerateCourseInput{
 		Topic:    "Git 入门",
 		Audience: course.AudienceNonCS,
@@ -66,7 +67,7 @@ func TestGenerateCourseFromMockProvider(t *testing.T) {
 	if meta.Scene != ai.SceneFullCourse || meta.TemplateID != prompt.FullCourseV1 || meta.TemplateVersion != prompt.Version1 {
 		t.Fatalf("meta template = %+v", meta)
 	}
-	if meta.ModelUsed == "" || meta.ModelRequested == "" || meta.RequestID != "req-course" {
+	if meta.ModelUsed == "" || meta.ModelRequested == "" || meta.LogID != "req-course" {
 		t.Fatalf("meta = %+v", meta)
 	}
 	if !meta.Validation.Passed || meta.Validation.RepairedFields == nil || meta.Warnings == nil {

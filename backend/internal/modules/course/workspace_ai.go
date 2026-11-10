@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/liuxuancy/Libs/logs"
 	"gorm.io/gorm"
 
 	"caveclass/internal/ai"
@@ -132,11 +133,13 @@ func (service *Service) RenameAIConversation(ctx context.Context, principal *acc
 		title, time.Now().UTC(), conversationID, principal.UserID,
 	)
 	if result.Error != nil {
+		logs.CtxError(ctx, "[RenameAIConversation] failed, err: %v", result.Error)
 		return result.Error
 	}
 	if result.RowsAffected == 0 {
 		return errs.NotFound("conversation not found")
 	}
+	logs.CtxInfo(ctx, "[RenameAIConversation] done: conversation_id=%d title=%q", conversationID, title)
 	return nil
 }
 
@@ -144,7 +147,7 @@ func (service *Service) DeleteOwnedAIConversation(ctx context.Context, principal
 	if principal.Role != access.RoleStudent && principal.Role != access.RoleTeacher {
 		return errs.Forbidden("only students and teachers can use the workspace")
 	}
-	return service.database.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+	err := service.database.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		var owner int64
 		found := tx.Raw(`SELECT user_id FROM student_ai_conversation WHERE id = ?`, conversationID).Scan(&owner)
 		if found.Error != nil {
@@ -158,6 +161,12 @@ func (service *Service) DeleteOwnedAIConversation(ctx context.Context, principal
 		}
 		return tx.Exec(`DELETE FROM student_ai_conversation WHERE id = ? AND user_id = ?`, conversationID, principal.UserID).Error
 	})
+	if err != nil {
+		logs.CtxError(ctx, "[DeleteOwnedAIConversation] failed, err: %v", err)
+		return err
+	}
+	logs.CtxInfo(ctx, "[DeleteOwnedAIConversation] done: conversation_id=%d", conversationID)
+	return nil
 }
 
 func (service *Service) SendWorkspaceMessage(ctx context.Context, principal *access.Principal, input WorkspaceMessageInput) (*WorkspaceMessageResult, error) {
@@ -175,6 +184,7 @@ func (service *Service) SendWorkspaceMessage(ctx context.Context, principal *acc
 		requiresCourse = skill.RequiresCourse
 		rendered, err := renderSkillPrompt(skill, input.Params)
 		if err != nil {
+			logs.CtxError(ctx, "[SendWorkspaceMessage] failed, err: %v", err)
 			return nil, err
 		}
 		skillPrompt = rendered
@@ -187,6 +197,7 @@ func (service *Service) SendWorkspaceMessage(ctx context.Context, principal *acc
 	}
 	conversation, err := service.loadOrCreateWorkspaceConversation(ctx, principal, input.ConversationID, input.CourseID, question)
 	if err != nil {
+		logs.CtxError(ctx, "[SendWorkspaceMessage] failed, err: %v", err)
 		return nil, err
 	}
 	if requiresCourse && conversation.CourseID == 0 {
@@ -194,12 +205,14 @@ func (service *Service) SendWorkspaceMessage(ctx context.Context, principal *acc
 	}
 	history, err := service.recentOwnedHistory(ctx, principal.UserID, conversation.ID)
 	if err != nil {
+		logs.CtxError(ctx, "[SendWorkspaceMessage] failed, err: %v", err)
 		return nil, err
 	}
 	note := ""
 	if conversation.CourseID != 0 {
 		outline, outlineErr := service.workspaceCourseNote(ctx, principal, conversation.CourseID)
 		if outlineErr != nil {
+			logs.CtxError(ctx, "[SendWorkspaceMessage] failed, err: %v", outlineErr)
 			return nil, outlineErr
 		}
 		note = outline
@@ -213,22 +226,28 @@ func (service *Service) SendWorkspaceMessage(ctx context.Context, principal *acc
 		if aiError, ok := aierr.As(err); ok && aiError.Code == aierr.CodeInputTooLong {
 			return nil, errs.BadRequest("这次请求超过了模型输入限制。请缩短问题，或新开对话后再试。")
 		}
+		logs.CtxError(ctx, "[SendWorkspaceMessage] failed, err: %v", err)
 		return nil, err
 	}
 	aiService, err := service.aiForGenerate(input.Provider)
 	if err != nil {
+		logs.CtxError(ctx, "[SendWorkspaceMessage] failed, err: %v", err)
 		return nil, err
 	}
 	answer, meta, callErr := aiService.CompletePrompt(ctx, workspaceScene, "", promptText)
 	service.recordUsage(ctx, principal.UserID, usage.SceneChapterQA, meta, callErr)
 	if callErr != nil {
 		ai.LogError(ctx, callErr, meta, principal.UserID)
+		logs.CtxError(ctx, "[SendWorkspaceMessage] failed, err: %v", callErr)
 		return nil, businessAIError(callErr)
 	}
 	if err := service.appendWorkspaceExchange(ctx, conversation.ID, principal.UserID, question, answer); err != nil {
+		logs.CtxError(ctx, "[SendWorkspaceMessage] failed, err: %v", err)
 		return nil, err
 	}
-	return &WorkspaceMessageResult{ConversationID: conversation.ID, Answer: answer, Title: conversation.Title}, nil
+	output := &WorkspaceMessageResult{ConversationID: conversation.ID, Answer: answer, Title: conversation.Title}
+	logs.CtxInfo(ctx, "[SendWorkspaceMessage] done: conversation_id=%d title=%q len(answer)=%d", output.ConversationID, output.Title, len(output.Answer))
+	return output, nil
 }
 
 type workspaceConversation struct {

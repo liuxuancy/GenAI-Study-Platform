@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/liuxuancy/Libs/logs"
 	"gorm.io/gorm"
 
 	"caveclass/internal/framework/access"
@@ -178,12 +179,14 @@ func (service *UsageService) GetUsageReport(ctx context.Context, query UsageList
 	database := service.database.WithContext(ctx)
 	filters, err := parseUsageFilters(query)
 	if err != nil {
+		logs.CtxError(ctx, "[GetUsageReport] failed, err: %v", err)
 		return nil, err
 	}
 	page, pageSize := normalizePage(query.Page, query.PageSize)
 	report := &UsageReport{Users: []UsageUser{}, Page: page, PageSize: pageSize}
 
 	if err := database.Raw(countAccountsSQL).Scan(&report.AccountCount).Error; err != nil {
+		logs.CtxError(ctx, "[GetUsageReport] failed, err: %v", err)
 		return nil, err
 	}
 	var totals usageTotals
@@ -191,6 +194,7 @@ func (service *UsageService) GetUsageReport(ctx context.Context, query UsageList
 		"COUNT(*) AS call_count, COALESCE(SUM(a.prompt_tokens), 0) AS prompt_tokens, " +
 			"COALESCE(SUM(a.completion_tokens), 0) AS completion_tokens, COALESCE(SUM(a.total_tokens), 0) AS total_tokens",
 	).Scan(&totals).Error; err != nil {
+		logs.CtxError(ctx, "[GetUsageReport] failed, err: %v", err)
 		return nil, err
 	}
 	report.CallCount = totals.CallCount
@@ -199,6 +203,7 @@ func (service *UsageService) GetUsageReport(ctx context.Context, query UsageList
 	report.TotalTokens = totals.TotalTokens
 
 	if err := usageBase(database, filters).Distinct("u.id").Count(&report.Total).Error; err != nil {
+		logs.CtxError(ctx, "[GetUsageReport] failed, err: %v", err)
 		return nil, err
 	}
 	var users []UsageUser
@@ -212,6 +217,7 @@ func (service *UsageService) GetUsageReport(ctx context.Context, query UsageList
 		Limit(pageSize).Offset((page - 1) * pageSize).
 		Scan(&users).Error
 	if err != nil {
+		logs.CtxError(ctx, "[GetUsageReport] failed, err: %v", err)
 		return nil, err
 	}
 	byUser := make(map[int64]int, len(users))
@@ -232,6 +238,7 @@ func (service *UsageService) GetUsageReport(ctx context.Context, query UsageList
 			Order("a.created_at DESC, a.id DESC").
 			Scan(&calls).Error
 		if err != nil {
+			logs.CtxError(ctx, "[GetUsageReport] failed, err: %v", err)
 			return nil, err
 		}
 	}
@@ -243,5 +250,8 @@ func (service *UsageService) GetUsageReport(ctx context.Context, query UsageList
 		users[index].Calls = append(users[index].Calls, call.UsageCall)
 	}
 	report.Users = users
+	// 明细可能很多，只记汇总数字和条数
+	logs.CtxInfo(ctx, "[GetUsageReport] done: req=%+v accountCount=%d callCount=%d totalTokens=%d total=%d len(users)=%d len(calls)=%d page=%d pageSize=%d",
+		query, report.AccountCount, report.CallCount, report.TotalTokens, report.Total, len(users), len(calls), page, pageSize)
 	return report, nil
 }
