@@ -8,7 +8,7 @@ import (
 	"fmt"
 	"time"
 
-	"caveclass/internal/platform/logs"
+	"github.com/liuxuancy/Libs/logs"
 	"caveclass/internal/usage"
 )
 
