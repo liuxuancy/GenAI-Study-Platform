@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { Popconfirm } from 'antd'
+import { Popconfirm, Select } from 'antd'
 
 import { useAiProviderSelect } from '@/core/ai/useAiProviderSelect'
 import { useI18n } from '@/core/i18n/useI18n'
@@ -325,20 +325,17 @@ export function AiWorkspace({
               onChange={(event) => setQuery(event.target.value)}
             />
           </label>
-          <select
+          <Select<string>
             className={styles.filter}
             aria-label={t('workspace.filterSessions')}
             value={courseFilter}
-            onChange={(event) => setCourseFilter(event.target.value)}
-          >
-            <option value="">{t('workspace.filterAll')}</option>
-            <option value="0">{t('workspace.filterNoCourse')}</option>
-            {courses.map((course) => (
-              <option key={course.id} value={course.id}>
-                {course.title}
-              </option>
-            ))}
-          </select>
+            onChange={setCourseFilter}
+            options={[
+              { value: '', label: t('workspace.filterAll') },
+              { value: '0', label: t('workspace.filterNoCourse') },
+              ...courses.map((course) => ({ value: String(course.id), label: course.title })),
+            ]}
+          />
           <div className={styles.history}>
             {groups.map((group) => (
               <section key={group.key}>
@@ -565,19 +562,19 @@ export function AiWorkspace({
                   {skill.params.map((param) => {
                     const paramLabel = localizedSkillParamLabel(locale, skill.id, param.key, param.label)
                     return param.type === 'select' ? (
-                      <select
+                      <Select<string>
                         key={param.key}
                         aria-label={paramLabel}
                         value={skillValues[param.key] ?? ''}
-                        onChange={(event) => setSkillValues((current) => ({ ...current, [param.key]: event.target.value }))}
-                      >
-                        <option value="">{paramLabel}</option>
-                        {param.options?.map((option, optionIndex) => (
-                          <option key={option} value={option}>
-                            {localizedSkillSelectOption(locale, skill.id, param.key, optionIndex, option)}
-                          </option>
-                        ))}
-                      </select>
+                        onChange={(value) => setSkillValues((current) => ({ ...current, [param.key]: value }))}
+                        options={[
+                          { value: '', label: paramLabel },
+                          ...(param.options ?? []).map((option, optionIndex) => ({
+                            value: option,
+                            label: localizedSkillSelectOption(locale, skill.id, param.key, optionIndex, option),
+                          })),
+                        ]}
+                      />
                     ) : param.type === 'number' ? (
                       <input
                         key={param.key}

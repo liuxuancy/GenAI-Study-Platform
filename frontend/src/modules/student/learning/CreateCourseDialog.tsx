@@ -1,4 +1,5 @@
 import { useEffect, useRef } from 'react'
+import { Select } from 'antd'
 
 import { useAuthStore } from '@/core/auth/store'
 import type { useAiProviderSelect } from '@/core/ai/useAiProviderSelect'
@@ -26,6 +27,13 @@ export function CreateCourseDialog({ open, onClose, title, onTitleChange, descri
   const major = useAuthStore((state) => state.currentUser?.major ?? '')
   const dialogRef = useRef<HTMLDialogElement>(null)
 
+  function clearDialogFocus() {
+    const activeElement = dialogRef.current?.ownerDocument.activeElement
+    if (activeElement instanceof HTMLElement && dialogRef.current?.contains(activeElement)) {
+      activeElement.blur()
+    }
+  }
+
   useEffect(() => {
     const dialog = dialogRef.current
     if (!dialog) {
@@ -52,41 +60,45 @@ export function CreateCourseDialog({ open, onClose, title, onTitleChange, descri
         }}
       >
         <h2 className={homeStyles.dialogTitle}>{t('student.createCourse.title')}</h2>
-        <label className={homeStyles.field}>
+        <label className={`${homeStyles.field}${creating ? ` ${homeStyles.fieldDisabled}` : ''}`} onPointerDown={creating ? clearDialogFocus : undefined}>
           {t('student.createCourse.nameLabel')}
           <input value={title} disabled={creating} onChange={(event) => onTitleChange(event.target.value)} />
         </label>
         {nameError ? <p className={homeStyles.error}>{nameError}</p> : null}
-        <label className={homeStyles.field}>
+        <label className={`${homeStyles.field}${creating ? ` ${homeStyles.fieldDisabled}` : ''}`} onPointerDown={creating ? clearDialogFocus : undefined}>
           {t('student.createCourse.descLabel')}
           <input value={description} disabled={creating} onChange={(event) => onDescriptionChange(event.target.value)} />
         </label>
         {createError ? <p className={homeStyles.error}>{createError}</p> : null}
-        <label className={homeStyles.field}>
+        <label className={`${homeStyles.field} ${homeStyles.fieldDisabled}`} onPointerDown={clearDialogFocus}>
           {t('student.createCourse.majorLabel')}
           <input value={major} disabled />
         </label>
-        <label className={homeStyles.field}>
-          {t('student.createCourse.typeLabel')}
-          <select defaultValue={structuredCourseType}>
-            <option value={structuredCourseType}>{t('student.createCourse.typeStructured')}</option>
-          </select>
-        </label>
-        <label className={homeStyles.field}>
-          {t('student.createCourse.avatarProviderLabel')}
-          <select
+        <div className={homeStyles.field}>
+          <label htmlFor="create-course-type">{t('student.createCourse.typeLabel')}</label>
+          <Select
+            id="create-course-type"
+            className={homeStyles.dialogSelect}
+            getPopupContainer={(trigger) => trigger.parentElement!}
+            defaultValue={structuredCourseType}
+            options={[{ value: structuredCourseType, label: t('student.createCourse.typeStructured') }]}
+          />
+        </div>
+        <div className={homeStyles.field}>
+          <label htmlFor="create-course-provider">{t('student.createCourse.avatarProviderLabel')}</label>
+          <Select
+            id="create-course-provider"
+            className={homeStyles.dialogSelect}
+            getPopupContainer={(trigger) => trigger.parentElement!}
             value={selection.provider}
             disabled={creating || selection.loading || !selection.optionsAvailable}
-            onChange={(event) => {
-              const option = selection.options.find((item) => item.value === event.target.value && !item.disabled)
+            options={selection.options}
+            onChange={(value) => {
+              const option = selection.options.find((item) => item.value === value && !item.disabled)
               if (option) selection.setProvider(option.value)
             }}
-          >
-            {selection.options.map((option) => (
-              <option key={option.value} value={option.value} disabled={option.disabled}>{option.label}</option>
-            ))}
-          </select>
-        </label>
+          />
+        </div>
         {selection.loading ? <p role="status">{t('common.loading')}</p> : null}
         {selection.error ? <p className={homeStyles.error} role="alert">{selection.error}</p> : null}
         {!selection.loading && !selection.error && !selection.optionsAvailable

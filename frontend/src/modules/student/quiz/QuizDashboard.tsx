@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { ReadOutlined } from '@ant-design/icons'
+import { Select } from 'antd'
 
 import { useI18n } from '@/core/i18n/useI18n'
 import {
@@ -154,50 +155,41 @@ export function QuizDashboard() {
       <QuizStatistics stats={stats} />
 
       <div className={styles.toolbar}>
-        <select
+        <Select<QuizViewMode>
           value={viewMode}
           aria-label={t('student.quiz.viewModeAria')}
-          onChange={(event) => setViewMode(event.target.value as QuizViewMode)}
-        >
-          <option value="grouped">{t('student.quiz.viewGrouped')}</option>
-          <option value="flat">{t('student.quiz.viewFlat')}</option>
-        </select>
-        <select
+          onChange={setViewMode}
+          options={[
+            { value: 'grouped', label: t('student.quiz.viewGrouped') },
+            { value: 'flat', label: t('student.quiz.viewFlat') },
+          ]}
+        />
+        <Select<string>
           value={courseFilter}
           aria-label={t('student.quiz.courseFilterAria')}
-          onChange={(event) => {
-            setCourseFilter(event.target.value)
+          onChange={(value) => {
+            setCourseFilter(value)
             setChapterFilter('all')
           }}
-        >
-          <option value="all">{t('student.quiz.allCourses')}</option>
-          {courseOptions.map((course) => (
-            <option key={course.value} value={course.value}>
-              {course.label}
-            </option>
-          ))}
-        </select>
-        <select
+          options={[{ value: 'all', label: t('student.quiz.allCourses') }, ...courseOptions]}
+        />
+        <Select<string>
           value={chapterFilter}
           aria-label={t('student.quiz.chapterFilterAria')}
-          onChange={(event) => setChapterFilter(event.target.value)}
-        >
-          {chapterOptions.map((option) => (
-            <option key={option.value} value={option.value}>
-              {option.label}
-            </option>
-          ))}
-        </select>
-        <select
+          onChange={setChapterFilter}
+          options={chapterOptions}
+        />
+        <Select<QuizCreationFilter>
           value={creationFilter}
           aria-label={t('student.quiz.creationFilterAria')}
-          onChange={(event) => setCreationFilter(event.target.value as QuizCreationFilter)}
-        >
-          <option value="all">{t('student.quiz.allCreation')}</option>
-          <option value="manual">{t('student.quiz.manual')}</option>
-          <option value="excel">{t('student.quiz.excel')}</option>
-          <option value="ai">{t('student.quiz.ai')}</option>
-        </select>
+          onChange={setCreationFilter}
+          options={[
+            { value: 'all', label: t('student.quiz.allCreation') },
+            { value: 'manual', label: t('student.quiz.manual') },
+            { value: 'excel', label: t('student.quiz.excel') },
+            { value: 'ai', label: t('student.quiz.ai') },
+          ]}
+        />
         <CreateQuizDialog courses={courses} onCreated={reload} />
       </div>
 
@@ -531,55 +523,51 @@ function CreateQuizDialog({
           }}
         >
           <h2 className={homeStyles.dialogTitle}>{t('student.quiz.create.title')}</h2>
-          <label className={homeStyles.field}>
-            {t('student.quiz.create.countLabel')}
-            <select
+          <div className={homeStyles.field}>
+            <label htmlFor="quiz-create-count">{t('student.quiz.create.countLabel')}</label>
+            <Select<number>
+              id="quiz-create-count"
+              className={homeStyles.dialogSelect}
+              getPopupContainer={(trigger) => trigger.parentElement!}
               value={questionCount}
-              onChange={(event) => {
-                setQuestionCount(Number(event.target.value))
+              onChange={(value) => {
+                setQuestionCount(value)
                 setPreview(null)
               }}
-            >
-              {questionCountChoices.map((count) => (
-                <option key={count} value={count}>
-                  {count}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label className={homeStyles.field}>
-            {t('student.quiz.create.difficultyLabel')}
-            <select
+              options={questionCountChoices.map((count) => ({ value: count, label: String(count) }))}
+            />
+          </div>
+          <div className={homeStyles.field}>
+            <label htmlFor="quiz-create-difficulty">{t('student.quiz.create.difficultyLabel')}</label>
+            <Select<string>
+              id="quiz-create-difficulty"
+              className={homeStyles.dialogSelect}
+              getPopupContainer={(trigger) => trigger.parentElement!}
               value={difficulty}
-              onChange={(event) => {
-                setDifficulty(event.target.value)
+              onChange={(value) => {
+                setDifficulty(value)
                 setPreview(null)
               }}
-            >
-              {(['easy', 'medium', 'hard'] as const).map((level) => (
-                <option key={level} value={level}>
-                  {difficultyLabel(level)}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label className={homeStyles.field}>
-            {t('student.quiz.create.courseLabel')}
-            <select
+              options={(['easy', 'medium', 'hard'] as const).map((level) => ({ value: level, label: difficultyLabel(level) }))}
+            />
+          </div>
+          <div className={homeStyles.field}>
+            <label htmlFor="quiz-create-course">{t('student.quiz.create.courseLabel')}</label>
+            <Select<string>
+              id="quiz-create-course"
+              className={homeStyles.dialogSelect}
+              getPopupContainer={(trigger) => trigger.parentElement!}
               value={courseId}
-              onChange={(event) => {
-                setCourseId(event.target.value)
+              onChange={(value) => {
+                setCourseId(value)
                 setPreview(null)
               }}
-            >
-              <option value="">{t('student.quiz.create.selectCourse')}</option>
-              {(courses ?? []).map((course) => (
-                <option key={course.id} value={course.id}>
-                  {course.title}
-                </option>
-              ))}
-            </select>
-          </label>
+              options={[
+                { value: '', label: t('student.quiz.create.selectCourse') },
+                ...(courses ?? []).map((course) => ({ value: String(course.id), label: course.title })),
+              ]}
+            />
+          </div>
           {formError ? <p className={homeStyles.error}>{formError}</p> : null}
           {preview ? (
             <ol className={homeStyles.preview}>

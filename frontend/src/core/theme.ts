@@ -17,5 +17,12 @@ export const appTheme: ThemeConfig = {
   components: {
     Layout: { headerBg: '#ffffff', siderBg: '#ffffff', bodyBg: '#fafafb' },
     Menu: { itemSelectedBg: '#111114', itemSelectedColor: '#ffffff', itemBorderRadius: 0 },
+    Select: {
+      borderRadius: 9,
+      colorBorder: '#e4e9e5',
+      optionActiveBg: '#f7f8f5',
+      optionSelectedBg: '#f8e1d5',
+      optionFontSize: 12,
+    },
   },
 }

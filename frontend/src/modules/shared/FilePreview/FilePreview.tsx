@@ -300,6 +300,7 @@ export function FilePreview({
       className={styles.root}
       role="dialog"
       aria-modal="true"
+      data-file-preview-modal
       aria-label={t('filePreview.previewAria', { fileName })}
     >
       <header className={styles.toolbar}>

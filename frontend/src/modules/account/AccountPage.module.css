@@ -1,0 +1,13 @@
+.form {
+  max-width: 420px;
+}
+
+.form :global(.ant-input),
+.form :global(.ant-input-affix-wrapper) {
+  min-height: 42px;
+  border-radius: 9px;
+}
+
+.form :global(.ant-input-affix-wrapper) :global(.ant-input) {
+  min-height: 0;
+}
