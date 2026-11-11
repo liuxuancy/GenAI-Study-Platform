@@ -35,6 +35,7 @@ import {
   isLastActivityInChapter,
   lessonPrimaryAction,
   mergeProgressPercent,
+  markChapterActivitiesDone,
   nextActivityInSameChapter,
   progressStorageKey,
   readDoneIds,
@@ -49,8 +50,9 @@ import {
   syllabusWidth,
 } from '@/modules/student/learning/workspaceLayout'
 import { useCourseLearningHeartbeat } from '@/modules/student/learning/useCourseLearningHeartbeat'
+import { GalStoryPanel } from '@/modules/student/gal/GalStoryPanel'
 
-type CourseViewTab = 'learn' | 'resources' | 'map'
+type CourseViewTab = 'learn' | 'resources' | 'map' | 'story'
 
 function resourceContentFromTree(
   tree: BubbleNode,
@@ -255,6 +257,15 @@ export function CourseBubblePage() {
             >
               {t('student.bubble.tabMap')}
             </button>
+            <button
+              type="button"
+              role="tab"
+              aria-selected={courseViewTab === 'story'}
+              className={courseViewTab === 'story' ? styles.viewTabActive : styles.viewTab}
+              onClick={() => setCourseViewTab('story')}
+            >
+              {t('student.bubble.tabStory')}
+            </button>
           </nav>
           {course.tree ? (
             <CourseWorkspace
@@ -403,6 +414,8 @@ function CourseWorkspace({
   const [narrow, setNarrow] = useState(false)
   const [syllabusCollapsed, setSyllabusCollapsed] = useState(false)
   const [dragging, setDragging] = useState(false)
+  const [galChapterKey, setGalChapterKey] = useState('')
+  const [galCourseRun, setGalCourseRun] = useState(false)
 
   useEffect(() => {
     if (!chapters.length) {
@@ -483,6 +496,7 @@ function CourseWorkspace({
 
   const resourcesView = viewTab === 'resources'
   const mapView = viewTab === 'map'
+  const storyView = viewTab === 'story'
   const collapsed = syllabusCollapsed && !narrow
   const syllabusTrack = collapsed ? 0 : syllabusWidth
   const available = Math.max(0, paneWidth - syllabusTrack)
@@ -516,6 +530,44 @@ function CourseWorkspace({
 
   const activeActivity = activities.find((item) => item.id === activityId) ?? null
   const activeChapter = chapters.find((item) => item.id === chapterId) ?? null
+
+  useEffect(() => {
+    const key = activeActivity?.chapterKey ?? activeChapter?.node.key ?? ''
+    if (key) {
+      setGalChapterKey(key)
+    }
+  }, [activeActivity?.chapterKey, activeChapter?.node.key])
+
+  function selectGalChapter(key: string) {
+    setGalChapterKey(key)
+    const chapter = chapters.find((item) => item.node.key === key)
+    if (!chapter) {
+      return
+    }
+    const first = listChapterActivities(chapter.id, chapter.node)[0]
+    if (first) {
+      selectActivity(first.id)
+      return
+    }
+    setChapterId(chapter.id)
+  }
+
+  async function completeGalChapter(chapterKey: string) {
+    const chapter = chapters.find((item) => item.node.key === chapterKey)
+    if (!chapter) {
+      return
+    }
+    const { next, changed } = markChapterActivitiesDone(chapter.id, activities, doneIds)
+    if (!changed) {
+      return
+    }
+    try {
+      await persistProgress(next)
+      setDoneIds(next)
+    } catch {
+      // persistProgress 已设置错误文案
+    }
+  }
   const percent = mergeProgressPercent(serverPercent, leafPercent(tree, doneIds))
   const { prev } = useActivityNeighbors(activityIds, activityId)
   const sectionDone = Boolean(activityId && doneIds.has(activityId))
@@ -660,6 +712,31 @@ function CourseWorkspace({
     return (
       <div className={styles.mapWorkspace}>
         <CourseBubbleMap tree={tree} embedded />
+      </div>
+    )
+  }
+
+  if (storyView) {
+    const storyActivityKey = activeActivity?.chapterKey === galChapterKey ? activeActivity?.node.key ?? '' : ''
+    const resolvedGalKey =
+      galChapterKey || activeActivity?.chapterKey || activeChapter?.node.key || chapters[0]?.node.key || ''
+    return (
+      <div className={styles.mapWorkspace}>
+        <GalStoryPanel
+          courseId={courseId}
+          chapters={chapters.map((chapter) => ({
+            key: chapter.node.key ?? '',
+            title: chapter.node.label,
+            index: chapter.index,
+          }))}
+          chapterKey={resolvedGalKey}
+          onChapterKeyChange={selectGalChapter}
+          activityKey={storyActivityKey}
+          provider={provider}
+          courseRunMode={galCourseRun}
+          onCourseRunModeChange={setGalCourseRun}
+          onChapterComplete={completeGalChapter}
+        />
       </div>
     )
   }

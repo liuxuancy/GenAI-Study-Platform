@@ -222,6 +222,23 @@ func (handler *Handler) AskChapterQuestion(ctx *gin.Context) (any, error) {
 	return handler.service.AskChapterQuestion(ctx.Request.Context(), principal, courseID, ctx.Param("chapterKey"), input)
 }
 
+// GenerateGalScript POST /api/student/courses/:id/chapters/:chapterKey/gal-script
+func (handler *Handler) GenerateGalScript(ctx *gin.Context) (any, error) {
+	principal, err := access.GetCurrentPrincipal(ctx)
+	if err != nil {
+		return nil, err
+	}
+	courseID, err := resp.GetInt64PathParam(ctx, "id")
+	if err != nil {
+		return nil, err
+	}
+	var input GalScriptInput
+	if err := resp.BindJSON(ctx, &input); err != nil {
+		return nil, err
+	}
+	return handler.service.GenerateGalScript(ctx.Request.Context(), principal, courseID, ctx.Param("chapterKey"), input)
+}
+
 // ListAIConversations GET /api/student/courses/:id/conversations
 func (handler *Handler) ListAIConversations(ctx *gin.Context) (any, error) {
 	principal, err := access.GetCurrentPrincipal(ctx)

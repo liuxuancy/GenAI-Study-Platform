@@ -127,6 +127,39 @@ export function askStudentChapter(
   )
 }
 
+export interface GalScriptItemDto {
+  kind?: 'dialogue' | 'choice'
+  speaker?: string
+  text?: string
+  emotion?: string
+  note?: string
+  prompt?: string
+  options?: string[]
+  correctIndex?: number
+  feedbackCorrect?: string
+  feedbackWrong?: string
+  emotionOnCorrect?: string
+  emotionOnWrong?: string
+}
+
+export function generateStudentGalScript(
+  courseId: string,
+  chapterKey: string,
+  input: {
+    provider?: string
+    activityKey?: string
+    detailLevel?: string
+    personality?: string
+  },
+) {
+  return http.post<{
+    title: string
+    chapterKey: string
+    nextChapterKey?: string | null
+    script: GalScriptItemDto[]
+  }>(`/student/courses/${courseId}/chapters/${encodeURIComponent(chapterKey)}/gal-script`, input)
+}
+
 export interface StudentConversation {
   id: number
   title: string

@@ -98,6 +98,7 @@ func registerRoutes(api *gin.RouterGroup, deps Deps) {
 	studentRoutes.POST("/courses/:id/chapters/generate", access.RequireLogin(), resp.ToGinHandler(courseHandler.GenerateStudentChapter))
 	studentRoutes.POST("/courses/:id/activities/generate", access.RequireLogin(), resp.ToGinHandler(courseHandler.GenerateStudentActivity))
 	studentRoutes.POST("/courses/:id/chapters/:chapterKey/ask", access.RequireLogin(), resp.ToGinHandler(courseHandler.AskChapterQuestion))
+	studentRoutes.POST("/courses/:id/chapters/:chapterKey/gal-script", access.RequireLogin(), resp.ToGinHandler(courseHandler.GenerateGalScript))
 	studentRoutes.GET("/courses/:id/conversations", access.RequireLogin(), resp.ToGinHandler(courseHandler.ListAIConversations))
 	studentRoutes.GET("/courses/:id/conversations/:conversationId", access.RequireLogin(), resp.ToGinHandler(courseHandler.GetAIConversation))
 	studentRoutes.DELETE("/courses/:id/conversations/:conversationId", access.RequireLogin(), resp.ToGinHandler(courseHandler.DeleteAIConversation))
