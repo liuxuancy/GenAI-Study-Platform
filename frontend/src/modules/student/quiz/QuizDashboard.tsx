@@ -1,6 +1,6 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useId, useMemo, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { ReadOutlined } from '@ant-design/icons'
+import { DownOutlined, ReadOutlined } from '@ant-design/icons'
 import { Select } from 'antd'
 
 import { useI18n } from '@/core/i18n/useI18n'
@@ -272,23 +272,37 @@ function CourseQuizList({ groups }: { groups: ReturnType<typeof buildCourseQuizG
 
   return (
     <div className={styles.courseList}>
-      {groups.map((group) => (
-        <section key={group.courseId} className={styles.courseGroup}>
-          <CourseHeader group={group} />
-          {group.quizTotal === 0 ? (
-            <p className={styles.courseEmpty}>{t('student.quiz.courseEmpty')}</p>
-          ) : (
-            group.chapters.map((chapter) => (
-              <ChapterPanel key={`${group.courseId}-${chapter.chapterKey}`} chapter={chapter} />
-            ))
-          )}
-        </section>
-      ))}
+      {groups.map((group) => <CourseQuizGroup key={group.courseId} group={group} />)}
     </div>
   )
 }
 
-function CourseHeader({ group }: { group: ReturnType<typeof buildCourseQuizGroups>[number] }) {
+function CourseQuizGroup({ group }: { group: ReturnType<typeof buildCourseQuizGroups>[number] }) {
+  const { t } = useI18n()
+  const [open, setOpen] = useState(true)
+  const contentId = useId()
+  return (
+    <section className={styles.courseGroup}>
+      <CourseHeader group={group} open={open} contentId={contentId} onToggle={() => setOpen((value) => !value)} />
+      <div id={contentId} hidden={!open}>
+        {group.quizTotal === 0 ? (
+          <p className={styles.courseEmpty}>{t('student.quiz.courseEmpty')}</p>
+        ) : (
+          group.chapters.map((chapter) => (
+            <ChapterPanel key={`${group.courseId}-${chapter.chapterKey}`} chapter={chapter} />
+          ))
+        )}
+      </div>
+    </section>
+  )
+}
+
+function CourseHeader({ group, open, contentId, onToggle }: {
+  group: ReturnType<typeof buildCourseQuizGroups>[number]
+  open: boolean
+  contentId: string
+  onToggle: () => void
+}) {
   const { t } = useI18n()
   const courseIdNum = Number(group.courseId)
   const coverKey = resolveCourseCoverKey(
@@ -297,22 +311,25 @@ function CourseHeader({ group }: { group: ReturnType<typeof buildCourseQuizGroup
     Number.isFinite(courseIdNum) ? courseIdNum : undefined,
   )
   return (
-    <header className={styles.courseHeader}>
-      <div className={`${styles.courseIcon} ${styles[`cover_${coverKey}`]}`} aria-hidden>
-        <ReadOutlined />
-      </div>
-      <div className={styles.courseHeaderText}>
-        <h2>{group.courseTitle}</h2>
-        <p>
-          {t('student.quiz.courseHeaderMeta', {
-            source: group.courseSourceLabel,
-            creator: group.creatorLabel,
-            total: group.quizTotal,
-            completed: group.completedCount,
-          })}
-        </p>
-      </div>
-    </header>
+    <h2 className={styles.courseHeading}>
+      <button type="button" className={styles.courseHeader} aria-expanded={open} aria-controls={contentId} onClick={onToggle}>
+        <span className={`${styles.courseIcon} ${styles[`cover_${coverKey}`]}`} aria-hidden>
+          <ReadOutlined />
+        </span>
+        <span className={styles.courseHeaderText}>
+          <span className={styles.courseTitle}>{group.courseTitle}</span>
+          <span className={styles.courseMeta}>
+            {t('student.quiz.courseHeaderMeta', {
+              source: group.courseSourceLabel,
+              creator: group.creatorLabel,
+              total: group.quizTotal,
+              completed: group.completedCount,
+            })}
+          </span>
+        </span>
+        <DownOutlined className={`${styles.courseChevron} ${open ? styles.courseChevronOpen : ''}`} aria-hidden />
+      </button>
+    </h2>
   )
 }
 

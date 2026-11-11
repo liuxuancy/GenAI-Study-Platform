@@ -98,7 +98,7 @@ export function AccountPage() {
             <Input value={currentUser.major || t('common.dash')} disabled />
           </Form.Item>
         ) : null}
-        <Button type="primary" htmlType="submit" loading={savingProfile}>
+        <Button className={styles.actionButton} type="primary" htmlType="submit" loading={savingProfile}>
           {t('account.saveProfile')}
         </Button>
       </Form>
@@ -126,7 +126,7 @@ export function AccountPage() {
         >
           <Input.Password />
         </Form.Item>
-        <Button type="primary" htmlType="submit" loading={savingPassword}>
+        <Button className={styles.actionButton} type="primary" htmlType="submit" loading={savingPassword}>
           {t('account.changePassword')}
         </Button>
       </Form>
