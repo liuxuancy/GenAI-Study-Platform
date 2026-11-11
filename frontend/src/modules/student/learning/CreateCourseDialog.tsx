@@ -1,23 +1,30 @@
-import { useEffect, useRef, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useEffect, useRef } from 'react'
 
 import { useAuthStore } from '@/core/auth/store'
+import type { useAiProviderSelect } from '@/core/ai/useAiProviderSelect'
 import { useI18n } from '@/core/i18n/useI18n'
-import { createStudentCourse } from '@/modules/student/api'
 import homeStyles from '@/modules/student/StudentHomePage.module.css'
 
 const structuredCourseType = 'Structured'
 
-export function CreateCourseDialog({ open, onClose }: { open: boolean; onClose: () => void }) {
+interface Props {
+  open: boolean
+  onClose: () => void
+  title: string
+  onTitleChange: (value: string) => void
+  description: string
+  onDescriptionChange: (value: string) => void
+  nameError: string
+  createError: string
+  creating: boolean
+  selection: ReturnType<typeof useAiProviderSelect>
+  onSubmit: () => void
+}
+
+export function CreateCourseDialog({ open, onClose, title, onTitleChange, description, onDescriptionChange, nameError, createError, creating, selection, onSubmit }: Props) {
   const { t } = useI18n()
-  const navigate = useNavigate()
   const major = useAuthStore((state) => state.currentUser?.major ?? '')
   const dialogRef = useRef<HTMLDialogElement>(null)
-  const [courseName, setCourseName] = useState('')
-  const [description, setDescription] = useState('')
-  const [nameError, setNameError] = useState('')
-  const [createError, setCreateError] = useState('')
-  const [creating, setCreating] = useState(false)
 
   useEffect(() => {
     const dialog = dialogRef.current
@@ -32,44 +39,27 @@ export function CreateCourseDialog({ open, onClose }: { open: boolean; onClose: 
     }
   }, [open])
 
-  async function createCourse() {
-    const title = courseName.trim()
-    if (!title) {
-      setNameError(t('student.createCourse.nameRequired'))
-      return
-    }
-    setNameError('')
-    setCreating(true)
-    setCreateError('')
-    try {
-      const created = await createStudentCourse({ title, description: description.trim() })
-      onClose()
-      navigate(`/student/courses/${created.id}`)
-    } catch (error) {
-      setCreateError(error instanceof Error ? error.message : t('student.createCourse.failed'))
-    } finally {
-      setCreating(false)
-    }
-  }
-
   return (
-    <dialog ref={dialogRef} className={homeStyles.dialog} onClose={onClose}>
+    <dialog ref={dialogRef} className={homeStyles.dialog} onCancel={(event) => {
+      event.preventDefault()
+      onClose()
+    }}>
       <form
         className={homeStyles.dialogBody}
         onSubmit={(event) => {
           event.preventDefault()
-          void createCourse()
+          onSubmit()
         }}
       >
         <h2 className={homeStyles.dialogTitle}>{t('student.createCourse.title')}</h2>
         <label className={homeStyles.field}>
           {t('student.createCourse.nameLabel')}
-          <input value={courseName} onChange={(event) => setCourseName(event.target.value)} />
+          <input value={title} disabled={creating} onChange={(event) => onTitleChange(event.target.value)} />
         </label>
         {nameError ? <p className={homeStyles.error}>{nameError}</p> : null}
         <label className={homeStyles.field}>
           {t('student.createCourse.descLabel')}
-          <input value={description} onChange={(event) => setDescription(event.target.value)} />
+          <input value={description} disabled={creating} onChange={(event) => onDescriptionChange(event.target.value)} />
         </label>
         {createError ? <p className={homeStyles.error}>{createError}</p> : null}
         <label className={homeStyles.field}>
@@ -82,11 +72,30 @@ export function CreateCourseDialog({ open, onClose }: { open: boolean; onClose: 
             <option value={structuredCourseType}>{t('student.createCourse.typeStructured')}</option>
           </select>
         </label>
+        <label className={homeStyles.field}>
+          {t('student.createCourse.avatarProviderLabel')}
+          <select
+            value={selection.provider}
+            disabled={creating || selection.loading || !selection.optionsAvailable}
+            onChange={(event) => {
+              const option = selection.options.find((item) => item.value === event.target.value && !item.disabled)
+              if (option) selection.setProvider(option.value)
+            }}
+          >
+            {selection.options.map((option) => (
+              <option key={option.value} value={option.value} disabled={option.disabled}>{option.label}</option>
+            ))}
+          </select>
+        </label>
+        {selection.loading ? <p role="status">{t('common.loading')}</p> : null}
+        {selection.error ? <p className={homeStyles.error} role="alert">{selection.error}</p> : null}
+        {!selection.loading && !selection.error && !selection.optionsAvailable
+          ? <p className={homeStyles.error} role="alert">{t('ai.providerNotConfigured')}</p> : null}
         <div className={homeStyles.dialogActions}>
           <button className={homeStyles.cancel} type="button" onClick={onClose}>
             {t('common.cancel')}
           </button>
-          <button className={homeStyles.create} type="submit" disabled={creating}>
+          <button className={homeStyles.create} type="submit" disabled={creating || selection.loading || !selection.available[selection.provider]}>
             {creating ? t('student.createCourse.creating') : t('student.createCourse.create')}
           </button>
         </div>

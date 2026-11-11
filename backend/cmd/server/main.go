@@ -117,6 +117,18 @@ func run() error {
 	// 监听退出信号，os.Interrupt（Ctrl+C），syscall.SIGTERM（容器退出）
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
+	workerCtx, cancelWorker := context.WithCancel(ctx)
+	workerDone := make(chan struct{})
+	worker := course.NewService(database)
+	worker.UseAI(aiService)
+	go func() {
+		defer close(workerDone)
+		worker.RunPixelDialogueBackfill(workerCtx)
+	}()
+	defer func() {
+		cancelWorker()
+		<-workerDone
+	}()
 
 	// 启动后台服务监听
 	serverErr := make(chan error, 1)

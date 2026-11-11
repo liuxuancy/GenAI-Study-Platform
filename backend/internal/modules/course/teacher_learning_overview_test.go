@@ -4,7 +4,7 @@ import (
 	"context"
 	"testing"
 
-	"caveclass/internal/testutil"
+	"caveclass/internal/framework/testutil"
 )
 
 func TestTeacherCourseLearningOverviewSeed(t *testing.T) {

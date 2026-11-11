@@ -409,16 +409,46 @@
   align-items: center;
   border-bottom: 1px solid #edf0ee;
   padding: 14px 0;
-  cursor: pointer;
 }
 
-.task input {
-  accent-color: #347568;
+.taskLink {
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  gap: 12px;
+  align-items: center;
+  cursor: pointer;
+  color: inherit;
+  text-decoration: none;
+}
+
+.taskLink:hover strong {
+  color: #347568;
+}
+
+.taskLink:focus-visible {
+  outline: 2px solid #347568;
+  outline-offset: -2px;
+}
+
+.taskCheck {
+  display: grid;
+  place-items: center;
   width: 16px;
   height: 16px;
+  flex: none;
+  border: 1px solid #8a9691;
+  border-radius: 3px;
+  font-size: 12px;
 }
 
-.task > div {
+.taskCheckDone {
+  border-color: #347568;
+  background: #347568;
+  color: white;
+}
+
+.taskLink > div {
   flex: 1;
   min-width: 0;
 }

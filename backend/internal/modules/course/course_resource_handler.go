@@ -27,6 +27,15 @@ func (handler *Handler) ListTeacherCourseResources(ctx *gin.Context) (any, error
 
 // UploadTeacherCourseResource POST /api/teacher/courses/:id/resources
 func (handler *Handler) UploadTeacherCourseResource(ctx *gin.Context) (any, error) {
+	return handler.uploadCourseResource(ctx, false)
+}
+
+// UploadStudentCourseResource POST /api/student/courses/:id/resources
+func (handler *Handler) UploadStudentCourseResource(ctx *gin.Context) (any, error) {
+	return handler.uploadCourseResource(ctx, true)
+}
+
+func (handler *Handler) uploadCourseResource(ctx *gin.Context, student bool) (any, error) {
 	principal, err := access.GetCurrentPrincipal(ctx)
 	if err != nil {
 		return nil, err
@@ -49,6 +58,10 @@ func (handler *Handler) UploadTeacherCourseResource(ctx *gin.Context) (any, erro
 		ChapterKey:  ctx.PostForm("chapterKey"),
 		SectionKey:  ctx.PostForm("sectionKey"),
 		DisplayName: ctx.PostForm("displayName"),
+	}
+	if student {
+		return handler.service.UploadStudentCourseResource(ctx.Request.Context(), principal, courseID,
+			fileHeader.Filename, fileHeader.Size, file, input)
 	}
 	return handler.service.UploadTeacherCourseResource(ctx.Request.Context(), principal, courseID,
 		fileHeader.Filename, fileHeader.Size, file, input)

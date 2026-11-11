@@ -4,7 +4,7 @@ import { PlusOutlined } from '@ant-design/icons'
 
 import { useI18n } from '@/core/i18n/useI18n'
 import { getStudentCourses, type StudentCourse } from '@/modules/student/api'
-import { CreateCourseDialog } from '@/modules/student/learning/CreateCourseDialog'
+import { useCourseCreation } from '@/modules/student/learning/CourseCreationProvider'
 import {
   courseSourceDescription,
   courseSourceLabel,
@@ -17,13 +17,14 @@ import {
 } from '@/modules/student/learning/courseSource'
 import styles from '@/modules/student/learning/myCourses.module.css'
 import homeStyles from '@/modules/student/StudentHomePage.module.css'
+import { spriteForAffection } from '@/modules/student/PixelSprite'
 import { CourseCover } from '@/modules/student/studentCourseVisuals'
 
 export function MyCoursesPage() {
   const { t } = useI18n()
   const [courses, setCourses] = useState<StudentCourse[] | null>(null)
   const [errorMessage, setErrorMessage] = useState('')
-  const [createOpen, setCreateOpen] = useState(false)
+  const { openDialog, revision, pendingTitle } = useCourseCreation()
 
   useEffect(() => {
     let cancelled = false
@@ -31,6 +32,7 @@ export function MyCoursesPage() {
       .then((items) => {
         if (!cancelled) {
           setCourses(items)
+          setErrorMessage('')
         }
       })
       .catch((error: Error) => {
@@ -41,7 +43,7 @@ export function MyCoursesPage() {
     return () => {
       cancelled = true
     }
-  }, [])
+  }, [revision])
 
   return (
     <div className={styles.page}>
@@ -51,18 +53,17 @@ export function MyCoursesPage() {
           <h1>{t('student.myCourses.title')}</h1>
           <p>{t('student.myCourses.subtitle')}</p>
         </div>
-        <button className={styles.primaryAction} type="button" onClick={() => setCreateOpen(true)}>
+        <button className={styles.primaryAction} type="button" onClick={openDialog}>
           <PlusOutlined /> {t('student.myCourses.createCourse')}
         </button>
       </div>
-      <CreateCourseDialog open={createOpen} onClose={() => setCreateOpen(false)} />
       {errorMessage ? (
         <div className={styles.statePanel}>
           <strong>{t('student.myCourses.loadFailed')}</strong>
           <p>{errorMessage}</p>
         </div>
       ) : (
-        <CourseLibrary courses={courses} />
+        <CourseLibrary courses={courses?.filter((course) => course.title !== pendingTitle || course.avatar !== null) ?? null} />
       )}
     </div>
   )
@@ -256,7 +257,12 @@ function CourseCard({ course }: { course: StudentCourse }) {
   return (
     <article className={homeStyles.courseCard}>
       <Link to={`/student/courses/${course.id}`} aria-label={t('student.myCourses.card.openAria', { title: course.title })}>
-        <CourseCover title={course.title} description={course.description} courseId={course.id} />
+        <CourseCover
+          title={course.title}
+          description={course.description}
+          courseId={course.id}
+          sprite={course.avatar ? spriteForAffection(course.avatar, course.affection) : null}
+        />
       </Link>
       <div className={homeStyles.cardBody}>
         <div className={homeStyles.cardMeta}>

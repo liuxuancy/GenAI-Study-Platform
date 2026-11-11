@@ -84,6 +84,7 @@ func TestClassVisibilityAndContent(t *testing.T) {
 		t.Fatalf("seed: %v", err)
 	}
 	service := NewService(database)
+	useMockAI(t, service)
 	student := studentPrincipal(t, database, "student1")
 	teacher := teacherPrincipal(t, database, "teacher1")
 	student2 := insertPrincipal(t, database, "student2", access.RoleStudent)

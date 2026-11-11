@@ -28,6 +28,12 @@ func RunStartupMigrations(ctx context.Context, database *gorm.DB) error {
 	if err := migrateLegacyAttempts(ctx, database); err != nil {
 		return fmt.Errorf("migrate attempts: %w", err)
 	}
+	if err := migrateAffectionWeights(ctx, database); err != nil {
+		return fmt.Errorf("migrate affection weights: %w", err)
+	}
+	if err := backfillAffection(ctx, database); err != nil {
+		return fmt.Errorf("backfill affection: %w", err)
+	}
 	return nil
 }
 

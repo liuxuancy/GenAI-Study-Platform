@@ -10,6 +10,44 @@ import (
 	"caveclass/internal/modules/course"
 )
 
+func TestAchievementRouteRequiresStudent(t *testing.T) {
+	server := newTestServer(t, course.Module{})
+	studentToken := server.login(t, "student1", "student123")
+	teacherToken := server.login(t, "teacher1", "teacher123")
+	if status, _ := server.call(t, "POST", "/api/student/achievements/sync", "", nil); status != 401 {
+		t.Fatalf("anonymous status = %d", status)
+	}
+	if status, _ := server.call(t, "POST", "/api/student/achievements/sync", teacherToken, nil); status != 403 {
+		t.Fatalf("teacher status = %d", status)
+	}
+	status, result := server.call(t, "POST", "/api/student/achievements/sync", studentToken, nil)
+	if status != 200 || len(dataAsList(dataAsMap(result.Data)["unlocked"])) != 0 || len(dataAsList(dataAsMap(result.Data)["notify"])) != 0 {
+		t.Fatalf("student status=%d data=%v msg=%q", status, result.Data, result.Msg)
+	}
+}
+
+func TestStudentCourseCreateProviderSelection(t *testing.T) {
+	server := newTestServer(t, course.Module{})
+	t.Setenv("AI_DEEPSEEK_API_KEY", "")
+	t.Setenv("AI_TEAMILY_API_KEY", "")
+	t.Setenv("AI_API_KEY", "")
+	token := server.login(t, "student1", "student123")
+	for _, provider := range []string{"invalid", "deepseek", "teamily"} {
+		status, result := server.call(t, "POST", "/api/student/courses", token, map[string]string{
+			"title": "Rejected provider " + provider, "provider": provider,
+		})
+		if status != 400 {
+			t.Fatalf("provider %s: status=%d msg=%q", provider, status, result.Msg)
+		}
+	}
+	status, result := server.call(t, "POST", "/api/student/courses", token, map[string]string{
+		"title": "Mock provider", "provider": "mock",
+	})
+	if status != 200 || result.Code != 0 {
+		t.Fatalf("mock provider: status=%d msg=%q", status, result.Msg)
+	}
+}
+
 func TestCourseRoutes(t *testing.T) {
 	server := newTestServer(t, course.Module{})
 	if err := course.Seed(context.Background(), server.database); err != nil {
@@ -125,7 +163,11 @@ func TestCourseRoutes(t *testing.T) {
 		if row["username"] == "student1" {
 			studentCalls = row["callCount"].(float64)
 			calls := dataAsList(row["calls"])
-			if len(calls) != 1 || dataAsMap(calls[0])["scene"] != "generate_course" {
+			scenes := map[string]bool{}
+			for _, call := range calls {
+				scenes[dataAsMap(call)["scene"].(string)] = true
+			}
+			if len(calls) != 2 || !scenes["generate_course"] || !scenes["generate_pixel_sprite"] {
 				t.Fatalf("student calls = %v", row["calls"])
 			}
 		}
@@ -133,7 +175,7 @@ func TestCourseRoutes(t *testing.T) {
 			t.Fatalf("admin in usage list: %v", row)
 		}
 	}
-	if studentCalls != 1 {
+	if studentCalls != 2 {
 		t.Fatalf("student call count = %v", usageReport["users"])
 	}
 }

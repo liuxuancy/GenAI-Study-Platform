@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
   ArrowRightOutlined,
@@ -20,9 +20,10 @@ import {
   getStudentQuestions,
   postLearningInsight,
   type LearningDashboardData,
+  type LearningDashboardTask,
   type StudentCourse,
 } from '@/modules/student/api'
-import { CreateCourseDialog } from '@/modules/student/learning/CreateCourseDialog'
+import { useCourseCreation } from '@/modules/student/learning/CourseCreationProvider'
 import {
   readLearningDashboardAiInsight,
   writeLearningDashboardAiInsight,
@@ -36,11 +37,11 @@ import {
   visibilityText,
 } from '@/modules/student/learning/courseSource'
 import {
-  localizeLearningTaskTitle,
-  localizeLearningTaskType,
   localizeRecommendedAction,
   localizeRuleSuggestion,
 } from '@/modules/student/learning/learningDashboardCopy'
+import { learningTaskDestination } from '@/modules/student/learning/learningTaskDestination'
+import { LearningTaskLink } from '@/modules/student/learning/LearningTaskLink'
 import styles from '@/modules/student/learning/learningDashboard.module.css'
 import {
   mapStudentQuestionsToViews,
@@ -50,6 +51,11 @@ import {
   courseDashboardAccent,
   courseTopicLabel,
 } from '@/modules/student/studentCourseVisuals'
+import { PixelSpriteView, spriteForAffection } from '@/modules/student/PixelSprite'
+
+type DashboardWithTaskDestinations = Omit<LearningDashboardData, 'tasks'> & {
+  tasks: (LearningDashboardTask & { destination: string })[]
+}
 
 export function LearningDashboard() {
   const { t, locale } = useI18n()
@@ -62,10 +68,10 @@ export function LearningDashboard() {
   } = useAiProviderSelect()
 
   const [courses, setCourses] = useState<StudentCourse[] | null>(null)
-  const [dashboard, setDashboard] = useState<LearningDashboardData | null>(null)
+  const [dashboard, setDashboard] = useState<DashboardWithTaskDestinations | null>(null)
   const [pendingQuizCount, setPendingQuizCount] = useState(0)
   const [errorMessage, setErrorMessage] = useState('')
-  const [createOpen, setCreateOpen] = useState(false)
+  const { openDialog, revision, pendingTitle } = useCourseCreation()
 
   const studentUserId = currentUser?.id
 
@@ -88,17 +94,26 @@ export function LearningDashboard() {
   const studentName =
     currentUser?.nickname?.trim() || currentUser?.username?.trim() || t('student.defaultName')
 
-  const loadData = useCallback(() => {
-    return Promise.all([
+  useEffect(() => {
+    let cancelled = false
+    void Promise.all([
       getStudentCourses(),
       getStudentQuestions(),
       getLearningDashboard(),
     ])
       .then(([courseItems, questionItems, dashboardData]) => {
+        if (cancelled) return
+        const tasks = dashboardData.tasks.map((task) => {
+          const destination = learningTaskDestination(task.id)
+          if (!destination) {
+            throw new Error(t('student.dashboard.invalidTask'))
+          }
+          return { ...task, destination }
+        })
         setCourses(courseItems)
         const views = mapStudentQuestionsToViews(questionItems, courseItems)
         setPendingQuizCount(quizStatistics(views).pending)
-        setDashboard(dashboardData)
+        setDashboard({ ...dashboardData, tasks })
         if (!readLearningDashboardAiInsight(studentUserId)) {
           setAiSuggestion(dashboardData.ruleSuggestion)
           setAiAction(dashboardData.recommendedAction)
@@ -107,40 +122,36 @@ export function LearningDashboard() {
         setErrorMessage('')
       })
       .catch((error: Error) => {
-        setErrorMessage(error.message)
+        if (!cancelled) setErrorMessage(error.message)
       })
-  }, [studentUserId])
-
-  useEffect(() => {
-    let cancelled = false
-    void loadData().then(() => {
-      if (cancelled) {
-        return
-      }
-    })
     return () => {
       cancelled = true
     }
-  }, [loadData])
+  }, [studentUserId, t, revision])
+
+  const visibleCourses = useMemo(
+    () => courses?.filter((course) => course.title !== pendingTitle || course.avatar !== null) ?? [],
+    [courses, pendingTitle],
+  )
 
   const continueCourse = useMemo(
-    () => (courses ? pickContinueCourse(courses) : null),
-    [courses],
+    () => pickContinueCourse(visibleCourses),
+    [visibleCourses],
   )
   const recentCourses = useMemo(
-    () => (courses ? pickRecentCourses(courses, 3) : []),
-    [courses],
+    () => pickRecentCourses(visibleCourses, 3),
+    [visibleCourses],
   )
 
   const stats = useMemo(() => {
-    const list = courses ?? []
+    const list = visibleCourses
     return {
       courseCount: list.length,
       activeCount: list.filter((course) => course.percent > 0 && course.percent < 100).length,
       completedCount: list.filter((course) => course.percent === 100).length,
       pendingQuizCount,
     }
-  }, [courses, pendingQuizCount])
+  }, [visibleCourses, pendingQuizCount])
 
   const tasks = dashboard?.tasks ?? []
   const completedTasks = tasks.filter((task) => task.completed).length
@@ -230,12 +241,11 @@ export function LearningDashboard() {
           </h1>
           <p>{t('student.dashboard.greeting', { name: studentName })}</p>
         </div>
-        <button className={styles.primaryButton} type="button" onClick={() => setCreateOpen(true)}>
+        <button className={styles.primaryButton} type="button" onClick={openDialog}>
           <PlusOutlined /> {t('student.dashboard.createCourse')}
         </button>
       </header>
 
-      <CreateCourseDialog open={createOpen} onClose={() => setCreateOpen(false)} />
 
       <section className={styles.statsGrid}>
         {statCards.map((stat) => (
@@ -349,21 +359,7 @@ export function LearningDashboard() {
               >
                 <div className={styles.tasks}>
                   {tasks.map((task) => (
-                    <div className={styles.task} key={task.id}>
-                      <input
-                        type="checkbox"
-                        checked={task.completed}
-                        readOnly
-                        aria-label={t('student.dashboard.taskCompleteAria')}
-                      />
-                      <div>
-                        <strong className={task.completed ? styles.done : ''}>
-                          {localizeLearningTaskTitle(task.title, t)}
-                        </strong>
-                        <small>{task.course}</small>
-                      </div>
-                      <span className={styles.taskType}>{localizeLearningTaskType(task.type, t)}</span>
-                    </div>
+                    <LearningTaskLink key={task.id} task={task} destination={task.destination} />
                   ))}
                 </div>
               </div>
@@ -414,7 +410,14 @@ export function LearningDashboard() {
                       className={styles.courseIcon}
                       style={{ backgroundColor: accent.color }}
                     >
-                      {accent.symbol}
+                      {course.avatar ? (
+                        <PixelSpriteView
+                          sprite={spriteForAffection(course.avatar, course.affection)}
+                          size={52}
+                        />
+                      ) : (
+                        accent.symbol
+                      )}
                     </div>
                     <div className={styles.courseInfo}>
                       <strong>{course.title}</strong>

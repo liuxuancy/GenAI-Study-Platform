@@ -89,8 +89,8 @@ func TestSeedFillsEmptyMajor(t *testing.T) {
 	testutil.MustExec(t, database, "UPDATE course SET major = ? WHERE title = ?", "Mathematics", "Draft lecture")
 	testutil.MustExec(t, database, "UPDATE course SET major = '' WHERE title = ?", "Asking on a line")
 	testutil.MustExec(t, database,
-		`INSERT INTO student_course_progress (user_id, course_id, percent)
-		 VALUES (?, (SELECT id FROM course WHERE title = ?), 25)`,
+		`INSERT INTO student_course_progress (user_id, course_id, percent, affection)
+		 VALUES (?, (SELECT id FROM course WHERE title = ?), 25, 12)`,
 		studentID, "Introduction to Git",
 	)
 

@@ -131,6 +131,7 @@ func TestCourseResourceStudentSeesPublishedOnly(t *testing.T) {
 		t.Fatal(err)
 	}
 	service := NewService(database)
+	useMockAI(t, service)
 	student := studentPrincipal(t, database, "student1")
 	course, err := service.CreateStudentCourse(context.Background(), student, CreateCourseInput{Title: "Student resource course"})
 	if err != nil {

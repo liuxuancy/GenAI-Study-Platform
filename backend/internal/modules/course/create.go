@@ -2,18 +2,24 @@ package course
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"time"
 
+	"caveclass/internal/ai"
 	"github.com/liuxuancy/Libs/logs"
-
 	"caveclass/internal/framework/access"
 	"caveclass/internal/platform/errs"
+	"caveclass/internal/usage"
+
+	"gorm.io/gorm"
 )
 
 // CreateCourseInput 学生或教师新建一门还没放出的课。
 type CreateCourseInput struct {
 	Title       string `json:"title"`
 	Description string `json:"description"`
+	Provider    string `json:"provider"`
 }
 
 // SharingInput 学生切换同班公开。省略 shared 时拒绝，避免误把课收回。
@@ -27,12 +33,12 @@ type SharingResult struct {
 	ClassmateCount int  `json:"classmateCount"`
 }
 
-// CreateStudentCourse 学生创建私有课。不写 course_class。
+// CreateStudentCourse 学生创建私有课，并生成该课唯一的像素小人。不写 course_class。
 func (service *Service) CreateStudentCourse(ctx context.Context, principal *access.Principal, input CreateCourseInput) (*CourseListItem, error) {
 	if principal.Role != access.RoleStudent {
 		return nil, errs.Forbidden("only students can create courses")
 	}
-	output, err := service.createCourse(ctx, principal.UserID, input)
+	output, err := service.createStudentCourse(ctx, principal, input)
 	if err != nil {
 		logs.CtxError(ctx, "[CreateStudentCourse] failed, err: %v", err)
 		return nil, err
@@ -76,6 +82,110 @@ func (service *Service) createCourse(ctx context.Context, ownerID int64, input C
 		Description: description,
 		Percent:     0,
 		Visibility:  VisibilityPrivate,
+	}, nil
+}
+
+func (service *Service) createStudentCourse(ctx context.Context, principal *access.Principal, input CreateCourseInput) (_ *CourseListItem, resultErr error) {
+	title, description, err := normalizeCourseText(input.Title, input.Description)
+	if err != nil {
+		return nil, err
+	}
+	aiService := service.ai
+	if aiService == nil {
+		return nil, errs.Internal(nil)
+	}
+	if input.Provider != "" {
+		aiService, err = service.aiForGenerate(input.Provider)
+		if err != nil {
+			return nil, err
+		}
+	}
+	var courseID int64
+	err = service.database.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		var insertErr error
+		courseID, insertErr = service.insertCourse(tx, principal.UserID, title, description)
+		return insertErr
+	})
+	if err != nil {
+		return nil, err
+	}
+	kept := false
+	defer func() {
+		if !kept {
+			cleanupCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 10*time.Second)
+			defer cancel()
+			if cleanupErr := service.deleteCreatedCourse(cleanupCtx, courseID); cleanupErr != nil {
+				logs.CtxError(cleanupCtx, "cleanup failed student course %d: %v", courseID, cleanupErr)
+				resultErr = errs.Internal(errors.Join(resultErr, fmt.Errorf("cleanup course %d: %w", courseID, cleanupErr)))
+			}
+		}
+	}()
+	var avatar *CourseAvatar
+	for attempt := 0; attempt < pixelAvatarAttempts; attempt++ {
+		used, err := service.loadUsedAppearances(ctx)
+		if err != nil {
+			return nil, err
+		}
+		traits, err := drawPixelTraits(used)
+		if errors.Is(err, errPixelAppearancesExhausted) {
+			return nil, errs.Conflict("pixel avatar appearances are exhausted")
+		}
+		if errors.Is(err, errPixelCandidatesExhausted) {
+			return nil, errs.Conflict("could not find an unused pixel avatar appearance; retry creation")
+		}
+		if err != nil {
+			return nil, err
+		}
+		generated, meta, callErr := aiService.GeneratePixelSprite(ctx, ai.PixelSpriteInput{
+			CourseID:      courseID,
+			Title:         title,
+			RoleType:      traits.RoleType,
+			BodyType:      traits.BodyType,
+			HairColor:     traits.HairColor,
+			HairStyle:     traits.HairStyle,
+			FacialFeature: traits.FacialFeature,
+			Accessory:     traits.Accessory,
+			SilhouetteKey: traits.SilhouetteKey,
+			Personality:   traits.Personality,
+		})
+		service.recordUsage(ctx, principal.UserID, usage.SceneGeneratePixelSprite, meta, callErr)
+		if callErr != nil {
+			ai.LogError(ctx, callErr, meta, principal.UserID)
+			return nil, businessAIError(callErr)
+		}
+		err = service.insertPixelAvatar(ctx, courseID, traits, generated)
+		if duplicateKey(err) {
+			continue
+		}
+		if err != nil {
+			return nil, err
+		}
+		if err := service.database.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+			txService := *service
+			txService.database = tx
+			if err := txService.insertOwnerProgress(ctx, principal.UserID, courseID); err != nil {
+				return err
+			}
+			return txService.recordAchievement(ctx, principal.UserID, achievementFirstAvatar)
+		}); err != nil {
+			return nil, err
+		}
+		avatar = avatarFromGenerated(traits, generated)
+		kept = true
+		break
+	}
+	if !kept {
+		return nil, errs.Conflict("pixel avatar appearance already exists")
+	}
+	return &CourseListItem{
+		ID:          courseID,
+		Title:       title,
+		CourseType:  CourseTypeStructured,
+		Description: description,
+		Percent:     0,
+		Visibility:  VisibilityPrivate,
+		Affection:   0,
+		Avatar:      avatar,
 	}, nil
 }
 

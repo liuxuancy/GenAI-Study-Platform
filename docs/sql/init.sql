@@ -24,7 +24,9 @@ DROP TABLE IF EXISTS course_chapter;
 DROP TABLE IF EXISTS course_question_content;
 DROP TABLE IF EXISTS course_question;
 DROP TABLE IF EXISTS student_learning_event;
+DROP TABLE IF EXISTS course_pixel_avatar;
 DROP TABLE IF EXISTS student_course_progress;
+DROP TABLE IF EXISTS student_achievement;
 DROP TABLE IF EXISTS student_question_progress;
 DROP TABLE IF EXISTS student_question_record;
 DROP TABLE IF EXISTS study_class_member;
@@ -110,7 +112,44 @@ CREATE TABLE `student_course_progress` (
   `user_id` integer,
   `course_id` integer,
   `percent` integer NOT NULL,
+  `affection` integer NOT NULL,
   PRIMARY KEY (`user_id`, `course_id`)
+);
+
+CREATE TABLE `student_achievement` (
+  `user_id` integer,
+  `achievement` text,
+  `unlocked_at` datetime NOT NULL,
+  `notified_at` datetime,
+  PRIMARY KEY (`user_id`, `achievement`)
+);
+
+CREATE TABLE `course_pixel_avatar` (
+  `id` integer PRIMARY KEY AUTOINCREMENT,
+  `course_id` integer NOT NULL,
+  `role_type` text NOT NULL,
+  `body_type` text NOT NULL,
+  `hair_color` text NOT NULL,
+  `hair_style` text NOT NULL,
+  `facial_feature` text NOT NULL,
+  `accessory` text NOT NULL,
+  `silhouette_key` text NOT NULL,
+  `personality` text NOT NULL,
+  `pixel_json` text NOT NULL,
+  `pixel_json_25` text NOT NULL,
+  `pixel_json_50` text NOT NULL,
+  `pixel_json_75` text NOT NULL,
+  `pixel_json_100` text NOT NULL,
+  `dialogue_json` text,
+  `dialogue_lease` text NOT NULL DEFAULT '',
+  `dialogue_retry_at` integer NOT NULL DEFAULT 0,
+  `dialogue_attempts` integer NOT NULL DEFAULT 0,
+  `created_at` datetime
+);
+
+CREATE UNIQUE INDEX `uidx_course_pixel_avatar_course` ON `course_pixel_avatar`(`course_id`);
+CREATE UNIQUE INDEX `uidx_pixel_avatar_appearance` ON `course_pixel_avatar`(
+  `role_type`, `body_type`, `hair_color`, `hair_style`, `facial_feature`, `accessory`, `silhouette_key`, `personality`
 );
 
 CREATE TABLE `student_learning_event` (

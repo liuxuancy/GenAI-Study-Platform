@@ -85,6 +85,8 @@ export const enResources: MessageTree = {
       uploadFailed: 'Upload failed',
     },
     studentPanel: {
+      upload: 'Upload course materials',
+      uploadVisibility: 'Materials are visible to classmates when the course is shared.',
       loadFailed: 'Load failed',
       previewFailed: 'Preview failed',
       downloadFailed: 'Download failed',

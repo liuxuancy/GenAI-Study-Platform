@@ -138,7 +138,7 @@ func providerKeyEnv(provider string) string {
 	}
 }
 
-// GenerateProviderOptionsFor 返回前端可用的 provider 列表与默认项（不含 mock）。
+// GenerateProviderOptionsFor 返回前端可用的 provider 列表与默认项。
 func GenerateProviderOptionsFor(base Config) GenerateProviderOptions {
 	status := ProviderAvailability(base)
 	defaultProvider := DefaultGenerateProvider(base)
@@ -160,6 +160,6 @@ func GenerateProviderOptionsFor(base Config) GenerateProviderOptions {
 	}
 	return GenerateProviderOptions{
 		Default:   defaultProvider,
-		Providers: ProviderStatus{DeepSeek: status.DeepSeek, Teamily: status.Teamily},
+		Providers: ProviderStatus{Mock: base.Provider == ProviderMock, DeepSeek: status.DeepSeek, Teamily: status.Teamily},
 	}
 }

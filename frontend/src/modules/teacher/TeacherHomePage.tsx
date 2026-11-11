@@ -5,6 +5,7 @@ import { Navigate, useNavigate } from 'react-router-dom'
 
 import { homePathFor } from '@/core/auth/homePath'
 import { useAiProviderSelect } from '@/core/ai/useAiProviderSelect'
+import { GenerationMetaAlert } from '@/core/ai/GenerationMetaAlert'
 import type { AiGenerationMeta, GenerateCourseRequest } from '@/core/api/ai'
 import { useAuthStore } from '@/core/auth/store'
 import { useI18n } from '@/core/i18n/useI18n'
@@ -289,7 +290,7 @@ export function TeacherHomePage() {
         onOk={() => { void startGeneration() }}
       >
         {generateError ? <Alert type="error" showIcon message={generateError} style={{ marginBottom: 16 }} /> : null}
-        {generateMeta ? <GenerationMeta meta={generateMeta} /> : null}
+        {generateMeta ? <GenerationMetaAlert meta={generateMeta} /> : null}
         <Typography.Paragraph type="secondary">{t('teacher.home.generateHint')}</Typography.Paragraph>
         <Radio.Group
           value={generateMode}
@@ -404,23 +405,5 @@ export function TeacherHomePage() {
         )}
       </Modal>
     </>
-  )
-}
-
-function GenerationMeta({ meta }: { meta: AiGenerationMeta }) {
-  const { t } = useI18n()
-  const details = [t('ai.generate.metaLatency', { ms: meta.latencyMs })]
-  if (meta.modelUsed) details.push(t('ai.generate.metaModel', { model: meta.modelUsed }))
-  if (meta.fallbackUsed) details.push(t('ai.generate.metaFallback'))
-  return (
-    <Alert
-      type={meta.warnings.length || meta.fallbackUsed ? 'warning' : 'success'}
-      showIcon
-      message={details.join(t('ai.generate.summaryJoin'))}
-      description={
-        meta.warnings.length ? meta.warnings.join(t('ai.generate.warningJoin')) : t('ai.generate.complete')
-      }
-      style={{ marginBottom: 16 }}
-    />
   )
 }

@@ -17,7 +17,7 @@ import {
   type StudentQuestionContent,
   type StudentQuestionDetail,
 } from '@/modules/student/api'
-import { difficultyLabel } from '@/modules/student/quiz/mapStudentQuiz'
+import { difficultyLabel, displayQuizTitle } from '@/modules/student/quiz/mapStudentQuiz'
 import styles from '@/modules/student/QuestionDetailPage.module.css'
 
 export function QuestionDetailPage() {
@@ -89,7 +89,7 @@ export function QuestionDetailPage() {
   const questionNumber = questions.length === 0 ? 0 : index + 1
   const selected = current ? chosenOption(current, pending) : ''
   const answered = detail ? answeredCount(questions, pending) : 0
-  const label = detail ? questionTitleLabel(detail.title, detail.difficulty) : null
+  const label = detail ? questionTitleLabel(detail.title, detail.difficulty, detail.chapterName) : null
   const submitted = detail?.isSubmit ?? false
   const correctCount = questions.filter((question) => question.isCorrect).length
 
@@ -428,16 +428,16 @@ function optionLetter(index: number) {
   return String.fromCharCode(65 + index)
 }
 
-function questionTitleLabel(title: string, difficulty: string) {
+function questionTitleLabel(title: string, difficulty: string, chapterName?: string) {
   const match = /^(.*) · (easy|medium|hard) · \d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/.exec(title)
-  const visibleTitle = match ? match[1] : title
+  const visibleTitle = displayQuizTitle(title, chapterName)
   if (difficulty) {
     return { title: visibleTitle, difficulty: difficultyLabel(parseDifficulty(difficulty)) }
   }
   if (!match) {
-    return { title, difficulty: '' }
+    return { title: visibleTitle, difficulty: '' }
   }
-  return { title: match[1], difficulty: difficultyLabel(parseDifficulty(match[2])) }
+  return { title: visibleTitle, difficulty: difficultyLabel(parseDifficulty(match[2])) }
 }
 
 function parseDifficulty(value: string): 'easy' | 'medium' | 'hard' | null {

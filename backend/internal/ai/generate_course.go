@@ -57,22 +57,43 @@ func (service *Service) GenerateCourse(ctx context.Context, input GenerateCourse
 	} else if !input.OutlineOnly && checked.TemplateID != prompt.FullCourseV1 {
 		return course.StandardCourse{}, Meta{}, aierr.InvalidInput(nil, "templateId")
 	}
-	response, meta, err := service.runModel(ctx, SceneFullCourse, checked.TemplateID, checked.Model, prompt.FullCourseData{
+	data := prompt.FullCourseData{
 		Topic:             checked.Topic,
 		Audience:          checked.Audience,
 		Language:          checked.Language,
 		ExtraRequirements: checked.ExtraRequirements,
 		ChapterCountHint:  checked.ChapterCountHint,
-	})
-	if err != nil {
-		return course.StandardCourse{}, meta, err
 	}
-	parsed, report, err := parse.ParseCourseJSON(response.Text, true)
-	if err != nil {
-		return course.StandardCourse{}, meta, err
+	var total Usage
+	var latencyMs int64
+	var meta Meta
+	for attempt := 0; ; attempt++ {
+		response, callMeta, err := service.runModel(ctx, SceneFullCourse, checked.TemplateID, checked.Model, data)
+		total.PromptTokens += callMeta.Usage.PromptTokens
+		total.CompletionTokens += callMeta.Usage.CompletionTokens
+		total.TotalTokens += callMeta.Usage.TotalTokens
+		latencyMs += callMeta.LatencyMs
+		callMeta.Usage = total
+		callMeta.LatencyMs = latencyMs
+		meta = callMeta
+		if err != nil {
+			return course.StandardCourse{}, meta, err
+		}
+		parsed, report, err := parse.ParseCourseJSON(response.Text, true)
+		if err == nil {
+			applyReport(&meta, report)
+			if attempt > 0 {
+				meta.Warnings = append(meta.Warnings, "model output was retried after JSON parsing failed")
+			}
+			return parsed, meta, nil
+		}
+		if !errors.Is(err, aierr.ErrOutputParseFailed) || attempt >= service.config.MaxRetries {
+			return course.StandardCourse{}, meta, err
+		}
+		if err := ctx.Err(); err != nil {
+			return course.StandardCourse{}, meta, completeError(err)
+		}
 	}
-	applyReport(&meta, report)
-	return parsed, meta, nil
 }
 
 func (service *Service) runModel(ctx context.Context, scene, templateID, requestedModel string, data any) (llm.Response, Meta, error) {

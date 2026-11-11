@@ -18,6 +18,8 @@ const (
 	ContentQualityV1  = "content_quality_v1"
 	ChapterQAV1       = "chapter_qa_v1"
 	LearningInsightV1 = "learning_insight_v1"
+	PixelSpriteV1     = "pixel_sprite_v1"
+	PixelDialogueV1   = "pixel_dialogue_v1"
 	GalScriptV1       = "gal_script_v1"
 	Version1          = "1"
 )
@@ -33,6 +35,8 @@ var (
 	qualityTemplate         = template.Must(template.ParseFS(templateFiles, "templates/content_quality_v1.tmpl"))
 	chapterQATemplate       = template.Must(template.ParseFS(templateFiles, "templates/chapter_qa_v1.tmpl"))
 	learningInsightTemplate = template.Must(template.ParseFS(templateFiles, "templates/learning_insight_v1.tmpl"))
+	pixelSpriteTemplate     = template.Must(template.ParseFS(templateFiles, "templates/pixel_sprite_v1.tmpl"))
+	pixelDialogueTemplate   = template.Must(template.ParseFS(templateFiles, "templates/pixel_dialogue_v1.tmpl"))
 	galScriptTemplate       = template.Must(template.ParseFS(templateFiles, "templates/gal_script_v1.tmpl"))
 )
 
@@ -103,6 +107,22 @@ type LearningInsightData struct {
 	Language    string
 }
 
+// PixelSpriteData 是已经抽好的外观属性。模型只画网格，不能改这些属性。
+type PixelSpriteData struct {
+	CourseID           int64
+	Title              string
+	RoleType           string
+	BodyType           string
+	HairColor          string
+	HairStyle          string
+	FacialFeature      string
+	Accessory          string
+	SilhouetteKey      string
+	Personality        string
+	ValidationFeedback string
+	PreviousSprite     string
+}
+
 // GalScriptData 是 Gal 剧本模板的数据。章节 JSON 属于不可信数据。
 type GalScriptData struct {
 	Language               string
@@ -143,6 +163,12 @@ func Render(templateID string, data any) (string, Info, error) {
 	case LearningInsightV1:
 		parsed = learningInsightTemplate
 		info.ID = LearningInsightV1
+	case PixelSpriteV1:
+		parsed = pixelSpriteTemplate
+		info.ID = PixelSpriteV1
+	case PixelDialogueV1:
+		parsed = pixelDialogueTemplate
+		info.ID = PixelDialogueV1
 	case GalScriptV1:
 		parsed = galScriptTemplate
 		info.ID = GalScriptV1

@@ -14,6 +14,7 @@ export const enNav: MessageTree = {
       aiWorkspace: 'AI workspace',
       quizzes: 'Quizzes',
       account: 'Account',
+      achievements: 'Achievements',
       quizAttempt: 'Quiz attempt',
       courseStudy: 'Course study',
       brandSubtitle: 'Student',

@@ -256,8 +256,24 @@ func ensureProgress(tx *gorm.DB, userID int64, courseID int64, percent int) erro
 	if count > 0 {
 		return nil
 	}
+	quiz, err := quizPercent(tx, userID, courseID)
+	if err != nil {
+		return err
+	}
+	var oldWeights int64
+	if err := tx.Raw(
+		`SELECT COUNT(*) FROM migration_log WHERE kind = ?
+		 AND NOT EXISTS (SELECT 1 FROM migration_log WHERE kind = ?)`,
+		affectionBackfillKind, affectionWeightsKind,
+	).Scan(&oldWeights).Error; err != nil {
+		return err
+	}
+	affection := affectionBase(percent, quiz)
+	if oldWeights > 0 {
+		affection = (percent + quiz) / 2
+	}
 	return tx.Exec(
-		"INSERT INTO student_course_progress (user_id, course_id, percent) VALUES (?, ?, ?)",
-		userID, courseID, percent,
+		"INSERT INTO student_course_progress (user_id, course_id, percent, affection) VALUES (?, ?, ?, ?)",
+		userID, courseID, percent, affection,
 	).Error
 }

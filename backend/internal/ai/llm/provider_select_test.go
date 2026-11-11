@@ -52,6 +52,15 @@ func TestProviderAvailability(t *testing.T) {
 	}
 }
 
+func TestGenerateProviderOptionsExposeMockOnlyInMockMode(t *testing.T) {
+	if !GenerateProviderOptionsFor(Config{Provider: ProviderMock}).Providers.Mock {
+		t.Fatal("mock should be selectable in mock mode")
+	}
+	if GenerateProviderOptionsFor(Config{Provider: ProviderDeepSeek}).Providers.Mock {
+		t.Fatal("mock should not be selectable in real provider mode")
+	}
+}
+
 func TestProviderAPIKeyFromSharedEnvWhenProviderMatches(t *testing.T) {
 	t.Setenv("AI_DEEPSEEK_API_KEY", "")
 	t.Setenv("AI_TEAMILY_API_KEY", "")

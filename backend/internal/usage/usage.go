@@ -9,14 +9,16 @@ const (
 	StatusSuccess = "success"
 	StatusFailed  = "failed"
 
-	SceneGenerateCourse   = "generate_course"
-	SceneGenerateChapter  = "generate_chapter"
-	SceneGenerateActivity = "generate_activity"
-	SceneEvaluateCourse   = "evaluate_course"
-	SceneChapterQA        = "chapter_qa"
-	SceneStudyNote        = "study_note"
-	SceneLearningInsight  = "learning_insight"
-	SceneGalStory         = "gal_story"
+	SceneGenerateCourse        = "generate_course"
+	SceneGenerateChapter       = "generate_chapter"
+	SceneGenerateActivity      = "generate_activity"
+	SceneEvaluateCourse        = "evaluate_course"
+	SceneChapterQA             = "chapter_qa"
+	SceneStudyNote             = "study_note"
+	SceneLearningInsight       = "learning_insight"
+	SceneGeneratePixelSprite   = "generate_pixel_sprite"
+	SceneGeneratePixelDialogue = "generate_pixel_dialogue"
+	SceneGalStory              = "gal_story"
 )
 
 // Usage 对应 ai_usage。一次模型调用一行。不存提示词，不存密钥。

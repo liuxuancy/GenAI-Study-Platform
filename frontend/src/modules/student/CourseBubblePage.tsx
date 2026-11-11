@@ -4,6 +4,7 @@ import { Link, Navigate, useParams } from 'react-router-dom'
 import { Alert, Form, Input, InputNumber, Modal, Select, Typography } from 'antd'
 
 import { useAiProviderSelect } from '@/core/ai/useAiProviderSelect'
+import { GenerationMetaAlert } from '@/core/ai/GenerationMetaAlert'
 import type { AiGenerationMeta, GenerateCourseRequest } from '@/core/api/ai'
 import { useAuthStore } from '@/core/auth/store'
 import { LanguageSwitcher } from '@/core/i18n/LanguageSwitcher'
@@ -16,6 +17,8 @@ import {
   type StudentCourseDetail,
 } from '@/modules/student/api'
 import { CourseBubbleMap } from '@/modules/student/CourseBubbleMap'
+import { CourseBreadcrumb } from '@/modules/student/CourseBreadcrumb'
+import { spriteForAffection, type CourseAvatar, type PixelSprite } from '@/modules/student/PixelSprite'
 import type { BubbleNode } from '@/modules/student/bubbleTree'
 import { activityLabel, chapterBadgeLabel, CourseMarkdownBody, useActivityNeighbors } from '@/modules/student/courseContentView'
 import { AiAssistantPanel } from '@/modules/student/learning/AiAssistantPanel'
@@ -90,6 +93,7 @@ export function CourseBubblePage() {
   const currentUser = useAuthStore((state) => state.currentUser)
   const [course, setCourse] = useState<StudentCourseDetail | null>(null)
   const [errorMessage, setErrorMessage] = useState('')
+  const [dialogueError, setDialogueError] = useState('')
   const [shareError, setShareError] = useState('')
   const [sharing, setSharing] = useState(false)
   const [generating, setGenerating] = useState(false)
@@ -127,6 +131,29 @@ export function CourseBubblePage() {
       cancelled = true
     }
   }, [courseId, currentUser?.role])
+
+  useEffect(() => {
+    if (!courseId || courseViewTab !== 'map' || !course?.avatar || course.avatar.dialogue) return
+    let cancelled = false
+    let timer: ReturnType<typeof setTimeout>
+    const refresh = async () => {
+      try {
+        const detail = await getStudentCourse(courseId)
+        if (cancelled) return
+        setDialogueError('')
+        if (detail.avatar?.dialogue) {
+          setCourse((current) => current?.id === detail.id ? { ...current, avatar: detail.avatar } : current)
+          return
+        }
+      } catch (error) {
+        if (cancelled) return
+        setDialogueError(error instanceof Error ? error.message : t('student.bubbleMap.dialogueRefreshFailed'))
+      }
+      timer = setTimeout(refresh, 10000)
+    }
+    timer = setTimeout(refresh, 10000)
+    return () => { cancelled = true; clearTimeout(timer) }
+  }, [courseId, course?.id, course?.avatar?.dialogue, courseViewTab, t])
 
   if (!currentUser) {
     return null
@@ -166,6 +193,7 @@ export function CourseBubblePage() {
       const result = await generateStudentCourse(course.id, { ...values, provider: aiProvider })
       setCourse(result.course)
       setGenerateMeta(result.meta)
+      setGenerateOpen(false)
     } catch (error) {
       setGenerateError(error instanceof Error ? error.message : t('student.bubble.generateFailed'))
     } finally {
@@ -176,13 +204,7 @@ export function CourseBubblePage() {
   return (
     <div className={styles.page}>
       <header className={styles.topBar}>
-        <div className={styles.topLeft}>
-          <Link className={styles.backLink} to="/student">
-            {t('common.brandName')}
-          </Link>
-          <span className={styles.topSep}>/</span>
-          <span className={styles.courseTitle}>{course?.title ?? t('common.loading')}</span>
-        </div>
+        <CourseBreadcrumb title={course?.title ?? t('common.loading')} />
         <div className={styles.topActions}>
           <LanguageSwitcher compact />
           {course?.owned ? (
@@ -220,9 +242,11 @@ export function CourseBubblePage() {
       </header>
 
       {errorMessage ? <p className={styles.bannerError}>{errorMessage}</p> : null}
+      {dialogueError ? <p className={styles.bannerError}>{dialogueError}</p> : null}
       {shareError ? <p className={styles.bannerError}>{shareError}</p> : null}
       {generateError ? <p className={styles.bannerError}>{generateError}</p> : null}
       {aiProviderError ? <p className={styles.bannerError}>{aiProviderError}</p> : null}
+      {generateMeta ? <GenerationMetaAlert meta={generateMeta} /> : null}
       {course?.owned && course.shared && course.classmateCount === 0 ? (
         <p className={styles.bannerNote}>{t('student.bubble.sharedEmpty')}</p>
       ) : null}
@@ -276,12 +300,15 @@ export function CourseBubblePage() {
               provider={aiProvider}
               userId={currentUser.id}
               initialPercent={course.percent ?? 0}
+              sprite={course.avatar ? spriteForAffection(course.avatar, course.affection) : null}
+              avatar={course.avatar}
               viewTab={courseViewTab}
               resourceContent={resourceContentFromTree(course.tree, course)}
+              canUploadResources={course.owned}
             />
           ) : courseViewTab === 'resources' ? (
             <div className={styles.resourcesStandalone}>
-              <StudentCourseResourcesPanel courseId={course.id} />
+              <StudentCourseResourcesPanel courseId={course.id} canUpload={course.owned} />
             </div>
           ) : courseViewTab === 'map' ? (
             <div className={styles.mapEmpty}>
@@ -311,7 +338,6 @@ export function CourseBubblePage() {
         }}
       >
         {generateError ? <Alert type="error" showIcon message={generateError} style={{ marginBottom: 16 }} /> : null}
-        {generateMeta ? <StudentGenerationMeta meta={generateMeta} /> : null}
         <Typography.Paragraph type="secondary">{t('student.bubble.generateReplaceHint')}</Typography.Paragraph>
         <Form form={generateForm} layout="vertical">
           <Form.Item
@@ -350,24 +376,6 @@ export function CourseBubblePage() {
   )
 }
 
-function StudentGenerationMeta({ meta }: { meta: AiGenerationMeta }) {
-  const { t } = useI18n()
-  const summary = [t('ai.generate.metaLatency', { ms: meta.latencyMs })]
-  if (meta.modelUsed) summary.push(t('ai.generate.metaModel', { model: meta.modelUsed }))
-  if (meta.fallbackUsed) summary.push(t('ai.generate.metaFallback'))
-  return (
-    <Alert
-      type={meta.warnings.length || meta.fallbackUsed ? 'warning' : 'success'}
-      showIcon
-      message={summary.join(t('ai.generate.summaryJoin'))}
-      description={
-        meta.warnings.length ? meta.warnings.join(t('ai.generate.warningJoin')) : t('ai.generate.complete')
-      }
-      style={{ marginBottom: 16 }}
-    />
-  )
-}
-
 function CourseWorkspace({
   courseId,
   courseDbId,
@@ -375,8 +383,11 @@ function CourseWorkspace({
   provider,
   userId,
   initialPercent,
+  sprite,
+  avatar,
   viewTab,
   resourceContent,
+  canUploadResources,
 }: {
   courseId: string
   courseDbId: number
@@ -384,8 +395,11 @@ function CourseWorkspace({
   provider?: string
   userId: number
   initialPercent: number
+  sprite: PixelSprite | null
+  avatar: CourseAvatar | null
   viewTab: CourseViewTab
   resourceContent: CourseContent
+  canUploadResources: boolean
 }) {
   const { t } = useI18n()
   const chapters = useMemo(() => listChapters(tree), [tree])
@@ -485,7 +499,7 @@ function CourseWorkspace({
     observer.observe(node)
     setPaneWidth(node.clientWidth)
     return () => observer.disconnect()
-  }, [])
+  }, [viewTab])
 
   useEffect(() => {
     if (syllabusCollapsed || !syllabusScrollRef.current) {
@@ -711,7 +725,7 @@ function CourseWorkspace({
   if (mapView) {
     return (
       <div className={styles.mapWorkspace}>
-        <CourseBubbleMap tree={tree} embedded />
+        <CourseBubbleMap tree={tree} embedded doneIds={doneIds} sprite={sprite} dialogue={avatar?.dialogue ?? null} />
       </div>
     )
   }
@@ -742,7 +756,7 @@ function CourseWorkspace({
   }
 
   return (
-    <div className={styles.workspace}>
+    <div className={`${styles.workspace}${resourcesView ? ` ${styles.workspaceResources}` : ''}`}>
       {resourcesView ? null : (
         <div className={styles.progressStrip}>
           <span>{t('student.bubble.progress', { percent })}</span>
@@ -756,13 +770,9 @@ function CourseWorkspace({
         className={`${styles.columns}${dragging ? ` ${styles.columnsDragging}` : ''}${resourcesView ? ` ${styles.columnsResources}` : ''}${collapsed && !narrow ? ` ${styles.columnsSyllabusCollapsed}` : ''}`}
         ref={columnsRef}
         style={
-          narrow || paneWidth <= 0
+          narrow || paneWidth <= 0 || resourcesView
             ? undefined
-            : resourcesView
-              ? {
-                  gridTemplateColumns: collapsed ? 'minmax(0, 1fr)' : `${syllabusWidth}px minmax(0, 1fr)`,
-                }
-              : showAiPane
+            : showAiPane
                 ? {
                     gridTemplateColumns: collapsed
                       ? `minmax(0, 1fr) ${separatorWidth}px ${aiWidth}px`
@@ -849,7 +859,7 @@ function CourseWorkspace({
           ) : null}
           {resourcesView ? (
             <div className={styles.resourcesPane}>
-              <StudentCourseResourcesPanel courseId={courseDbId} content={resourceContent} />
+              <StudentCourseResourcesPanel courseId={courseDbId} content={resourceContent} canUpload={canUploadResources} />
             </div>
           ) : activeChapter && activeActivity ? (
             <>

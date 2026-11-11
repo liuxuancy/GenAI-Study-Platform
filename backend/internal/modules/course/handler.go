@@ -21,6 +21,14 @@ func NewHandler(service *Service) *Handler {
 	return &Handler{service: service}
 }
 
+func (handler *Handler) SyncAchievements(ctx *gin.Context) (any, error) {
+	principal, err := access.GetCurrentPrincipal(ctx)
+	if err != nil {
+		return nil, err
+	}
+	return handler.service.SyncAchievements(ctx.Request.Context(), principal)
+}
+
 // GetCourseList GET /api/student/courses
 func (handler *Handler) GetCourseList(ctx *gin.Context) (any, error) {
 	principal, err := access.GetCurrentPrincipal(ctx)

@@ -27,7 +27,7 @@ func TestAdminUnpublishKeepsOwnerClassAndProgress(t *testing.T) {
 	gitID := courseIDByTitle(t, database, "Introduction to Git")
 	studentID := testutil.GetUserID(t, database, "student1")
 	testutil.MustExec(t, database,
-		"INSERT INTO student_course_progress (user_id, course_id, percent) VALUES (?, ?, 35)",
+		"INSERT INTO student_course_progress (user_id, course_id, percent, affection) VALUES (?, ?, 35, 17)",
 		studentID, gitID,
 	)
 	testutil.MustExec(t, database, "UPDATE course SET content_json = ? WHERE id = ?", sampleContent, gitID)
@@ -85,6 +85,7 @@ func TestAdminUnpublishStudentShare(t *testing.T) {
 		t.Fatal(err)
 	}
 	service := NewService(database)
+	useMockAI(t, service)
 	owner := studentPrincipal(t, database, "student1")
 	classmate := insertPrincipal(t, database, "student2", access.RoleStudent)
 	classID := classIDByName(t, database, seedClassName)

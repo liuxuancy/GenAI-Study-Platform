@@ -15,7 +15,10 @@ import { CourseBubblePage } from '@/modules/student/CourseBubblePage'
 import { QuestionDetailPage } from '@/modules/student/QuestionDetailPage'
 import { LearningDashboard } from '@/modules/student/learning/LearningDashboard'
 import { MyCoursesPage } from '@/modules/student/learning/MyCoursesPage'
+import { CourseCreationProvider } from '@/modules/student/learning/CourseCreationProvider'
 import { StudentLayout } from '@/modules/student/layout/StudentLayout'
+import { AchievementProvider } from '@/modules/student/achievements/AchievementProvider'
+import { AchievementsPage } from '@/modules/student/achievements/AchievementsPage'
 import { QuizDashboard } from '@/modules/student/quiz/QuizDashboard'
 import { StudentAiPage } from '@/modules/student/learning/StudentAiPage'
 import { TeacherLayout } from '@/modules/teacher/layout/TeacherLayout'
@@ -27,28 +30,29 @@ import { TeacherCourseWorkspacePage } from '@/modules/teacher/TeacherCourseWorks
 export const appRouter = createBrowserRouter([
   { path: '/login', element: <LoginPage /> },
   {
-    path: '/student',
     element: (
       <RequireAuth>
-        <StudentLayout />
+        <CourseCreationProvider>
+          <AchievementProvider />
+        </CourseCreationProvider>
       </RequireAuth>
     ),
     children: [
-      { index: true, element: <LearningDashboard /> },
-      { path: 'courses', element: <MyCoursesPage /> },
-      { path: 'ai', element: <StudentAiPage /> },
-      { path: 'quizzes', element: <QuizDashboard /> },
-      { path: 'account', element: <StudentAccountPage /> },
-      { path: 'questions/:questionId', element: <QuestionDetailPage /> },
+      {
+        path: '/student',
+        element: <StudentLayout />,
+        children: [
+          { index: true, element: <LearningDashboard /> },
+          { path: 'courses', element: <MyCoursesPage /> },
+          { path: 'ai', element: <StudentAiPage /> },
+          { path: 'quizzes', element: <QuizDashboard /> },
+          { path: 'account', element: <StudentAccountPage /> },
+          { path: 'achievements', element: <AchievementsPage /> },
+          { path: 'questions/:questionId', element: <QuestionDetailPage /> },
+        ],
+      },
+      { path: '/student/courses/:courseId', element: <CourseBubblePage /> },
     ],
-  },
-  {
-    path: '/student/courses/:courseId',
-    element: (
-      <RequireAuth>
-        <CourseBubblePage />
-      </RequireAuth>
-    ),
   },
   {
     path: '/teacher',

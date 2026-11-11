@@ -2,6 +2,7 @@ import type { ReactNode } from 'react'
 
 import { getAppLocale } from '@/core/i18n/store'
 import { translateApp } from '@/core/i18n/translateApp'
+import { PixelSpriteView, type PixelSprite } from '@/modules/student/PixelSprite'
 import styles from '@/modules/student/StudentHomePage.module.css'
 
 export type CourseCoverKey =
@@ -139,10 +140,12 @@ export function CourseCover({
   title,
   description,
   courseId,
+  sprite,
 }: {
   title: string
   description?: string
   courseId?: number
+  sprite?: PixelSprite | null
 }) {
   const key = resolveCourseCoverKey(title, description, courseId)
   const meta = coverMeta[key]
@@ -150,13 +153,15 @@ export function CourseCover({
 
   return (
     <div className={`${styles.cover} ${toneClass ?? ''}`}>
-      <div className={styles.coverTop}>{meta.label}</div>
-      <div
-        className={styles.coverArt}
-        aria-hidden="true"
-        dangerouslySetInnerHTML={{ __html: coverSvgs[key] }}
-      />
-      <div className={styles.coverBottom}>{courseTopicLabel(title, description, getAppLocale(), courseId)}</div>
+      {!sprite && <div className={styles.coverTop}>{meta.label}</div>}
+      <div className={styles.coverArt} aria-hidden="true">
+        {sprite ? (
+          <PixelSpriteView sprite={sprite} />
+        ) : (
+          <div dangerouslySetInnerHTML={{ __html: coverSvgs[key] }} />
+        )}
+      </div>
+      {!sprite && <div className={styles.coverBottom}>{courseTopicLabel(title, description, getAppLocale(), courseId)}</div>}
     </div>
   )
 }
