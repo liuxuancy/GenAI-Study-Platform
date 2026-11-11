@@ -93,14 +93,18 @@
 |---|---|
 | `id` | 主键 |
 | `user_id` | 学生 |
-| `event_type` | `course_session`、`course_progress`、`quiz_answer`、`quiz_submit`、`chapter_qa` |
+| `event_type` | `course_session`、`course_progress`、`quiz_answer`、`quiz_submit`、`chapter_qa`、`story_session` |
 | `course_id` | 课程，可空 |
 | `quiz_id` | 套题，可空 |
 | `ref_key` | 附加键，如章节 key，可空 |
 | `duration_seconds` | 时长（秒），非负 |
 | `occurred_at` | 发生时间（UTC） |
 
-写入来源：课程页心跳、保存进度、答题/提交测验、章节问答。
+写入来源：课程页心跳、保存进度、答题/提交测验、章节问答、故事模式生成。
+
+| 方法 | 路径 | 说明 |
+|---|---|---|
+| POST | `/api/student/courses/:id/chapters/:chapterKey/gal-script` | 按章节生成 Gal 故事剧本（body 可选 `provider`、`activityKey`、`detailLevel`、`personality`）。响应 `script[]` 含 `kind: dialogue \| choice`（章内 `quiz_game` 会合并为 choice），并返回 `chapterKey`、`nextChapterKey`（无下一章时省略）。通关后前端会将该章小节标记为已完成。 |
 
 ### 学习中心 API
 

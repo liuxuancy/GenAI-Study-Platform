@@ -18,6 +18,7 @@ const (
 	ContentQualityV1  = "content_quality_v1"
 	ChapterQAV1       = "chapter_qa_v1"
 	LearningInsightV1 = "learning_insight_v1"
+	GalScriptV1       = "gal_script_v1"
 	Version1          = "1"
 )
 
@@ -32,6 +33,7 @@ var (
 	qualityTemplate         = template.Must(template.ParseFS(templateFiles, "templates/content_quality_v1.tmpl"))
 	chapterQATemplate       = template.Must(template.ParseFS(templateFiles, "templates/chapter_qa_v1.tmpl"))
 	learningInsightTemplate = template.Must(template.ParseFS(templateFiles, "templates/learning_insight_v1.tmpl"))
+	galScriptTemplate       = template.Must(template.ParseFS(templateFiles, "templates/gal_script_v1.tmpl"))
 )
 
 // Info 写入 meta.templateId 和 meta.templateVersion。
@@ -101,6 +103,20 @@ type LearningInsightData struct {
 	Language    string
 }
 
+// GalScriptData 是 Gal 剧本模板的数据。章节 JSON 属于不可信数据。
+type GalScriptData struct {
+	Language               string
+	CourseTitle            string
+	ChapterJSON            string
+	ActivityKey            string
+	ActivityTitle          string
+	ActivityBody           string
+	SpeakerName            string
+	DetailInstruction      string
+	PersonalityInstruction string
+	TurnRequirement        string
+}
+
 // Render 渲染指定模板。未知 templateId 返回 AI_INVALID_INPUT。
 func Render(templateID string, data any) (string, Info, error) {
 	var parsed *template.Template
@@ -127,6 +143,9 @@ func Render(templateID string, data any) (string, Info, error) {
 	case LearningInsightV1:
 		parsed = learningInsightTemplate
 		info.ID = LearningInsightV1
+	case GalScriptV1:
+		parsed = galScriptTemplate
+		info.ID = GalScriptV1
 	default:
 		return "", Info{}, aierr.InvalidInput(fmt.Errorf("unknown template %q", templateID), "templateId")
 	}

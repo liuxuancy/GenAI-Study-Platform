@@ -89,6 +89,24 @@ export function doneIdsAfterComplete(doneIds: ReadonlySet<string>, activityId: s
   return { next, changed: true }
 }
 
+/** 将一章内所有小节标记为已完成。 */
+export function markChapterActivitiesDone(
+  chapterId: string,
+  activities: readonly ActivityRef[],
+  doneIds: ReadonlySet<string>,
+) {
+  const next = new Set(doneIds)
+  let changed = false
+  for (const activity of activities) {
+    if (activity.chapterId !== chapterId || next.has(activity.id)) {
+      continue
+    }
+    next.add(activity.id)
+    changed = true
+  }
+  return { next, changed }
+}
+
 export function mergeProgressPercent(serverPercent: number, computedPercent: number) {
   return Math.max(clampPercent(serverPercent), clampPercent(computedPercent))
 }

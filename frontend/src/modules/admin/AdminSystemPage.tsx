@@ -19,6 +19,7 @@ const USAGE_SCENES = [
   'generate_activity',
   'evaluate_course',
   'chapter_qa',
+  'gal_story',
   'learning_insight',
   'study_note',
 ] as const
