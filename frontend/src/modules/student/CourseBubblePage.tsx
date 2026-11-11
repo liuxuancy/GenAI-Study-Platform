@@ -878,12 +878,6 @@ function CourseWorkspace({
                 <div className={styles.contentBody}>
                   <CourseMarkdownBody source={activeActivity.node.note} codeClassName={styles.codeBlock} />
                 </div>
-
-                {activeChapter.node.questionId ? (
-                  <Link className={styles.quizLink} to={`/student/questions/${activeChapter.node.questionId}`}>
-                    {t('student.bubble.chapterQuiz')}
-                  </Link>
-                ) : null}
                 </div>
                 {selectionPop ? (
                   <button
