@@ -1,0 +1,34 @@
+{
+  "title": "Mock Gal Chapter",
+  "script": [
+    {
+      "kind": "dialogue",
+      "speaker": "小洞",
+      "text": "同学，这一章的内容我已经读完了，一起过一遍吧。",
+      "emotion": "happy",
+      "note": "示例术语"
+    },
+    {
+      "kind": "dialogue",
+      "speaker": "小洞",
+      "text": "先从本章目标开始，别走神哦。",
+      "emotion": "normal"
+    },
+    {
+      "kind": "choice",
+      "prompt": "本章最核心的 takeaway 是？",
+      "options": ["选项 A", "选项 B"],
+      "correctIndex": 0,
+      "feedbackCorrect": "没错，继续保持。",
+      "feedbackWrong": "再回忆一下刚才的内容哦。",
+      "emotionOnCorrect": "happy",
+      "emotionOnWrong": "shy"
+    },
+    {
+      "kind": "dialogue",
+      "speaker": "小洞",
+      "text": "核心知识点讲完了，来个小结。",
+      "emotion": "proud"
+    }
+  ]
+}

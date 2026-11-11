@@ -8,6 +8,7 @@ import (
 
 	"caveclass/internal/ai"
 	aicourse "caveclass/internal/ai/course"
+	"caveclass/internal/ai/gal"
 	"caveclass/internal/framework/access"
 	"caveclass/internal/framework/testutil"
 	"caveclass/internal/usage"
@@ -185,4 +186,53 @@ func TestChapterQAQualityReportAndMermaid(t *testing.T) {
 		t.Fatalf("mermaid = %q", graph.Source)
 	}
 	assertCount(t, database, "SELECT COUNT(*) FROM ai_usage WHERE user_id = ? AND scene = ?", 1, teacher.UserID, usage.SceneEvaluateCourse)
+}
+
+func TestGenerateGalScriptRecordsUsageAndEvent(t *testing.T) {
+	t.Setenv("AI_PROVIDER", "mock")
+	aiService, err := ai.NewFromEnv()
+	if err != nil {
+		t.Fatal(err)
+	}
+	database := testutil.NewDB(t, Module{})
+	if err := Seed(context.Background(), database); err != nil {
+		t.Fatal(err)
+	}
+	service := NewService(database)
+	service.UseAI(aiService)
+
+	student := studentPrincipal(t, database, "student1")
+	studentCourse, err := service.CreateStudentCourse(context.Background(), student, CreateCourseInput{Title: "Gal story"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	generated, err := service.GenerateOwnedCourse(context.Background(), student, studentCourse.ID, GenerateCourseInput{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	chapterKey := generated.Course.(*CourseDetail).Tree.Children[0].Key
+	result, err := service.GenerateGalScript(context.Background(), student, studentCourse.ID, chapterKey, GalScriptInput{
+		DetailLevel: "brief",
+		Personality: "gentle",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.Title == "" || len(result.Script) == 0 {
+		t.Fatalf("result = %+v", result)
+	}
+	if result.ChapterKey != chapterKey {
+		t.Fatalf("chapterKey = %q", result.ChapterKey)
+	}
+	hasChoice := false
+	for _, item := range result.Script {
+		if item.Kind == gal.KindChoice {
+			hasChoice = true
+		}
+	}
+	if !hasChoice {
+		t.Fatalf("expected choice in script, got %+v", result.Script)
+	}
+	assertCount(t, database, "SELECT COUNT(*) FROM ai_usage WHERE user_id = ? AND scene = ?", 1, student.UserID, usage.SceneGalStory)
+	assertCount(t, database, "SELECT COUNT(*) FROM student_learning_event WHERE user_id = ? AND event_type = ?", 1, student.UserID, EventStorySession)
 }

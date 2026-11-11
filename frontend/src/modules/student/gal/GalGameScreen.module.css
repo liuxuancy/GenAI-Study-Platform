@@ -1,0 +1,613 @@
+.galRoot {
+  --gal-dialog-gap: 100px;
+  --gal-sprite-slot: clamp(7.5rem, 34cqi, 22rem);
+  container-type: inline-size;
+  position: relative;
+  width: 100%;
+  min-height: min(76vh, 680px);
+  height: 100%;
+  overflow: hidden;
+  border-radius: 18px;
+  border: 1px solid #e3e8e5;
+  background:
+    radial-gradient(120% 90% at 80% 15%, rgb(58 123 99 / 14%) 0%, transparent 55%),
+    radial-gradient(90% 70% at 10% 90%, rgb(148 92 122 / 12%) 0%, transparent 50%),
+    linear-gradient(165deg, #f4f6f2 0%, #e8eef5 42%, #f0ebe8 100%);
+  cursor: pointer;
+  user-select: none;
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 75%),
+    0 12px 32px rgb(24 35 43 / 8%);
+}
+
+.galRootChoice {
+  cursor: default;
+}
+
+.sceneBackground {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center;
+  z-index: 0;
+  pointer-events: none;
+}
+
+.sceneVignette {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: radial-gradient(85% 80% at 50% 40%, transparent 45%, rgb(24 35 43 / 12%) 100%);
+  z-index: 1;
+}
+
+.progressBar {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 4;
+  height: 4px;
+  background: rgb(255 255 255 / 35%);
+  pointer-events: none;
+}
+
+.progressFill {
+  height: 100%;
+  background: linear-gradient(90deg, #3a7b63, #5b9a7c);
+  transition: width 0.35s ease;
+  border-radius: 0 2px 2px 0;
+}
+
+.progressLabel {
+  position: absolute;
+  top: 12px;
+  left: 16px;
+  z-index: 4;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: rgb(255 255 255 / 78%);
+  border: 1px solid rgb(255 255 255 / 90%);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  color: #5a6670;
+  pointer-events: none;
+  backdrop-filter: blur(6px);
+}
+
+.spriteWrap {
+  position: absolute;
+  right: clamp(0.35rem, 1.6vw, 1.5rem);
+  bottom: 0;
+  height: 92%;
+  z-index: 4;
+  pointer-events: none;
+  animation: galJump 0.4s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+@keyframes galJump {
+  0% {
+    transform: translateY(16px) scale(0.98);
+    opacity: 0.85;
+  }
+  55% {
+    transform: translateY(-8px) scale(1.01);
+    opacity: 1;
+  }
+  100% {
+    transform: translateY(0) scale(1);
+    opacity: 1;
+  }
+}
+
+.sprite {
+  height: 100%;
+  width: auto;
+  max-width: min(400px, calc(var(--gal-sprite-slot) - 1.25rem));
+  object-fit: contain;
+  object-position: bottom right;
+  filter: drop-shadow(0 16px 28px rgb(24 35 43 / 20%));
+}
+
+.uiLayer {
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: flex-end;
+  padding: 0 clamp(1rem, 3vw, 2.5rem) clamp(1rem, 2.5vw, 1.75rem);
+  pointer-events: none;
+}
+
+.scriptColumn {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  width: calc(100% - var(--gal-sprite-slot) - var(--gal-dialog-gap));
+  max-width: 56rem;
+  max-height: 100%;
+  min-height: 0;
+  pointer-events: none;
+}
+
+.notePop {
+  align-self: stretch;
+  flex-shrink: 0;
+  max-width: 100%;
+  margin-bottom: 0.75rem;
+  margin-right: 0;
+  padding: 0.7rem 0.9rem;
+  border-radius: 12px;
+  border: 1px solid #f0d68a;
+  background: linear-gradient(180deg, #fffbeb 0%, #fff9e8 100%);
+  color: #7c5b14;
+  font-size: 0.84rem;
+  line-height: 1.45;
+  pointer-events: auto;
+  box-shadow: 0 10px 24px rgb(180 134 30 / 12%);
+}
+
+.noteLabel {
+  font-size: 0.68rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #b8861a;
+  margin-bottom: 0.25rem;
+}
+
+.controls {
+  display: flex;
+  flex-shrink: 0;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 0.45rem;
+  margin-bottom: 0.65rem;
+  pointer-events: auto;
+}
+
+.controlBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.4rem 0.9rem;
+  border-radius: 999px;
+  border: 1px solid rgb(255 255 255 / 80%);
+  font-size: 0.78rem;
+  font-weight: 600;
+  background: rgb(255 255 255 / 88%);
+  color: #4d5a63;
+  cursor: pointer;
+  backdrop-filter: blur(8px);
+  transition:
+    background 0.15s ease,
+    color 0.15s ease,
+    border-color 0.15s ease,
+    transform 0.15s ease;
+}
+
+.controlLabel {
+  display: inline;
+}
+
+.controlBtn:hover {
+  color: #273c41;
+  background: #fff;
+  border-color: #d8e4de;
+  transform: translateY(-1px);
+}
+
+.controlBtnActive {
+  background: linear-gradient(135deg, #3a7b63, #4d9175);
+  border-color: transparent;
+  color: #fff;
+}
+
+.controlBtnActive:hover {
+  color: #fff;
+}
+
+.dialogBox {
+  position: relative;
+  flex-shrink: 0;
+  width: 100%;
+  min-height: 10rem;
+  padding: 1.35rem 1.5rem 1.6rem;
+  border-radius: 16px;
+  border: 1px solid rgb(255 255 255 / 70%);
+  background: rgb(255 255 255 / 94%);
+  backdrop-filter: blur(12px);
+  box-shadow:
+    0 20px 48px rgb(24 35 43 / 14%),
+    inset 0 1px 0 rgb(255 255 255 / 100%);
+  pointer-events: auto;
+}
+
+.dialogBoxChoice {
+  min-height: 5.25rem;
+  border-color: rgb(58 123 99 / 28%);
+  box-shadow:
+    0 20px 48px rgb(24 35 43 / 14%),
+    inset 0 0 0 1px rgb(58 123 99 / 8%);
+}
+
+.dialogBoxFeedbackOk {
+  border-color: rgb(58 123 99 / 35%);
+}
+
+.dialogBoxFeedbackWarn {
+  border-color: rgb(196 120 90 / 35%);
+}
+
+.nameTag {
+  position: absolute;
+  top: -1.15rem;
+  left: 1.5rem;
+  max-width: calc(100% - 2rem);
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.35rem 0.2rem 0.35rem 0.2rem;
+  border-radius: 999px;
+  border: none;
+  background: transparent;
+  transform: none;
+  box-shadow: none;
+}
+
+.speakerBadge {
+  padding: 0.35rem 1rem;
+  border-radius: 999px;
+  border: 2px solid #fff;
+  background: linear-gradient(135deg, #2f6b57, #3a7b63);
+  color: #fff;
+  font-weight: 700;
+  font-size: 0.92rem;
+  box-shadow: 0 6px 16px rgb(58 123 99 / 28%);
+}
+
+.chapterBadge {
+  padding: 0.3rem 0.75rem;
+  border-radius: 999px;
+  background: rgb(255 255 255 / 92%);
+  border: 1px solid #e0e6e3;
+  color: #5a6670;
+  font-size: 0.75rem;
+  font-weight: 600;
+  max-width: min(14rem, 40vw);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dialogText {
+  margin-top: 0.35rem;
+  font-size: clamp(1rem, 2.2vw, 1.12rem);
+  line-height: 1.72;
+  font-weight: 500;
+  color: #18232b;
+  letter-spacing: 0.01em;
+}
+
+.dialogTextChoice {
+  max-height: 6.75rem;
+  overflow-y: auto;
+  font-weight: 600;
+  color: #273c41;
+}
+
+.caret {
+  display: inline-block;
+  width: 2px;
+  height: 1.15em;
+  margin-left: 2px;
+  background: #3a7b63;
+  vertical-align: text-bottom;
+  animation: galBlink 0.75s step-end infinite;
+}
+
+@keyframes galBlink {
+  50% {
+    opacity: 0;
+  }
+}
+
+.nextHint {
+  position: absolute;
+  right: 1.15rem;
+  bottom: 1rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 2rem;
+  height: 2rem;
+  border-radius: 999px;
+  background: rgb(58 123 99 / 12%);
+  color: #3a7b63;
+  animation: galBounce 1.2s ease infinite;
+}
+
+@keyframes galBounce {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(3px);
+  }
+}
+
+.logOverlay {
+  position: absolute;
+  inset: 0;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2rem;
+  background: rgb(24 35 43 / 48%);
+  backdrop-filter: blur(4px);
+  pointer-events: auto;
+}
+
+.logPanel {
+  width: min(48rem, 100%);
+  max-height: 80%;
+  display: flex;
+  flex-direction: column;
+  border-radius: 14px;
+  overflow: hidden;
+  background: #fff;
+  border: 1px solid #e9ebe8;
+  box-shadow: 0 24px 56px rgb(24 35 43 / 22%);
+}
+
+.logHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.85rem 1rem;
+  background: #273c41;
+  color: #fff;
+  font-weight: 700;
+  font-size: 0.95rem;
+}
+
+.logBody {
+  flex: 1;
+  overflow-y: auto;
+  padding: 1rem 1.25rem;
+  background: #f7f8f5;
+}
+
+.logLine {
+  padding-bottom: 0.65rem;
+  margin-bottom: 0.65rem;
+  border-bottom: 1px solid #e9ebe8;
+}
+
+.logSpeaker {
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: #3a7b63;
+  margin-bottom: 0.2rem;
+}
+
+.hideTap {
+  position: absolute;
+  inset: 0;
+  z-index: 5;
+  cursor: pointer;
+}
+
+.endText {
+  display: grid;
+  place-items: center;
+  min-height: 12rem;
+  color: #74808b;
+  font-weight: 600;
+}
+
+.choiceList {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  gap: 0.5rem;
+  width: 100%;
+  min-height: 0;
+  max-height: min(42vh, 17.5rem);
+  margin: 0 0 1.5rem;
+  overflow-y: auto;
+  pointer-events: auto;
+}
+
+.choiceBtn {
+  display: flex;
+  flex-shrink: 0;
+  align-items: flex-start;
+  gap: 0.65rem;
+  text-align: left;
+  padding: 0.65rem 0.85rem;
+  border-radius: 12px;
+  border: 1px solid #e0e6e3;
+  background: #fff;
+  font-weight: 500;
+  font-size: 0.92rem;
+  color: #273c41;
+  cursor: pointer;
+  transition:
+    border-color 0.15s ease,
+    background 0.15s ease,
+    transform 0.12s ease;
+}
+
+.choiceBtn:hover:not(:disabled) {
+  border-color: #9bc4b0;
+  background: #f4faf7;
+  transform: translateX(2px);
+}
+
+.choiceBtn:disabled {
+  cursor: default;
+  transform: none;
+}
+
+.choiceIndex {
+  flex-shrink: 0;
+  display: grid;
+  place-items: center;
+  width: 1.65rem;
+  height: 1.65rem;
+  border-radius: 8px;
+  background: #eef4f1;
+  color: #3a7b63;
+  font-size: 0.75rem;
+  font-weight: 800;
+}
+
+.choiceBtnPickedOk {
+  border-color: #3a7b63;
+  background: #eef8f3;
+}
+
+.choiceBtnPickedWarn {
+  border-color: #d4a088;
+  background: #fdf5f1;
+}
+
+.choiceBtnPickedOk .choiceIndex {
+  background: #3a7b63;
+  color: #fff;
+}
+
+.choiceBtnPickedWarn .choiceIndex {
+  background: #de795c;
+  color: #fff;
+}
+
+.completeOverlay {
+  display: grid;
+  place-items: center;
+  min-height: min(76vh, 680px);
+  padding: 2rem;
+  background:
+    radial-gradient(70% 60% at 50% 30%, rgb(58 123 99 / 18%) 0%, transparent 70%),
+    transparent;
+}
+
+.completeCard {
+  max-width: 22rem;
+  width: 100%;
+  padding: 2rem 1.75rem;
+  border-radius: 18px;
+  background: rgb(255 255 255 / 96%);
+  text-align: center;
+  border: 1px solid #e3e8e5;
+  box-shadow: 0 20px 48px rgb(24 35 43 / 12%);
+}
+
+.completeIcon {
+  display: grid;
+  place-items: center;
+  width: 3.25rem;
+  height: 3.25rem;
+  margin: 0 auto 1rem;
+  border-radius: 14px;
+  background: linear-gradient(145deg, #3a7b63, #5b9a7c);
+  color: #fff;
+  font-size: 1.35rem;
+  font-weight: 800;
+  box-shadow: 0 8px 20px rgb(58 123 99 / 28%);
+}
+
+.completeCard h2 {
+  margin: 0 0 0.5rem;
+  font-size: 1.25rem;
+  color: #18232b;
+}
+
+.completeCard p {
+  margin: 0;
+  font-size: 0.9rem;
+  line-height: 1.55;
+  color: #5a6670;
+}
+
+.completeActions {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  margin-top: 1.35rem;
+}
+
+.completeActions :global(.ant-btn-primary) {
+  height: 40px;
+  border-radius: 10px;
+  background: #3a7b63;
+  font-weight: 600;
+}
+
+.completeActions :global(.ant-btn-primary:hover) {
+  background: #2f6b57 !important;
+}
+
+.completeActions :global(.ant-btn-default) {
+  height: 38px;
+  border-radius: 10px;
+}
+
+.courseDone {
+  margin: 0 0 0.25rem;
+  padding: 0.65rem 0.75rem;
+  border-radius: 10px;
+  background: #eef8f3;
+  color: #2f6b57;
+  font-weight: 700;
+  font-size: 0.9rem;
+}
+
+@media (max-width: 720px) {
+  .galRoot {
+    --gal-dialog-gap: 48px;
+    --gal-sprite-slot: clamp(6.75rem, 38cqi, 12.5rem);
+  }
+
+  .spriteWrap {
+    right: 0.25rem;
+  }
+
+  .scriptColumn {
+    max-width: none;
+  }
+
+  .choiceList {
+    max-height: min(34vh, 12.5rem);
+  }
+
+  .dialogBox {
+    min-height: 6.75rem;
+    padding: 1.15rem 1rem 1.4rem;
+  }
+
+  .chapterBadge {
+    display: none;
+  }
+
+  .controls {
+    gap: 0.35rem;
+  }
+
+  .controlBtn {
+    padding: 0.35rem 0.65rem;
+    font-size: 0.72rem;
+  }
+
+  .controlLabel {
+    display: none;
+  }
+}

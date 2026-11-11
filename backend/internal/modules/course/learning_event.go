@@ -14,6 +14,7 @@ const (
 	estimatedProgressMinutes   = 5
 	estimatedQuizAnswerMinutes = 3
 	estimatedChapterQAMinutes  = 5
+	estimatedStorySessionMinutes = 5
 )
 
 // HeartbeatInput 课程页上报学习时长。
@@ -78,6 +79,8 @@ func effectiveEventMinutes(eventType string, durationSeconds int) int {
 		return estimatedQuizAnswerMinutes
 	case EventChapterQA:
 		return estimatedChapterQAMinutes
+	case EventStorySession:
+		return estimatedStorySessionMinutes
 	default:
 		return 0
 	}

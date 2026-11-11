@@ -18,6 +18,7 @@ const (
 	SceneLearningInsight       = "learning_insight"
 	SceneGeneratePixelSprite   = "generate_pixel_sprite"
 	SceneGeneratePixelDialogue = "generate_pixel_dialogue"
+	SceneGalStory              = "gal_story"
 )
 
 // Usage 对应 ai_usage。一次模型调用一行。不存提示词，不存密钥。

@@ -20,6 +20,7 @@ const (
 	LearningInsightV1 = "learning_insight_v1"
 	PixelSpriteV1     = "pixel_sprite_v1"
 	PixelDialogueV1   = "pixel_dialogue_v1"
+	GalScriptV1       = "gal_script_v1"
 	Version1          = "1"
 )
 
@@ -36,6 +37,7 @@ var (
 	learningInsightTemplate = template.Must(template.ParseFS(templateFiles, "templates/learning_insight_v1.tmpl"))
 	pixelSpriteTemplate     = template.Must(template.ParseFS(templateFiles, "templates/pixel_sprite_v1.tmpl"))
 	pixelDialogueTemplate   = template.Must(template.ParseFS(templateFiles, "templates/pixel_dialogue_v1.tmpl"))
+	galScriptTemplate       = template.Must(template.ParseFS(templateFiles, "templates/gal_script_v1.tmpl"))
 )
 
 // Info 写入 meta.templateId 和 meta.templateVersion。
@@ -121,6 +123,20 @@ type PixelSpriteData struct {
 	PreviousSprite     string
 }
 
+// GalScriptData 是 Gal 剧本模板的数据。章节 JSON 属于不可信数据。
+type GalScriptData struct {
+	Language               string
+	CourseTitle            string
+	ChapterJSON            string
+	ActivityKey            string
+	ActivityTitle          string
+	ActivityBody           string
+	SpeakerName            string
+	DetailInstruction      string
+	PersonalityInstruction string
+	TurnRequirement        string
+}
+
 // Render 渲染指定模板。未知 templateId 返回 AI_INVALID_INPUT。
 func Render(templateID string, data any) (string, Info, error) {
 	var parsed *template.Template
@@ -153,6 +169,9 @@ func Render(templateID string, data any) (string, Info, error) {
 	case PixelDialogueV1:
 		parsed = pixelDialogueTemplate
 		info.ID = PixelDialogueV1
+	case GalScriptV1:
+		parsed = galScriptTemplate
+		info.ID = GalScriptV1
 	default:
 		return "", Info{}, aierr.InvalidInput(fmt.Errorf("unknown template %q", templateID), "templateId")
 	}

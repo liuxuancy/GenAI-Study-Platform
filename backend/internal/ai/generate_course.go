@@ -133,7 +133,12 @@ func (service *Service) runModel(ctx context.Context, scene, templateID, request
 
 // promptExpectsJSONResponse 为 false 的模板输出 Markdown 等纯文本，不能对 DeepSeek 启用 json_object。
 func promptExpectsJSONResponse(templateID string) bool {
-	return templateID != prompt.ChapterQAV1
+	switch templateID {
+	case prompt.ChapterQAV1:
+		return false
+	default:
+		return true
+	}
 }
 
 func applyReport(meta *Meta, report parse.Report) {

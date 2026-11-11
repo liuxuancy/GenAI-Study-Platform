@@ -36,6 +36,7 @@ const (
 	EventQuizAnswer     = "quiz_answer"
 	EventQuizSubmit     = "quiz_submit"
 	EventChapterQA      = "chapter_qa"
+	EventStorySession   = "story_session"
 )
 
 // 库里的 language 为空时，读接口按这个值，不回写。
