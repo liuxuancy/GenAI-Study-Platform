@@ -551,6 +551,50 @@
   height: 100%;
 }
 
+.coverHearts {
+  position: absolute;
+  z-index: 4;
+  top: 8px;
+  right: 12px;
+  width: 44px;
+  height: 33px;
+  fill: #e85d75;
+  shape-rendering: crispEdges;
+  image-rendering: pixelated;
+  filter: drop-shadow(0 1px 1px rgb(255 255 255 / 75%));
+  pointer-events: none;
+}
+
+.coverHearts path {
+  transform-box: fill-box;
+  transform-origin: center;
+}
+
+.cover:hover .coverHearts path {
+  animation: coverHeartFloat 2.4s ease-in-out infinite;
+}
+
+.coverHearts path:last-child {
+  animation-delay: -1.2s;
+  animation-direction: reverse;
+}
+
+@keyframes coverHeartFloat {
+  0%,
+  100% {
+    transform: translate(0, 0) rotate(0);
+  }
+  50% {
+    transform: translate(2px, -5px) rotate(5deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cover:hover .coverHearts path {
+    animation: none;
+  }
+}
+
 .coverGit { background: #f8e1d5; color: #8b3b2c; }
 .coverDb { background: #dceaf1; color: #285974; }
 .coverAlgo { background: #eee3fc; color: #5b3f85; }

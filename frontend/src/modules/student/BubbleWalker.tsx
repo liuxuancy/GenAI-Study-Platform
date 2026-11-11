@@ -42,11 +42,12 @@ function canvasPoint(canvas: HTMLElement, clientX: number, clientY: number): Poi
   }
 }
 
-export function BubbleWalker({ sprite, route, bubbles, dialogue }: {
+export function BubbleWalker({ sprite, route, bubbles, dialogue, showHearts = false }: {
   sprite: PixelSprite
   route: WalkRoute
   bubbles: readonly PlacedBubble[]
   dialogue: CourseAvatar['dialogue']
+  showHearts?: boolean
 }) {
   const { locale, t } = useI18n()
   const walkerRef = useRef<HTMLDivElement>(null)
@@ -245,6 +246,12 @@ export function BubbleWalker({ sprite, route, bubbles, dialogue }: {
       style={{ transform: `translate(${route.start.x}px, ${route.start.y}px) translate(-50%, -100%)` }}
     >
       {bubble && dialogue ? <span className={styles.walkerDialogue} role="status">{dialogue[locale][bubble]}</span> : null}
+      {showHearts ? (
+        <svg className={styles.walkerHearts} viewBox="0 0 64 48" aria-hidden="true">
+          <path d="M15 5H9v3H6v3H3v9h3v6h3v3h3v3h3v3h3v-3h3v-3h3v-3h3v-6h3v-9h-3V8h-3V5h-6v3h-3z" />
+          <path d="M48 15h-4v2h-2v2h-2v6h2v4h2v2h2v2h2v2h2v-2h2v-2h2v-2h2v-4h2v-6h-2v-2h-2v-2h-4v2h-2z" />
+        </svg>
+      ) : null}
       <button
         ref={buttonRef}
         type="button"

@@ -141,11 +141,13 @@ export function CourseCover({
   description,
   courseId,
   sprite,
+  affection = 0,
 }: {
   title: string
   description?: string
   courseId?: number
   sprite?: PixelSprite | null
+  affection?: number
 }) {
   const key = resolveCourseCoverKey(title, description, courseId)
   const meta = coverMeta[key]
@@ -161,6 +163,12 @@ export function CourseCover({
           <div dangerouslySetInnerHTML={{ __html: coverSvgs[key] }} />
         )}
       </div>
+      {affection >= 100 ? (
+        <svg className={styles.coverHearts} viewBox="0 0 64 48" aria-hidden="true" data-affection-hearts="true">
+          <path d="M15 5H9v3H6v3H3v9h3v6h3v3h3v3h3v3h3v-3h3v-3h3v-3h3v-6h3v-9h-3V8h-3V5h-6v3h-3z" />
+          <path d="M48 15h-4v2h-2v2h-2v6h2v4h2v2h2v2h2v2h2v-2h2v-2h2v-2h2v-4h2v-6h-2v-2h-2v-2h-4v2h-2z" />
+        </svg>
+      ) : null}
       {!sprite && <div className={styles.coverBottom}>{courseTopicLabel(title, description, getAppLocale(), courseId)}</div>}
     </div>
   )

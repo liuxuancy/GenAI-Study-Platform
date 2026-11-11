@@ -262,6 +262,7 @@ function CourseCard({ course }: { course: StudentCourse }) {
           description={course.description}
           courseId={course.id}
           sprite={course.avatar ? spriteForAffection(course.avatar, course.affection) : null}
+          affection={course.affection}
         />
       </Link>
       <div className={homeStyles.cardBody}>

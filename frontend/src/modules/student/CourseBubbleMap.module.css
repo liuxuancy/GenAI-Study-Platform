@@ -90,8 +90,54 @@
 }
 
 .walkerSprite {
+  position: relative;
+  z-index: 1;
   display: block;
   transform-origin: center bottom;
+}
+
+.walkerHearts {
+  position: absolute;
+  z-index: 0;
+  left: 50%;
+  top: -10px;
+  width: 32px;
+  height: 24px;
+  overflow: visible;
+  fill: #e85d75;
+  shape-rendering: crispEdges;
+  image-rendering: pixelated;
+  transform: translateX(-50%);
+  pointer-events: none;
+}
+
+.walkerHearts path {
+  --heart-x: -8px;
+  --heart-y: 0px;
+  transform: translate(var(--heart-x), var(--heart-y));
+  animation: walkerHeartFloat 2.4s ease-in-out infinite;
+}
+
+.walkerHearts path:last-child {
+  --heart-x: 8px;
+  --heart-y: 12px;
+  animation-delay: -1.2s;
+}
+
+@keyframes walkerHeartFloat {
+  0%,
+  100% {
+    transform: translate(var(--heart-x), var(--heart-y));
+  }
+  50% {
+    transform: translate(calc(var(--heart-x) + 3px), calc(var(--heart-y) - 6px));
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .walkerHearts path {
+    animation: none;
+  }
 }
 
 .walkerMoving .walkerSprite {

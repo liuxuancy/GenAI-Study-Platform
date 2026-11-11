@@ -300,6 +300,7 @@ export function CourseBubblePage() {
               provider={aiProvider}
               userId={currentUser.id}
               initialPercent={course.percent ?? 0}
+              affection={course.affection}
               sprite={course.avatar ? spriteForAffection(course.avatar, course.affection) : null}
               avatar={course.avatar}
               viewTab={courseViewTab}
@@ -383,6 +384,7 @@ function CourseWorkspace({
   provider,
   userId,
   initialPercent,
+  affection,
   sprite,
   avatar,
   viewTab,
@@ -395,6 +397,7 @@ function CourseWorkspace({
   provider?: string
   userId: number
   initialPercent: number
+  affection: number
   sprite: PixelSprite | null
   avatar: CourseAvatar | null
   viewTab: CourseViewTab
@@ -725,7 +728,7 @@ function CourseWorkspace({
   if (mapView) {
     return (
       <div className={styles.mapWorkspace}>
-        <CourseBubbleMap tree={tree} embedded doneIds={doneIds} sprite={sprite} dialogue={avatar?.dialogue ?? null} />
+        <CourseBubbleMap tree={tree} embedded doneIds={doneIds} affection={affection} sprite={sprite} dialogue={avatar?.dialogue ?? null} />
       </div>
     )
   }
