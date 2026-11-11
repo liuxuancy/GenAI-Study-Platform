@@ -158,6 +158,9 @@ func run() error {
 // prepareDatabase 建表、写种子数据；loadDemo 为 true 时再写入演示数据。
 func prepareDatabase(database *gorm.DB, registry *module.Registry, loadDemo bool) error {
 	ctx := context.Background()
+	if err := course.EnsurePreAutoMigrate(database); err != nil {
+		return err
+	}
 	models := append(model.GetFrameworkModels(), registry.GetModels()...)
 	if err := db.Migrate(database, models...); err != nil {
 		return err
