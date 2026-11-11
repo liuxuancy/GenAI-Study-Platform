@@ -13,7 +13,7 @@ import type {
 } from '@/modules/student/quiz/quizTypes'
 
 const studentGeneratedTitle =
-  /^(.*) · (easy|medium|hard) · \d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/
+  /^(.*) · (easy|medium|hard) · \d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}(?: · [0-9a-f]{24})?$/
 const chapterQuizTitle = /^Quiz · (.+) · \d+ · \d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/
 const excelImportTitle = /^Excel 导入 · \d+ · \d+$/
 const teacherBankTitle = /^教师题库 · \d+ · \d+$/
@@ -126,6 +126,7 @@ export function mapStudentQuestionToView(
     targetType: sectionKey ? 'section' : chapterKey ? 'chapter' : 'unlinked',
     chapterKey,
     chapterName: item.chapterName?.trim() || null,
+    chapterMissing: item.chapterMissing === true,
     sectionKey,
     sectionName: item.sectionName?.trim() || null,
     creationMethod: inferCreationMethod(item),
@@ -162,7 +163,9 @@ export function nodePathLabel(view: StudentQuizView) {
   if (!view.chapterKey) {
     return translateApp(getAppLocale(), 'student.quiz.unlinkedNode')
   }
-  const chapter = view.chapterName || view.chapterKey
+  const chapter = view.chapterMissing
+    ? translateApp(getAppLocale(), 'student.quiz.deletedChapter', { chapter: view.chapterName || view.chapterKey })
+    : view.chapterName || view.chapterKey
   if (view.sectionName) {
     return `${chapter} / ${view.sectionName}`
   }

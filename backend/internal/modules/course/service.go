@@ -166,6 +166,7 @@ type QuestionListItem struct {
 	CourseID       int64   `json:"courseId"`
 	ChapterKey     string  `json:"chapterKey,omitempty"`
 	ChapterName    string  `json:"chapterName,omitempty"`
+	ChapterMissing bool    `json:"chapterMissing,omitempty"`
 	CreatorID      int64   `json:"creatorId"`
 	CreatorName    string  `json:"creatorName"`
 	CreatorRole    string  `json:"creatorRole"`
@@ -180,25 +181,27 @@ type QuestionListItem struct {
 }
 
 type questionProgressRow struct {
-	ID             int64
-	Title          string
-	CourseTitle    string
-	Difficulty     string
-	QuestionCount  int
-	Answered       int
-	CourseID       int64
-	ChapterKey     string
-	ContentJSON    string
-	CreatorID      int64
-	CreatorName    string
-	CreatorRole    string
-	IsSubmit       int
-	Score          *int
-	CreationMethod string
-	PublishStatus  string
-	SectionKey     string
-	SectionName    string
-	AttemptID      *int64
+	ID                   int64
+	Title                string
+	CourseTitle          string
+	Difficulty           string
+	QuestionCount        int
+	Answered             int
+	CourseID             int64
+	ChapterKey           string
+	PersonalChapterKey   string
+	PersonalChapterTitle string
+	ContentJSON          string
+	CreatorID            int64
+	CreatorName          string
+	CreatorRole          string
+	IsSubmit             int
+	Score                *int
+	CreationMethod       string
+	PublishStatus        string
+	SectionKey           string
+	SectionName          string
+	AttemptID            *int64
 }
 
 // GetQuestionList 当前学生能看见所属课程的套题，以及自己创建的套题。进度是答题进度，对错不计入。
@@ -211,7 +214,8 @@ func (service *Service) GetQuestionList(ctx context.Context, principal *access.P
 	err := service.database.WithContext(ctx).Raw(
 		`SELECT q.id, q.title, c.title AS course_title, COALESCE(q.difficulty, '') AS difficulty, q.question_count,
 		        SUM(CASE WHEN p.user_option <> '' THEN 1 ELSE 0 END) AS answered,
-		        q.course_id, COALESCE(q.chapter_key, '') AS chapter_key, COALESCE(c.content_json, '') AS content_json,
+		        q.course_id, COALESCE(q.chapter_key, '') AS chapter_key, COALESCE(sqc.chapter_key, '') AS personal_chapter_key,
+		        COALESCE(sqc.chapter_title, '') AS personal_chapter_title, COALESCE(c.content_json, '') AS content_json,
 		        q.creator_id, COALESCE(u.nickname, u.username, '') AS creator_name, COALESCE(u.role, '') AS creator_role,
 		        COALESCE(r.is_submit, 0) AS is_submit,
 		        COALESCE(q.creation_method, '') AS creation_method,
@@ -229,12 +233,13 @@ func (service *Service) GetQuestionList(ctx context.Context, principal *access.P
 		 JOIN course_question_content qc ON qc.question_id = q.id
 		 JOIN course c ON c.id = q.course_id
 		 JOIN sys_user u ON u.id = q.creator_id
+		 LEFT JOIN student_quiz_chapter sqc ON sqc.question_id = q.id
 		 LEFT JOIN course_section cs ON cs.id = q.section_id
 		 LEFT JOIN student_question_progress p ON p.content_id = qc.id AND p.user_id = ?
 		 LEFT JOIN student_question_record r ON r.question_id = q.id AND r.user_id = ?
 		 WHERE (q.creator_id = ? OR `+studentVisibleCourseSQL("c")+`)
 		   AND (q.creator_id = ? OR (`+effectivePublishStatusSQL+` = '`+PublishStatusPublished+`' AND COALESCE(q.publish_status, '') <> '`+PublishStatusArchived+`'))
-		 GROUP BY q.id, q.title, c.title, q.difficulty, q.question_count, q.course_id, q.chapter_key, c.content_json,
+		 GROUP BY q.id, q.title, c.title, q.difficulty, q.question_count, q.course_id, q.chapter_key, sqc.chapter_key, sqc.chapter_title, c.content_json,
 		          q.creator_id, u.nickname, u.username, u.role, r.is_submit, q.creation_method, q.publish_status,
 		          cs.section_key, cs.title, q.section_key
 		 ORDER BY q.id`,
@@ -247,7 +252,7 @@ func (service *Service) GetQuestionList(ctx context.Context, principal *access.P
 
 	items := make([]QuestionListItem, 0, len(rows))
 	for _, row := range rows {
-		chapterName := chapterTitleFromJSON(row.ContentJSON, row.ChapterKey)
+		chapterKey, chapterName, chapterMissing := quizChapterInfo(row.ContentJSON, row.ChapterKey, row.PersonalChapterKey, row.PersonalChapterTitle)
 		items = append(items, QuestionListItem{
 			ID:             row.ID,
 			Title:          row.Title,
@@ -257,8 +262,9 @@ func (service *Service) GetQuestionList(ctx context.Context, principal *access.P
 			QuestionCount:  row.QuestionCount,
 			Percent:        answerPercent(row.Answered, row.QuestionCount),
 			CourseID:       row.CourseID,
-			ChapterKey:     row.ChapterKey,
+			ChapterKey:     chapterKey,
 			ChapterName:    chapterName,
+			ChapterMissing: chapterMissing,
 			CreatorID:      row.CreatorID,
 			CreatorName:    row.CreatorName,
 			CreatorRole:    row.CreatorRole,
@@ -398,7 +404,6 @@ func (service *Service) UpdateCourseProgress(ctx context.Context, principal *acc
 		return nil, err
 	}
 
-
 	if err := service.syncAffectionOnCoursePercent(ctx, principal.UserID, courseID, percent); err != nil {
 		logs.CtxError(ctx, "[UpdateCourseProgress] failed, err: %v", err)
 		return nil, err
@@ -412,16 +417,17 @@ func (service *Service) UpdateCourseProgress(ctx context.Context, principal *acc
 
 // QuestionDetail 一套题的标题、所属课程、进度，以及按 id 排序的题目。未交卷时不返回答案与解析。
 type QuestionDetail struct {
-	ID            int64                 `json:"id"`
-	Title         string                `json:"title"`
-	CourseTitle   string                `json:"courseTitle"`
-	ChapterName   string                `json:"chapterName,omitempty"`
-	Difficulty    string                `json:"difficulty"`
-	QuestionCount int                   `json:"questionCount"`
-	Percent       int                   `json:"percent"`
-	IsSubmit      bool                  `json:"isSubmit"`
-	Score         *int                  `json:"score,omitempty"`
-	Questions     []QuestionContentItem `json:"questions"`
+	ID             int64                 `json:"id"`
+	Title          string                `json:"title"`
+	CourseTitle    string                `json:"courseTitle"`
+	ChapterName    string                `json:"chapterName,omitempty"`
+	ChapterMissing bool                  `json:"chapterMissing,omitempty"`
+	Difficulty     string                `json:"difficulty"`
+	QuestionCount  int                   `json:"questionCount"`
+	Percent        int                   `json:"percent"`
+	IsSubmit       bool                  `json:"isSubmit"`
+	Score          *int                  `json:"score,omitempty"`
+	Questions      []QuestionContentItem `json:"questions"`
 }
 
 // QuestionContentItem 一道题的内容、选项、已保存选项；交卷后含对错、正确答案与解析。
@@ -451,16 +457,18 @@ type questionContentRow struct {
 }
 
 type questionDetailHeaderRow struct {
-	ID            int64
-	Title         string
-	CourseTitle   string
-	ChapterKey    string
-	ContentJSON   string
-	Difficulty    string
-	QuestionCount int
-	Answered      int
-	IsSubmit      int
-	Score         *int
+	ID                   int64
+	Title                string
+	CourseTitle          string
+	ChapterKey           string
+	PersonalChapterKey   string
+	PersonalChapterTitle string
+	ContentJSON          string
+	Difficulty           string
+	QuestionCount        int
+	Answered             int
+	IsSubmit             int
+	Score                *int
 }
 
 // GetQuestion 可见范围与列表相同：能看见所属课程，或这套题是自己创建的。否则 404。
@@ -472,7 +480,8 @@ func (service *Service) GetQuestion(ctx context.Context, principal *access.Princ
 	var row questionDetailHeaderRow
 	result := service.database.WithContext(ctx).Raw(
 		`SELECT q.id, q.title, c.title AS course_title, COALESCE(q.difficulty, '') AS difficulty, q.question_count,
-		        COALESCE(q.chapter_key, '') AS chapter_key, COALESCE(c.content_json, '') AS content_json,
+		        COALESCE(q.chapter_key, '') AS chapter_key, COALESCE(sqc.chapter_key, '') AS personal_chapter_key,
+		        COALESCE(sqc.chapter_title, '') AS personal_chapter_title, COALESCE(c.content_json, '') AS content_json,
 		        SUM(CASE WHEN p.user_option <> '' THEN 1 ELSE 0 END) AS answered,
 		        COALESCE(r.is_submit, 0) AS is_submit,
 		        CASE WHEN COALESCE(r.is_submit, 0) = ?
@@ -484,11 +493,12 @@ func (service *Service) GetQuestion(ctx context.Context, principal *access.Princ
 		 FROM course_question q
 		 JOIN course_question_content qc ON qc.question_id = q.id
 		 JOIN course c ON c.id = q.course_id
+		 LEFT JOIN student_quiz_chapter sqc ON sqc.question_id = q.id
 		 LEFT JOIN student_question_progress p ON p.content_id = qc.id AND p.user_id = ?
 		 LEFT JOIN student_question_record r ON r.question_id = q.id AND r.user_id = ?
 		 WHERE q.id = ? AND (q.creator_id = ? OR `+studentVisibleCourseSQL("c")+`)
 		   AND (q.creator_id = ? OR (`+effectivePublishStatusSQL+` = '`+PublishStatusPublished+`' AND COALESCE(q.publish_status, '') <> '`+PublishStatusArchived+`'))
-		 GROUP BY q.id, q.title, c.title, q.difficulty, q.question_count, r.is_submit, q.chapter_key, c.content_json`,
+		 GROUP BY q.id, q.title, c.title, q.difficulty, q.question_count, r.is_submit, q.chapter_key, sqc.chapter_key, sqc.chapter_title, c.content_json`,
 		append(append([]any{SubmitOn, principal.UserID, principal.UserID, principal.UserID, questionID, principal.UserID}, studentVisibleCourseArgs(principal.UserID)...), principal.UserID)...,
 	).Scan(&row)
 	if result.Error != nil {
@@ -530,17 +540,19 @@ func (service *Service) GetQuestion(ctx context.Context, principal *access.Princ
 		}
 		questions = append(questions, item)
 	}
+	_, chapterName, chapterMissing := quizChapterInfo(row.ContentJSON, row.ChapterKey, row.PersonalChapterKey, row.PersonalChapterTitle)
 	output := &QuestionDetail{
-		ID:            row.ID,
-		Title:         row.Title,
-		CourseTitle:   row.CourseTitle,
-		ChapterName:   chapterTitleFromJSON(row.ContentJSON, row.ChapterKey),
-		Difficulty:    row.Difficulty,
-		QuestionCount: row.QuestionCount,
-		Percent:       answerPercent(row.Answered, row.QuestionCount),
-		IsSubmit:      submitted,
-		Score:         row.Score,
-		Questions:     questions,
+		ID:             row.ID,
+		Title:          row.Title,
+		CourseTitle:    row.CourseTitle,
+		ChapterName:    chapterName,
+		ChapterMissing: chapterMissing,
+		Difficulty:     row.Difficulty,
+		QuestionCount:  row.QuestionCount,
+		Percent:        answerPercent(row.Answered, row.QuestionCount),
+		IsSubmit:       submitted,
+		Score:          row.Score,
+		Questions:      questions,
 	}
 	logs.CtxInfo(ctx, "[GetQuestion] done: id=%d title=%q question_count=%d percent=%d is_submit=%t score=%s", output.ID, output.Title, output.QuestionCount, output.Percent, output.IsSubmit, formatOptionalInt(output.Score))
 	return output, nil

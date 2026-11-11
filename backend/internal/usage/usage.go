@@ -12,6 +12,7 @@ const (
 	SceneGenerateCourse        = "generate_course"
 	SceneGenerateChapter       = "generate_chapter"
 	SceneGenerateActivity      = "generate_activity"
+	SceneStudentQuiz           = "student_quiz"
 	SceneEvaluateCourse        = "evaluate_course"
 	SceneChapterQA             = "chapter_qa"
 	SceneStudyNote             = "study_note"

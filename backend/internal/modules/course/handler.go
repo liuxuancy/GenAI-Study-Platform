@@ -759,6 +759,22 @@ func (handler *Handler) SetClassMembers(ctx *gin.Context) (any, error) {
 }
 
 // CreateQuestion POST /api/student/questions
+func (handler *Handler) GenerateStudentQuiz(ctx *gin.Context) (any, error) {
+	principal, err := access.GetCurrentPrincipal(ctx)
+	if err != nil {
+		return nil, err
+	}
+	courseID, err := resp.GetInt64PathParam(ctx, "id")
+	if err != nil {
+		return nil, err
+	}
+	var input GenerateStudentQuizInput
+	if err := resp.BindJSON(ctx, &input); err != nil {
+		return nil, err
+	}
+	return handler.service.GenerateStudentQuiz(ctx.Request.Context(), principal, courseID, input)
+}
+
 func (handler *Handler) CreateQuestion(ctx *gin.Context) (any, error) {
 	principal, err := access.GetCurrentPrincipal(ctx)
 	if err != nil {

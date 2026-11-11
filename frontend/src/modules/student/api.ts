@@ -28,6 +28,7 @@ export interface StudentQuestion {
   courseId: number
   chapterKey?: string
   chapterName?: string
+  chapterMissing?: boolean
   creatorId: number
   creatorName: string
   creatorRole: string
@@ -98,12 +99,17 @@ export interface StudentQuestionDetail {
   title: string
   courseTitle: string
   chapterName?: string
+  chapterMissing?: boolean
   difficulty: string
   questionCount: number
   percent: number
   isSubmit: boolean
   score?: number
   questions: StudentQuestionContent[]
+}
+
+export function generateStudentQuiz(courseId: number, input: { chapterKey: string; count: number; difficulty: string; provider: AiGenerateProvider }) {
+  return http.post<StudentQuestion>(`/student/courses/${courseId}/questions/generate`, input)
 }
 
 export function getStudentCourse(courseId: string) {
@@ -222,27 +228,6 @@ export function answerStudentQuestion(questionId: string, contentId: number, opt
     window.dispatchEvent(new Event('student-achievements-changed'))
     return result
   })
-}
-
-export interface CreatedStudentQuestion {
-  id: number
-  title: string
-  courseTitle: string
-  percent: number
-}
-
-export interface NewQuestionItem {
-  content: string
-  options: string[]
-  correctAnswer: string
-}
-
-export function createStudentQuestions(input: {
-  courseId: number
-  difficulty: string
-  questions: NewQuestionItem[]
-}) {
-  return http.post<CreatedStudentQuestion>('/student/questions', input)
 }
 
 export type LearningTaskType = '学习' | '测验' | '复习'

@@ -48,6 +48,37 @@ func TestStudentCourseCreateProviderSelection(t *testing.T) {
 	}
 }
 
+func TestStudentQuizGenerateRoute(t *testing.T) {
+	server := newTestServer(t, course.Module{})
+	if err := course.Seed(context.Background(), server.database); err != nil {
+		t.Fatal(err)
+	}
+	var id int64
+	if err := server.database.Raw("SELECT id FROM course WHERE title = ?", "Introduction to Git").Scan(&id).Error; err != nil {
+		t.Fatal(err)
+	}
+	path := fmt.Sprintf("/api/student/courses/%d/questions/generate", id)
+	body := map[string]any{"chapterKey": "ch-1", "count": 2, "difficulty": "easy", "provider": "mock"}
+	if status, _ := server.call(t, "POST", path, "", body); status != 401 {
+		t.Fatalf("anonymous status = %d", status)
+	}
+	if status, _ := server.call(t, "POST", path, server.login(t, "teacher1", "teacher123"), body); status != 403 {
+		t.Fatalf("teacher status = %d", status)
+	}
+	token := server.login(t, "student1", "student123")
+	if status, _ := server.call(t, "POST", path, token, body); status != 400 {
+		t.Fatalf("empty content status = %d", status)
+	}
+	testutil.MustExec(t, server.database, "UPDATE course SET content_json = ? WHERE id = ?", `{"chapters":[{"key":"ch-1","title":"Chapter","activities":[{"type":"rich_text","payload":{"markdown":"Course content"}}]}]}`, id)
+	for _, count := range []int{2, 5, 10} {
+		body["count"] = count
+		status, result := server.call(t, "POST", path, token, body)
+		if status != 200 || dataAsMap(result.Data)["chapterKey"] != "ch-1" || dataAsMap(result.Data)["questionCount"] != float64(count) {
+			t.Fatalf("count=%d status=%d data=%v msg=%q", count, status, result.Data, result.Msg)
+		}
+	}
+}
+
 func TestCourseRoutes(t *testing.T) {
 	server := newTestServer(t, course.Module{})
 	if err := course.Seed(context.Background(), server.database); err != nil {

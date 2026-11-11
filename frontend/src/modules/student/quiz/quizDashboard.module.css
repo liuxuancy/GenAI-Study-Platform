@@ -110,6 +110,11 @@
   gap: var(--space-6);
 }
 
+.cancelButton:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
 .courseGroup {
   border: 1px solid var(--color-border);
   border-radius: var(--radius-lg);

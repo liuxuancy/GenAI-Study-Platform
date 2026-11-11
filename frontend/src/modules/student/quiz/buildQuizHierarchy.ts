@@ -99,7 +99,9 @@ function buildChapterGroups(views: StudentQuizView[], tree: BubbleNode | null, u
     }
     ordered.push({
       key,
-      title: chapterViews[0]?.chapterName?.trim() || key,
+      title: chapterViews[0]?.chapterMissing
+        ? translateApp(getAppLocale(), 'student.quiz.deletedChapter', { chapter: chapterViews[0].chapterName?.trim() || key })
+        : chapterViews[0]?.chapterName?.trim() || key,
     })
   }
   if (byChapter.has(UNLINKED_CHAPTER_KEY)) {
@@ -196,7 +198,9 @@ export function chapterFilterOptions(views: StudentQuizView[], courseId: string)
     seen.add(key)
     options.push({
       value: key,
-      label: key === UNLINKED_CHAPTER_KEY ? unlinkedTitle : view.chapterName?.trim() || key,
+      label: key === UNLINKED_CHAPTER_KEY ? unlinkedTitle : view.chapterMissing
+        ? translateApp(locale, 'student.quiz.deletedChapter', { chapter: view.chapterName?.trim() || key })
+        : view.chapterName?.trim() || key,
     })
   }
   return options
