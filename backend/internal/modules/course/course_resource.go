@@ -72,10 +72,6 @@ type ResourceDownloadResult struct {
 	ExpiresIn int64  `json:"expiresInSec"`
 }
 
-func courseResourcePreviewContentPath(courseID, resourceID int64) string {
-	return fmt.Sprintf("/api/courses/%d/resources/%d/preview/content", courseID, resourceID)
-}
-
 func (service *Service) requireCOS() (*cos.Client, cos.Limits, error) {
 	if service.cosClient == nil {
 		return nil, cos.Limits{}, errs.BadRequest("object storage is not configured")
@@ -532,11 +528,17 @@ func (service *Service) GetCourseResourcePreview(ctx context.Context, principal 
 	}
 	switch kind {
 	case "pdf":
-		// 同源代理：避免 COS CORS 未放行生产域名，以及预签名 URL 无法附带 Range 导致 pdf.js 失败。
-		output := &ResourcePreviewResult{
-			Kind: kind,
-			URL:  courseResourcePreviewContentPath(courseID, resourceID),
+		client, _, err := service.requireCOS()
+		if err != nil {
+			logs.CtxError(ctx, "[GetCourseResourcePreview] failed, err: %v", err)
+			return nil, err
 		}
+		url, err := client.PresignedPDFInlineGetURL(ctx, row.ObjectKey, row.DisplayName, limits.PresignTTL)
+		if err != nil {
+			logs.CtxError(ctx, "[GetCourseResourcePreview] failed, err: %v", err)
+			return nil, errs.Internal(fmt.Errorf("presign pdf preview: %w", err))
+		}
+		output := &ResourcePreviewResult{Kind: kind, URL: url}
 		logs.CtxInfo(ctx, "[GetCourseResourcePreview] done: resource_id=%d resp=%+v", resourceID, output)
 		return output, nil
 	case "image":
@@ -583,39 +585,6 @@ func (service *Service) GetCourseResourcePreview(ctx context.Context, principal 
 		logs.CtxInfo(ctx, "[GetCourseResourcePreview] done: resource_id=%d resp=%+v", resourceID, output)
 		return output, nil
 	}
-}
-
-// OpenCourseResourcePDFPreview 鉴权后从 COS 打开 PDF 流（支持 Range），由 HTTP 层转发给 pdf.js。
-func (service *Service) OpenCourseResourcePDFPreview(
-	ctx context.Context,
-	principal *access.Principal,
-	courseID, resourceID int64,
-	rangeHeader string,
-) (*cos.ObjectHTTPResponse, error) {
-	row, err := service.loadCourseResource(ctx, courseID, resourceID)
-	if err != nil {
-		logs.CtxError(ctx, "[OpenCourseResourcePDFPreview] failed, err: %v", err)
-		return nil, err
-	}
-	requirePublished := principal.Role == access.RoleStudent
-	if err := service.canAccessResource(ctx, principal, row, requirePublished); err != nil {
-		logs.CtxError(ctx, "[OpenCourseResourcePDFPreview] failed, err: %v", err)
-		return nil, err
-	}
-	if previewKindForResource(row) != "pdf" {
-		return nil, errs.BadRequest("only pdf resources support inline content preview")
-	}
-	client, _, err := service.requireCOS()
-	if err != nil {
-		logs.CtxError(ctx, "[OpenCourseResourcePDFPreview] failed, err: %v", err)
-		return nil, err
-	}
-	obj, err := client.GetObjectHTTP(ctx, row.ObjectKey, rangeHeader)
-	if err != nil {
-		logs.CtxError(ctx, "[OpenCourseResourcePDFPreview] failed, err: %v", err)
-		return nil, errs.Internal(fmt.Errorf("cos get object: %w", err))
-	}
-	return obj, nil
 }
 
 // GetCourseResourceDownload shared download URL

@@ -153,6 +153,5 @@ func registerRoutes(api *gin.RouterGroup, deps Deps) {
 	studentRoutes.POST("/courses/:id/resources", access.RequireLogin(), resp.ToGinHandler(courseHandler.UploadStudentCourseResource))
 
 	api.GET("/courses/:courseId/resources/:resourceId/preview", access.RequireLogin(), resp.ToGinHandler(courseHandler.GetCourseResourcePreview))
-	api.GET("/courses/:courseId/resources/:resourceId/preview/content", access.RequireLogin(), courseHandler.ServeCourseResourcePreviewContent)
 	api.GET("/courses/:courseId/resources/:resourceId/download", access.RequireLogin(), resp.ToGinHandler(courseHandler.GetCourseResourceDownload))
 }

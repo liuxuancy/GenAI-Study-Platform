@@ -116,6 +116,34 @@
   min-height: 200px;
 }
 
+.pdfControls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  margin-bottom: 12px;
+  padding: 8px 12px;
+  background: #fff;
+  border-radius: 8px;
+  box-shadow: 0 2px 12px rgba(44, 40, 37, 0.06);
+}
+
+.pdfPageLabel,
+.pdfZoomLabel {
+  font-size: 13px;
+  color: #6b6560;
+  min-width: 4.5rem;
+  text-align: center;
+}
+
+.pdfControlDivider {
+  width: 1px;
+  height: 20px;
+  background: #e8e4df;
+  margin: 0 4px;
+}
+
 .pdfSpinner {
   position: absolute;
   inset: 0;
