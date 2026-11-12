@@ -54,7 +54,7 @@ go run ./cmd/cos-probe
 
 | 类型 | 浏览器实际请求 | 说明 |
 |------|----------------|------|
-| PDF | 鉴权后返回 COS **预签名 URL**（同时签名 `response-content-disposition=inline` 与 `response-content-type=application/pdf`）；前端 **fetch CORS 拉取整文件** → **pdf.js** 渲染 | 桶 CORS 需放行站点 Origin；香港桶勿用 CI doc-preview |
+| PDF | 鉴权后返回 **预签名 URL**（`disposition` + `content-type` 均入签）+ 同源 **`/preview/stream`**；前端先 CORS 整包 fetch，失败再走 stream（Bearer），**pdf.js 仅用内存 `data`**，不发 Range | 香港桶勿用 CI doc-preview |
 | 图片 | 预签名 URL 直连 COS | |
 | Office（pptx/docx） | 预签名 URL + CI 参数 `ci-process=doc-preview`，**iframe** 嵌入万象生成的 HTML | 仍直连 `*.myqcloud.com` |
 
@@ -89,4 +89,5 @@ go run ./cmd/cos-probe
 
 ### API 摘要
 
-- `GET /api/courses/:courseId/resources/:resourceId/preview` — 返回 `{ kind, url?, message? }`；PDF 的 `url` 为短时 COS 预签名 GET（含 inline disposition 与 `application/pdf` content-type）
+- `GET /api/courses/:courseId/resources/:resourceId/preview` — PDF 返回 `{ kind, url, streamUrl }`
+- `GET .../preview/stream` — 鉴权后从 COS 流式转发 PDF（不含 COS 签名；前端 fetch 带 Bearer）
