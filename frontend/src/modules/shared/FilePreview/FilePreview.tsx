@@ -30,6 +30,15 @@ export interface FilePreviewProps {
   onDownload: () => void
 }
 
+/** pdf.js 仅在 URL 匹配 /^https?:/ 时附加 httpHeaders；相对路径 /api/... 会丢掉 Authorization。 */
+function absolutePreviewUrl(url: string): string {
+  try {
+    return new URL(url, window.location.origin).href
+  } catch {
+    return url
+  }
+}
+
 function outputScaleForCanvas(): number {
   return Math.min(window.devicePixelRatio || 1, PDF_MAX_OUTPUT_SCALE)
 }
@@ -127,8 +136,8 @@ export function FilePreview({
       }
 
       try {
-        const previewUrl = preview.url!
-        const sameOrigin = previewUrl.startsWith('/api/')
+        const previewUrl = absolutePreviewUrl(preview.url!)
+        const sameOrigin = new URL(previewUrl).origin === window.location.origin
         const token = useAuthStore.getState().token
         const loadingTask = pdfjs.getDocument({
           url: previewUrl,
