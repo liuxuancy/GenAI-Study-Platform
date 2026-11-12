@@ -1,11 +1,17 @@
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { Button, Spin } from 'antd'
-import { DownloadOutlined, FileExclamationOutlined } from '@ant-design/icons'
+import {
+  DownloadOutlined,
+  FileExclamationOutlined,
+  LeftOutlined,
+  RightOutlined,
+  ZoomInOutlined,
+  ZoomOutOutlined,
+} from '@ant-design/icons'
 import * as pdfjs from 'pdfjs-dist'
 import type { PDFDocumentProxy, PDFPageProxy } from 'pdfjs-dist'
 
 import type { ResourcePreviewResult } from '@/modules/courseResources/api'
-import { useAuthStore } from '@/core/auth/store'
 import { useI18n } from '@/core/i18n/useI18n'
 import styles from './FilePreview.module.css'
 
@@ -16,6 +22,9 @@ pdfjs.GlobalWorkerOptions.workerSrc = new URL(
 
 const PDF_MAX_CSS_WIDTH = 900
 const PDF_MAX_CSS_SCALE = 1.35
+const PDF_MIN_ZOOM = 0.65
+const PDF_MAX_ZOOM = 2.2
+const PDF_ZOOM_STEP = 0.15
 /** Cap DPR to limit memory on very dense displays */
 const PDF_MAX_OUTPUT_SCALE = 2.5
 
@@ -30,24 +39,23 @@ export interface FilePreviewProps {
   onDownload: () => void
 }
 
-/** pdf.js 仅在 URL 匹配 /^https?:/ 时附加 httpHeaders；相对路径 /api/... 会丢掉 Authorization。 */
-function absolutePreviewUrl(url: string): string {
-  try {
-    return new URL(url, window.location.origin).href
-  } catch {
-    return url
+async function fetchPdfBytes(previewUrl: string): Promise<Uint8Array> {
+  const response = await fetch(previewUrl, { mode: 'cors', credentials: 'omit' })
+  if (!response.ok) {
+    throw new Error(`fetch ${response.status}`)
   }
+  return new Uint8Array(await response.arrayBuffer())
 }
 
 function outputScaleForCanvas(): number {
   return Math.min(window.devicePixelRatio || 1, PDF_MAX_OUTPUT_SCALE)
 }
 
-function cssScaleForPage(page: PDFPageProxy, containerWidth: number): number {
+function cssScaleForPage(page: PDFPageProxy, containerWidth: number, zoom: number): number {
   const maxCssWidth = Math.min(PDF_MAX_CSS_WIDTH, containerWidth || PDF_MAX_CSS_WIDTH)
   const base = page.getViewport({ scale: 1 })
-  if (base.width <= 0) return 1.15
-  return Math.min(PDF_MAX_CSS_SCALE, maxCssWidth / base.width)
+  if (base.width <= 0) return 1.15 * zoom
+  return Math.min(PDF_MAX_CSS_SCALE, maxCssWidth / base.width) * zoom
 }
 
 async function renderPdfPageToHost(
@@ -91,13 +99,20 @@ export function FilePreview({
   const [pdfReady, setPdfReady] = useState(false)
   const [pdfError, setPdfError] = useState('')
   const [imageError, setImageError] = useState(false)
+  const [pdfPage, setPdfPage] = useState(1)
+  const [pdfTotalPages, setPdfTotalPages] = useState(0)
+  const [pdfZoom, setPdfZoom] = useState(1)
   const containerRef = useRef<HTMLDivElement>(null)
+  const pdfDocRef = useRef<PDFDocumentProxy | null>(null)
 
   useEffect(() => {
     if (!open) {
       setPdfReady(false)
       setPdfError('')
       setImageError(false)
+      setPdfPage(1)
+      setPdfTotalPages(0)
+      setPdfZoom(1)
     }
   }, [open])
 
@@ -117,101 +132,26 @@ export function FilePreview({
       return
     }
     let cancelled = false
-    let pdfDoc: PDFDocumentProxy | null = null
-    let observer: IntersectionObserver | null = null
+    const previewUrl = preview.url
 
     setPdfReady(false)
     setPdfError('')
+    setPdfPage(1)
+    pdfDocRef.current = null
 
     const run = async () => {
-      await new Promise<void>((resolve) => {
-        requestAnimationFrame(() => resolve())
-      })
-      const host = containerRef.current
-      if (!host || cancelled) return
-
-      const scrollRoot = host.closest(`.${styles.body}`)
-      if (scrollRoot instanceof HTMLElement) {
-        scrollRoot.scrollTop = 0
-      }
-
       try {
-        const previewUrl = absolutePreviewUrl(preview.url!)
-        const sameOrigin = new URL(previewUrl).origin === window.location.origin
-        const token = useAuthStore.getState().token
-        const loadingTask = pdfjs.getDocument({
-          url: previewUrl,
-          ...(sameOrigin && token ? { httpHeaders: { Authorization: `Bearer ${token}` } } : {}),
-          withCredentials: false,
-          disableRange: !sameOrigin,
-          disableStream: !sameOrigin,
-          rangeChunkSize: 65536,
-        })
-        pdfDoc = await loadingTask.promise
+        const bytes = await fetchPdfBytes(previewUrl)
         if (cancelled) return
-
-        host.innerHTML = ''
-        const containerWidth = host.clientWidth || PDF_MAX_CSS_WIDTH
-        const numPages = pdfDoc.numPages
-
-        const pageShells: { el: HTMLDivElement; pageNum: number; rendered: boolean }[] = []
-        for (let pageNum = 1; pageNum <= numPages; pageNum += 1) {
-          const wrap = document.createElement('div')
-          wrap.className = styles.pdfPage
-          wrap.dataset.page = String(pageNum)
-          if (pageNum > 1) {
-            wrap.classList.add(styles.pdfPagePending)
-          }
-          host.appendChild(wrap)
-          pageShells.push({ el: wrap, pageNum, rendered: false })
+        const loadingTask = pdfjs.getDocument({ data: bytes, disableRange: true, disableStream: true })
+        const pdfDoc = await loadingTask.promise
+        if (cancelled) {
+          void pdfDoc.destroy()
+          return
         }
-
-        const firstPage = await pdfDoc.getPage(1)
-        if (cancelled) return
-        const cssScale = cssScaleForPage(firstPage, containerWidth)
-
-        if (pageShells[0]) {
-          await renderPdfPageToHost(firstPage, pageShells[0].el, cssScale)
-          pageShells[0].rendered = true
-          pageShells[0].el.classList.remove(styles.pdfPagePending)
-        }
-        if (!cancelled) {
-          setPdfReady(true)
-        }
-
-        const renderLazyPage = async (shell: (typeof pageShells)[number]) => {
-          if (cancelled || shell.rendered || !pdfDoc) return
-          shell.rendered = true
-          try {
-            const page = await pdfDoc.getPage(shell.pageNum)
-            if (cancelled) return
-            await renderPdfPageToHost(page, shell.el, cssScale)
-            shell.el.classList.remove(styles.pdfPagePending)
-          } catch {
-            shell.el.classList.add(styles.pdfPageError)
-            shell.el.replaceChildren(document.createTextNode(t('filePreview.pageRenderFailed')))
-          }
-        }
-
-        if (numPages > 1) {
-          observer = new IntersectionObserver(
-            (entries) => {
-              for (const entry of entries) {
-                if (!entry.isIntersecting) continue
-                const el = entry.target as HTMLDivElement
-                const pageNum = Number(el.dataset.page)
-                const shell = pageShells.find((s) => s.pageNum === pageNum)
-                if (!shell || shell.rendered) continue
-                observer?.unobserve(el)
-                void renderLazyPage(shell)
-              }
-            },
-            { root: scrollRoot instanceof Element ? scrollRoot : null, rootMargin: '240px 0px' },
-          )
-          for (let i = 1; i < pageShells.length; i += 1) {
-            observer.observe(pageShells[i].el)
-          }
-        }
+        pdfDocRef.current = pdfDoc
+        setPdfTotalPages(pdfDoc.numPages)
+        setPdfReady(true)
       } catch {
         if (!cancelled) {
           setPdfError(t('filePreview.pdfLoadFailed'))
@@ -222,10 +162,29 @@ export function FilePreview({
     void run()
     return () => {
       cancelled = true
-      observer?.disconnect()
-      void pdfDoc?.destroy()
+      void pdfDocRef.current?.destroy()
+      pdfDocRef.current = null
     }
   }, [open, preview?.kind, preview?.url, t])
+
+  const paintCurrentPage = useCallback(async () => {
+    const host = containerRef.current
+    const pdfDoc = pdfDocRef.current
+    if (!host || !pdfDoc || !pdfReady) return
+    try {
+      const page = await pdfDoc.getPage(pdfPage)
+      const containerWidth = host.clientWidth || PDF_MAX_CSS_WIDTH
+      const cssScale = cssScaleForPage(page, containerWidth, pdfZoom)
+      await renderPdfPageToHost(page, host, cssScale)
+    } catch {
+      setPdfError(t('filePreview.pageRenderFailed'))
+    }
+  }, [pdfPage, pdfReady, pdfZoom, t])
+
+  useEffect(() => {
+    if (!pdfReady) return
+    void paintCurrentPage()
+  }, [pdfReady, pdfPage, pdfZoom, paintCurrentPage])
 
   if (!open) {
     return null
@@ -233,6 +192,50 @@ export function FilePreview({
 
   const isPdfPreview = preview?.kind === 'pdf' && Boolean(preview.url)
   const typeLabel = (fileType || 'file').toUpperCase()
+
+  function renderPdfControls() {
+    if (!pdfReady || pdfTotalPages < 1) return null
+    return (
+      <div className={styles.pdfControls}>
+        <Button
+          size="small"
+          icon={<LeftOutlined />}
+          disabled={pdfPage <= 1}
+          onClick={() => setPdfPage((page) => Math.max(1, page - 1))}
+        >
+          {t('filePreview.prevPage')}
+        </Button>
+        <span className={styles.pdfPageLabel}>
+          {t('filePreview.pageOf', { current: pdfPage, total: pdfTotalPages })}
+        </span>
+        <Button
+          size="small"
+          icon={<RightOutlined />}
+          disabled={pdfPage >= pdfTotalPages}
+          onClick={() => setPdfPage((page) => Math.min(pdfTotalPages, page + 1))}
+        >
+          {t('filePreview.nextPage')}
+        </Button>
+        <span className={styles.pdfControlDivider} aria-hidden />
+        <Button
+          size="small"
+          icon={<ZoomOutOutlined />}
+          disabled={pdfZoom <= PDF_MIN_ZOOM}
+          onClick={() => setPdfZoom((z) => Math.max(PDF_MIN_ZOOM, Math.round((z - PDF_ZOOM_STEP) * 100) / 100))}
+        />
+        <span className={styles.pdfZoomLabel}>{Math.round(pdfZoom * 100)}%</span>
+        <Button
+          size="small"
+          icon={<ZoomInOutlined />}
+          disabled={pdfZoom >= PDF_MAX_ZOOM}
+          onClick={() => setPdfZoom((z) => Math.min(PDF_MAX_ZOOM, Math.round((z + PDF_ZOOM_STEP) * 100) / 100))}
+        />
+        <Button size="small" onClick={() => setPdfZoom(1)}>
+          {t('filePreview.zoomReset')}
+        </Button>
+      </div>
+    )
+  }
 
   function renderBody() {
     if (loading) {
@@ -284,14 +287,16 @@ export function FilePreview({
         return (
           <div className={styles.stateBlock}>
             <p className={styles.message}>{pdfError}</p>
-            <Button type="primary" onClick={onDownload}>
+            <Button type="primary" href={preview.url} target="_blank" rel="noopener noreferrer" icon={<DownloadOutlined />}>
               {t('filePreview.downloadPdf')}
             </Button>
+            <Button onClick={onDownload}>{t('filePreview.download')}</Button>
           </div>
         )
       }
       return (
         <div className={styles.pdfWrap}>
+          {renderPdfControls()}
           {!pdfReady ? <Spin className={styles.pdfSpinner} size="large" tip={t('filePreview.loading')} /> : null}
           <div ref={containerRef} className={styles.pdfPages} aria-busy={!pdfReady} />
         </div>
