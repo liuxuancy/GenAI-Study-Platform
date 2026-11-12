@@ -10,15 +10,23 @@ import {
 } from '@ant-design/icons'
 import * as pdfjs from 'pdfjs-dist'
 import type { PDFDocumentProxy, PDFPageProxy } from 'pdfjs-dist'
-import pdfWorkerSrc from 'pdfjs-dist/build/pdf.worker.min.mjs?url'
+import * as pdfjsWorker from 'pdfjs-dist/build/pdf.worker.min.mjs'
 
 import type { ResourcePreviewResult } from '@/modules/courseResources/api'
 import { useAuthStore } from '@/core/auth/store'
 import { useI18n } from '@/core/i18n/useI18n'
 import styles from './FilePreview.module.css'
 
-/** Vite 生产构建需 ?url，否则 worker 404。 */
-pdfjs.GlobalWorkerOptions.workerSrc = pdfWorkerSrc
+/**
+ * 静态打进主包，让 pdf.js 走主线程 fake worker。
+ * 不要再用 ?url：线上会去拉 assets/pdf.worker*.mjs，动态 import 失败。
+ */
+const bundledWorker = pdfjsWorker as { WorkerMessageHandler?: unknown }
+const pdfGlobal = globalThis as { pdfjsWorker?: { WorkerMessageHandler?: unknown } }
+if (!pdfGlobal.pdfjsWorker?.WorkerMessageHandler && bundledWorker.WorkerMessageHandler) {
+  pdfGlobal.pdfjsWorker = bundledWorker
+}
+pdfjs.GlobalWorkerOptions.workerSrc = ''
 
 const PDF_LOG_PREFIX = '[FilePreview]'
 const PDF_MAX_CSS_WIDTH = 900
@@ -197,6 +205,7 @@ export function FilePreview({
   const [pdfPage, setPdfPage] = useState(1)
   const [pdfTotalPages, setPdfTotalPages] = useState(0)
   const [pdfZoom, setPdfZoom] = useState(1)
+  const [pdfFallbackUrl, setPdfFallbackUrl] = useState('')
   const containerRef = useRef<HTMLDivElement>(null)
   const pdfDocRef = useRef<PDFDocumentProxy | null>(null)
 
@@ -211,6 +220,10 @@ export function FilePreview({
       setPdfPage(1)
       setPdfTotalPages(0)
       setPdfZoom(1)
+      setPdfFallbackUrl((current) => {
+        if (current) URL.revokeObjectURL(current)
+        return ''
+      })
     }
   }, [open])
 
@@ -235,12 +248,17 @@ export function FilePreview({
     setPdfReady(false)
     setPdfError('')
     setPdfPage(1)
+    setPdfFallbackUrl((current) => {
+      if (current) URL.revokeObjectURL(current)
+      return ''
+    })
     pdfDocRef.current = null
 
     const run = async () => {
+      let bytes: Uint8Array | null = null
       try {
         const token = useAuthStore.getState().token
-        const bytes = await loadPdfBytes(preview, token)
+        bytes = await loadPdfBytes(preview, token)
         if (cancelled) return
 
         const loadingTask = openPdfDocument(bytes)
@@ -254,9 +272,16 @@ export function FilePreview({
         setPdfReady(true)
       } catch (err) {
         console.error(PDF_LOG_PREFIX, 'pdfjs load failed', err)
-        if (!cancelled) {
-          setPdfError(t('filePreview.pdfLoadFailed'))
+        if (cancelled) return
+        if (bytes && bytes.byteLength > 0) {
+          const blobUrl = URL.createObjectURL(new Blob([bytes], { type: 'application/pdf' }))
+          console.warn(PDF_LOG_PREFIX, 'fallback to native iframe via blob url', {
+            byteLength: bytes.byteLength,
+          })
+          setPdfFallbackUrl(blobUrl)
+          return
         }
+        setPdfError(t('filePreview.pdfLoadFailed'))
       } finally {
         if (!cancelled) {
           setPdfLoading(false)
@@ -268,6 +293,10 @@ export function FilePreview({
       cancelled = true
       void pdfDocRef.current?.destroy()
       pdfDocRef.current = null
+      setPdfFallbackUrl((current) => {
+        if (current) URL.revokeObjectURL(current)
+        return ''
+      })
     }
   }, [open, preview, t])
 
@@ -298,7 +327,7 @@ export function FilePreview({
   const isPdfPreview = preview?.kind === 'pdf' && Boolean(preview.url || preview.streamUrl)
   const typeLabel = (fileType || 'file').toUpperCase()
   const pdfFailed = Boolean(pdfError)
-  const showPdfToolbarDownload = isPdfPreview && pdfReady && !pdfFailed
+  const showPdfToolbarDownload = isPdfPreview && (pdfReady || Boolean(pdfFallbackUrl)) && !pdfFailed
 
   function renderPdfControls() {
     if (!pdfReady || pdfTotalPages < 1) return null
@@ -390,6 +419,9 @@ export function FilePreview({
       )
     }
     if (preview?.kind === 'pdf' && (preview.url || preview.streamUrl)) {
+      if (pdfFallbackUrl) {
+        return <iframe className={styles.frame} title={fileName} src={pdfFallbackUrl} />
+      }
       if (pdfFailed) {
         return (
           <div className={styles.stateBlock}>

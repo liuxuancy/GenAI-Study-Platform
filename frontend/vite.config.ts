@@ -21,4 +21,8 @@ export default defineConfig({
   test: {
     environment: 'node',
   },
+  // PDF worker 由 FilePreview 静态 import，跑在主线程。不要用 ?url 把 pdf.worker.min.mjs 打成独立 asset。
+  optimizeDeps: {
+    include: ['pdfjs-dist', 'pdfjs-dist/build/pdf.worker.min.mjs'],
+  },
 })
