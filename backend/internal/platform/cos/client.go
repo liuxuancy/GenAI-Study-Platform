@@ -152,6 +152,33 @@ func (c *Client) GetBytes(ctx context.Context, objectKey string) ([]byte, error)
 	return io.ReadAll(resp.Body)
 }
 
+// ObjectHTTPResponse COS GET 原始响应，供 Gin 流式转发（含 Range / 206）。
+type ObjectHTTPResponse struct {
+	StatusCode int
+	Header     http.Header
+	Body       io.ReadCloser
+}
+
+// GetObjectHTTP 按 objectKey 拉取对象；rangeHeader 非空时透传 bytes Range（预签名 URL 不支持浏览器 Range 时的服务端替代）。
+func (c *Client) GetObjectHTTP(ctx context.Context, objectKey, rangeHeader string) (*ObjectHTTPResponse, error) {
+	if strings.TrimSpace(objectKey) == "" {
+		return nil, fmt.Errorf("objectKey is required")
+	}
+	opt := &tcos.ObjectGetOptions{}
+	if strings.TrimSpace(rangeHeader) != "" {
+		opt.Range = rangeHeader
+	}
+	resp, err := c.inner.Object.Get(ctx, objectKey, opt)
+	if err != nil {
+		return nil, err
+	}
+	status := http.StatusOK
+	if resp != nil && resp.StatusCode > 0 {
+		status = resp.StatusCode
+	}
+	return &ObjectHTTPResponse{StatusCode: status, Header: resp.Header, Body: resp.Body}, nil
+}
+
 // Delete 删除对象（幂等：不存在时不视为错误）。
 func (c *Client) Delete(ctx context.Context, objectKey string) error {
 	_, err := c.inner.Object.Delete(ctx, objectKey)

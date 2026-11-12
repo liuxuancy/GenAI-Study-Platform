@@ -54,8 +54,8 @@ go run ./cmd/cos-probe
 
 | 类型 | 浏览器实际请求 | 说明 |
 |------|----------------|------|
-| PDF | 默认：预签名 URL → `{bucket}.cos.ap-guangzhou.myqcloud.com`，前端 **pdf.js** 拉取 | 大文件走 Range 分片 |
-| PDF（备选） | `GET /api/courses/:id/resources/:rid/preview?mode=proxy` 返回同源 URL → `.../preview/content`，**Gin 从 COS 流式转发** | 浏览器不直连 COS，适合 VPN 不稳定时 |
+| PDF | 预览 API 返回同源 `GET /api/courses/:id/resources/:rid/preview/content`，**Gin 从 COS 流式转发**，前端 **pdf.js** 带 JWT Range 拉取 | 不依赖 COS 浏览器 CORS / 预签名 Range |
+| PDF（直连 COS，旧行为） | 预签名 URL → `*.myqcloud.com` | 需在 COS 配置生产域名 CORS，且 Range 请求易 403 |
 | 图片 | 预签名 URL 直连 COS | |
 | Office（pptx/docx） | 预签名 URL + CI 参数 `ci-process=doc-preview`，**iframe** 嵌入万象生成的 HTML | 仍直连 `*.myqcloud.com` |
 
@@ -90,6 +90,5 @@ go run ./cmd/cos-probe
 
 ### API 摘要
 
-- `GET /api/courses/:courseId/resources/:resourceId/preview` — 返回 `{ kind, url?, message? }`
-- `GET .../preview?mode=proxy` — PDF 的 `url` 为同源 `.../preview/content`
-- `GET .../preview/content` — 鉴权后流式返回 PDF 字节（`Authorization: Bearer`）
+- `GET /api/courses/:courseId/resources/:resourceId/preview` — 返回 `{ kind, url?, message? }`；PDF 的 `url` 为同源 `.../preview/content`
+- `GET .../preview/content` — 鉴权后流式返回 PDF 字节（`Authorization: Bearer`，支持 `Range`）
