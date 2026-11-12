@@ -31,6 +31,7 @@ export interface StudentQuizView {
   targetType: QuizTargetType
   chapterKey: string | null
   chapterName: string | null
+  chapterMissing: boolean
   sectionKey: string | null
   sectionName: string | null
   creationMethod: QuizCreationMethod | null

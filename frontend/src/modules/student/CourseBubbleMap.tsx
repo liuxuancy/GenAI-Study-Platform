@@ -62,6 +62,7 @@ export function CourseBubbleMap({
   code,
   embedded,
   doneIds,
+  affection = 0,
   sprite,
   dialogue,
 }: {
@@ -69,6 +70,7 @@ export function CourseBubbleMap({
   code?: string
   embedded?: boolean
   doneIds?: ReadonlySet<string>
+  affection?: number
   sprite?: PixelSprite | null
   dialogue?: CourseAvatar['dialogue']
 }) {
@@ -282,7 +284,7 @@ export function CourseBubbleMap({
               </button>
             )
           })}
-          {sprite ? <BubbleWalker sprite={sprite} route={walkRoute} bubbles={layout.bubbles} dialogue={dialogue ?? null} /> : null}
+          {sprite ? <BubbleWalker sprite={sprite} route={walkRoute} bubbles={layout.bubbles} dialogue={dialogue ?? null} showHearts={affection >= 100} /> : null}
         </div>
       </div>
 

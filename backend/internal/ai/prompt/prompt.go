@@ -21,6 +21,7 @@ const (
 	PixelSpriteV1     = "pixel_sprite_v1"
 	PixelDialogueV1   = "pixel_dialogue_v1"
 	GalScriptV1       = "gal_script_v1"
+	StudentQuizV1     = "student_quiz_v1"
 	Version1          = "1"
 )
 
@@ -38,6 +39,7 @@ var (
 	pixelSpriteTemplate     = template.Must(template.ParseFS(templateFiles, "templates/pixel_sprite_v1.tmpl"))
 	pixelDialogueTemplate   = template.Must(template.ParseFS(templateFiles, "templates/pixel_dialogue_v1.tmpl"))
 	galScriptTemplate       = template.Must(template.ParseFS(templateFiles, "templates/gal_script_v1.tmpl"))
+	studentQuizTemplate     = template.Must(template.ParseFS(templateFiles, "templates/student_quiz_v1.tmpl"))
 )
 
 // Info 写入 meta.templateId 和 meta.templateVersion。
@@ -107,6 +109,13 @@ type LearningInsightData struct {
 	Language    string
 }
 
+type StudentQuizData struct {
+	Language    string
+	Count       int
+	Difficulty  string
+	ContextJSON string
+}
+
 // PixelSpriteData 是已经抽好的外观属性。模型只画网格，不能改这些属性。
 type PixelSpriteData struct {
 	CourseID           int64
@@ -172,6 +181,9 @@ func Render(templateID string, data any) (string, Info, error) {
 	case GalScriptV1:
 		parsed = galScriptTemplate
 		info.ID = GalScriptV1
+	case StudentQuizV1:
+		parsed = studentQuizTemplate
+		info.ID = StudentQuizV1
 	default:
 		return "", Info{}, aierr.InvalidInput(fmt.Errorf("unknown template %q", templateID), "templateId")
 	}

@@ -43,6 +43,7 @@ import {
 import { learningTaskDestination } from '@/modules/student/learning/learningTaskDestination'
 import { LearningTaskLink } from '@/modules/student/learning/LearningTaskLink'
 import styles from '@/modules/student/learning/learningDashboard.module.css'
+import courseStyles from '@/modules/student/learning/myCourses.module.css'
 import {
   mapStudentQuestionsToViews,
   quizStatistics,
@@ -241,7 +242,7 @@ export function LearningDashboard() {
           </h1>
           <p>{t('student.dashboard.greeting', { name: studentName })}</p>
         </div>
-        <button className={styles.primaryButton} type="button" onClick={openDialog}>
+        <button className={courseStyles.primaryAction} type="button" onClick={openDialog}>
           <PlusOutlined /> {t('student.dashboard.createCourse')}
         </button>
       </header>

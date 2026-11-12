@@ -241,6 +241,7 @@ export function QuestionDetailPage() {
             </div>
             <div className={styles.metaRow}>
               <span className={styles.tag}>{detail.courseTitle}</span>
+              {detail.chapterMissing ? <span className={styles.tag}>{t('student.quiz.deletedChapter', { chapter: detail.chapterName || '' })}</span> : null}
               {label.difficulty ? (
                 <span className={`${styles.tag} ${styles.tagDifficulty}`}>{label.difficulty}</span>
               ) : null}

@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { PlusOutlined } from '@ant-design/icons'
+import { Select } from 'antd'
 
 import { useI18n } from '@/core/i18n/useI18n'
 import { getStudentCourses, type StudentCourse } from '@/modules/student/api'
@@ -164,25 +165,23 @@ function CourseLibrary({ courses }: { courses: StudentCourse[] | null }) {
             onChange={(event) => setQuery(event.target.value)}
           />
         </label>
-        <select
+        <Select<ProgressFilter>
+          className={homeStyles.catalogSelect}
           value={progressFilter}
           aria-label={t('student.myCourses.progressFilterAria')}
-          onChange={(event) => setProgressFilter(event.target.value as ProgressFilter)}
-        >
-          {progressFilters.map((filter) => (
-            <option key={filter} value={filter}>
-              {progressFilterLabel(filter)}
-            </option>
-          ))}
-        </select>
-        <select
+          onChange={setProgressFilter}
+          options={progressFilters.map((filter) => ({ value: filter, label: progressFilterLabel(filter) }))}
+        />
+        <Select<'progress' | 'title'>
+          className={homeStyles.catalogSelect}
           value={sort}
           aria-label={t('student.myCourses.sortAria')}
-          onChange={(event) => setSort(event.target.value as 'progress' | 'title')}
-        >
-          <option value="progress">{t('student.myCourses.sortByProgress')}</option>
-          <option value="title">{t('student.myCourses.sortByTitle')}</option>
-        </select>
+          onChange={setSort}
+          options={[
+            { value: 'progress', label: t('student.myCourses.sortByProgress') },
+            { value: 'title', label: t('student.myCourses.sortByTitle') },
+          ]}
+        />
       </div>
       {filtered.length === 0 ? (
         <div className={styles.statePanel}>
@@ -262,6 +261,7 @@ function CourseCard({ course }: { course: StudentCourse }) {
           description={course.description}
           courseId={course.id}
           sprite={course.avatar ? spriteForAffection(course.avatar, course.affection) : null}
+          affection={course.affection}
         />
       </Link>
       <div className={homeStyles.cardBody}>

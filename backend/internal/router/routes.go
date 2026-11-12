@@ -87,6 +87,7 @@ func registerRoutes(api *gin.RouterGroup, deps Deps) {
 	api.POST("/workspace/messages", access.RequireLogin(), resp.ToGinHandler(courseHandler.SendWorkspaceMessage))
 
 	studentRoutes := api.Group("/student")
+	studentRoutes.POST("/courses/:id/questions/generate", access.RequireLogin(), resp.ToGinHandler(courseHandler.GenerateStudentQuiz))
 	studentRoutes.POST("/achievements/sync", access.RequireLogin(), resp.ToGinHandler(courseHandler.SyncAchievements))
 	studentRoutes.GET("/conversations", access.RequireLogin(), resp.ToGinHandler(courseHandler.ListOwnedAIConversations))
 	studentRoutes.GET("/courses", access.RequireLogin(), resp.ToGinHandler(courseHandler.GetCourseList))

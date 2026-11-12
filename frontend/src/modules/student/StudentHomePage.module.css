@@ -472,16 +472,9 @@
   color: #25353c;
 }
 
-.catalogToolbar select {
+.catalogSelect:global(.ant-select-single) {
   height: 43px;
   min-width: 126px;
-  padding: 0 38px 0 13px;
-  border: 1px solid var(--edge);
-  border-radius: 10px;
-  background: #fff;
-  color: #44545a;
-  font-family: var(--ui);
-  font-size: 11px;
 }
 
 .courseGrid {
@@ -549,6 +542,50 @@
 .coverArt svg {
   width: 100%;
   height: 100%;
+}
+
+.coverHearts {
+  position: absolute;
+  z-index: 4;
+  top: 8px;
+  right: 12px;
+  width: 44px;
+  height: 33px;
+  fill: #e85d75;
+  shape-rendering: crispEdges;
+  image-rendering: pixelated;
+  filter: drop-shadow(0 1px 1px rgb(255 255 255 / 75%));
+  pointer-events: none;
+}
+
+.coverHearts path {
+  transform-box: fill-box;
+  transform-origin: center;
+}
+
+.cover:hover .coverHearts path {
+  animation: coverHeartFloat 2.4s ease-in-out infinite;
+}
+
+.coverHearts path:last-child {
+  animation-delay: -1.2s;
+  animation-direction: reverse;
+}
+
+@keyframes coverHeartFloat {
+  0%,
+  100% {
+    transform: translate(0, 0) rotate(0);
+  }
+  50% {
+    transform: translate(2px, -5px) rotate(5deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cover:hover .coverHearts path {
+    animation: none;
+  }
 }
 
 .coverGit { background: #f8e1d5; color: #8b3b2c; }
@@ -781,8 +818,7 @@
   color: var(--ink-2);
 }
 
-.field input,
-.field select {
+.field > input {
   width: 100%;
   padding: 12px;
   border: 1px solid #e4e9e5;
@@ -794,27 +830,35 @@
   font-weight: 400;
 }
 
-.field input:disabled {
+.field > input:disabled {
   color: var(--ink-3);
   background: var(--surface);
+  pointer-events: none;
+  -webkit-user-select: none;
+  user-select: none;
 }
 
-.field select,
-.catalogToolbar select {
-  padding-right: 38px;
-  appearance: none;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath d='M2.5 4.5 6 8l3.5-3.5' fill='none' stroke='%23777873' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
-  background-repeat: no-repeat;
-  background-position: right 12px center;
-  background-size: 12px 12px;
+.fieldDisabled {
+  cursor: not-allowed;
 }
 
-@media (forced-colors: active) {
-  .field select,
-  .catalogToolbar select {
-    appearance: auto;
-    background-image: none;
-  }
+.dialogSelect:global(.ant-select) {
+  width: 100%;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 400;
+}
+
+.dialogSelect:global(.ant-select-single) {
+  height: calc(1.6em + 26px);
+}
+
+.dialogSelect:global(.ant-select-single) :global(.ant-select-selector) {
+  padding: 0 12px;
+  border-color: #e4e9e5;
+  border-radius: 9px;
+  color: var(--ink);
+  font-size: 12px;
 }
 
 .dialogActions {
@@ -987,7 +1031,7 @@
     flex-basis: 100%;
   }
 
-  .catalogToolbar select {
+  .catalogSelect:global(.ant-select-single) {
     flex: 1;
     height: 40px;
   }

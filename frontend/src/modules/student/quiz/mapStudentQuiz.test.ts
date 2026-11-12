@@ -11,6 +11,7 @@ vi.mock('@/core/i18n/translateApp', () => ({
 describe('displayQuizTitle', () => {
   it('removes generated student quiz metadata', () => {
     expect(displayQuizTitle('Course · medium · 2026-11-10 10:30:25')).toBe('Course')
+    expect(displayQuizTitle('Course · medium · 2026-11-10 10:30:25 · 0123456789abcdef01234567')).toBe('Course')
   })
 
   it('uses the chapter name for generated quizzes, falling back to the chapter key', () => {

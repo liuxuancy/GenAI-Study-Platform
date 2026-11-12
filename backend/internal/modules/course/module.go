@@ -26,6 +26,7 @@ func (Module) GetModels() []any {
 		&StudentAIConversation{},
 		&StudentAIMessage{},
 		&CourseQuestion{},
+		&StudentQuizChapter{},
 		&CourseQuestionContent{},
 		&StudentQuestionProgress{},
 		&StudentQuestionRecord{},

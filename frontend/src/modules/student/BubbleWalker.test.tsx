@@ -58,8 +58,8 @@ function expectPoint(actual: Point, expected: Point) {
   expect(actual.y).toBeCloseTo(expected.y, 2)
 }
 
-function render(currentRoute = route, currentBubbles = bubbles) {
-  act(() => root.render(<BubbleWalker sprite={sprite} route={currentRoute} bubbles={currentBubbles} dialogue={dialogue} />))
+function render(currentRoute = route, currentBubbles = bubbles, showHearts = false) {
+  act(() => root.render(<BubbleWalker sprite={sprite} route={currentRoute} bubbles={currentBubbles} dialogue={dialogue} showHearts={showHearts} />))
   const button = host.querySelector('button')
   if (!button) throw new Error('Walker button not rendered')
   return button
@@ -100,6 +100,19 @@ afterEach(() => {
 })
 
 describe('BubbleWalker pointer interaction', () => {
+  it('shows a clear heart decoration only at maximum affection', () => {
+    reduced = true
+    render()
+    expect(host.querySelector('svg[viewBox="0 0 64 48"]')).toBeNull()
+    render(route, bubbles, true)
+    const hearts = host.querySelector('svg[viewBox="0 0 64 48"]')
+    expect(hearts).not.toBeNull()
+    expect(hearts?.getAttribute('aria-hidden')).toBe('true')
+    expect(hearts?.querySelectorAll('path')).toHaveLength(2)
+    render()
+    expect(host.querySelector('svg[viewBox="0 0 64 48"]')).toBeNull()
+  })
+
   it('stays on the same root edge when the first branch expands', () => {
     reduced = true
     const collapsed = placeBubbles(tree, new Set(), 1)

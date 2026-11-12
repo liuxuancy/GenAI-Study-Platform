@@ -36,7 +36,7 @@
 | 章节问答 | `POST /student/courses/:id/chapters/:chapterKey/ask`、`GET /student/courses/:id/conversations`、`GET /student/courses/:id/conversations/:conversationId`、`DELETE /student/courses/:id/conversations/:conversationId` | 课程内 AI 助手按课程、章节及当前用户维护对话历史；提问可带活动、小节选中文字和 conversationId |
 | 学习时长 | `POST /student/courses/:id/learning/heartbeat` | 仅学生打开真实课程页时上报可见页面时长；切后台、离开页面或累计到阈值时 flush |
 | 课程资源 | `GET /student/courses/:id/resources`、`GET /courses/:courseId/resources/:resourceId/preview`、`GET /courses/:courseId/resources/:resourceId/download` | 资源面板按文件类型、章节、搜索词筛选已发布资源；预览/下载返回短时 URL |
-| 测验中心/套题 | `GET /student/courses`、`GET /student/questions`、`GET /student/courses/:id`、`POST /student/questions` | 页面加载套题和课程；按章节分组时取课程树；创建套题时前端先生成本地预览，用户确认后才将题目提交保存 |
+| 测验中心/套题 | `GET /student/courses`、`GET /student/questions`、`GET /student/courses/:id`、`GET /ai/providers`、`POST /student/courses/:id/questions/generate` | 页面加载套题和课程；用户选择整课或章节、题数、难度及模型后，服务端根据正文生成并直接保存 |
 | 答题 | `GET /student/questions/:id`、`PUT /student/questions/:id/contents/:contentId` | 加载单套题；保存答案时传 `option`，最后一次提交可同时传 `submit: true` |
 | 通用 AI 工作区 | `GET /student/courses`、`GET /workspace/skills`、`GET /workspace/conversations`、`GET /workspace/conversations/:id`、`PUT /workspace/conversations/:id`、`DELETE /workspace/conversations/:id`、`POST /workspace/messages` | 加载可选课程、技能和本人对话；发送消息可附课程、技能、参数和 provider。`/workspace/*` 是学生/教师共用能力，不是学生专属 API |
 | 个人账号 | `GET /account/me`、`PUT /account/profile`、`PUT /account/password`、`POST /account/logout` | `/me` 由登录守卫初始化；账号页更新个人资料、修改密码或退出 |
@@ -122,7 +122,10 @@
 ### 套题可见性、答题和交卷
 
 - 套题列表/详情/答题对创建者开放；非创建者必须同时满足课程对其可见、套题有效发布状态为 `published` 且不是 `archived`。旧数据缺 `publish_status` 时从 `is_publish` 推导 draft/published。
-- 学生创建套题前端只在本地拼出预览（当前是占位题干和选项，不会请求 AI）；确认后 `POST /student/questions`。服务端校验当前角色、题目输入和目标课程可见性，并将学生创建的套题存为未发布。
+- 测验中心 AI 创建套题使用 `POST /student/courses/:id/questions/generate`，请求含 `chapterKey`（空字符串表示整课）、`count`（2/5/10）、`difficulty` 和 `provider`。服务端校验学生角色、课程可见性和正文，提取所选范围正文的有界摘录调用模型；正文为空或仅是占位内容时不生成。整课摘录覆盖各章，章节模式只发送所选章节；模型可能并未读取完整正文，不能保证题目质量。
+- AI 输出必须满足题数、选项、答案和解析校验，成功后以私有草稿事务保存；生成、校验或保存失败返回错误且不留下部分套题。网络中断时结果可能已提交，应刷新列表确认。选章节时个人套题归入该章节，整课测验归入未关联节点；课程重生成不删除个人套题，原章节不存在时保留章节名称并标记。原 `POST /student/questions` 仍接受调用方提供的题目并保存。
+- 测验中心按课程分组时，点击课程标题可展开或收起该课程内容；默认展开，收起课程不会重置其中的章节展开状态。
+- 成功创建测验后关闭弹窗并刷新列表，清除筛选条件、展开目标所在的课程和章节，然后滚动到新测验；列表模式保持不变。
 - 已答题数按非空 `user_option` 计，不按正确率计；前端状态为 `pending`（0 题已答）、`in_progress`（已答至少一题但未交卷）、`completed`（已交卷）。
 - 测验作答页复用测验中心的标题显示规则，隐藏系统生成标题中的时间和内部标识；章节测验优先显示章节名称，答题计时仍单独展示。
 - 未提交时详情不返回正确答案和解析；提交后返回每题正确答案、解析和分数。成绩按答对题数计算；提交前的答案只属于当前学生。

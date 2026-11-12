@@ -6,6 +6,7 @@ import { changePassword, updateProfile } from '@/core/api/account'
 import { useAuthStore } from '@/core/auth/store'
 import { localizedRoleName } from '@/core/i18n/roleName'
 import { useI18n } from '@/core/i18n/useI18n'
+import styles from './AccountPage.module.css'
 
 export function AccountPage() {
   const { t } = useI18n()
@@ -68,7 +69,7 @@ export function AccountPage() {
       <Form
         form={profileForm}
         layout="vertical"
-        style={{ maxWidth: 420 }}
+        className={styles.form}
         initialValues={{ nickname: currentUser.nickname, email: currentUser.email }}
         onFinish={() => void saveProfile()}
       >
@@ -97,7 +98,7 @@ export function AccountPage() {
             <Input value={currentUser.major || t('common.dash')} disabled />
           </Form.Item>
         ) : null}
-        <Button type="primary" htmlType="submit" loading={savingProfile}>
+        <Button className={styles.actionButton} type="primary" htmlType="submit" loading={savingProfile}>
           {t('account.saveProfile')}
         </Button>
       </Form>
@@ -107,7 +108,7 @@ export function AccountPage() {
       </Typography.Title>
       <Typography.Paragraph type="secondary">{t('account.passwordHint')}</Typography.Paragraph>
       {passwordError ? <Alert type="error" showIcon message={passwordError} style={{ marginBottom: 16 }} /> : null}
-      <Form form={passwordForm} layout="vertical" style={{ maxWidth: 420 }} onFinish={() => void savePassword()}>
+      <Form form={passwordForm} layout="vertical" className={styles.form} onFinish={() => void savePassword()}>
         <Form.Item
           name="oldPassword"
           label={t('account.currentPassword')}
@@ -125,7 +126,7 @@ export function AccountPage() {
         >
           <Input.Password />
         </Form.Item>
-        <Button type="primary" htmlType="submit" loading={savingPassword}>
+        <Button className={styles.actionButton} type="primary" htmlType="submit" loading={savingPassword}>
           {t('account.changePassword')}
         </Button>
       </Form>

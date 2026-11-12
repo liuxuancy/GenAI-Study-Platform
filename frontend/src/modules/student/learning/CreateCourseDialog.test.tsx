@@ -20,7 +20,24 @@ vi.mock('react-router-dom', () => ({
   useNavigate: () => mocks.navigate,
   useLocation: () => ({ pathname: mocks.pathname }),
 }))
-vi.mock('antd', () => ({ message: { error: mocks.error }, Select: () => null, Alert: () => null, Space: () => null, Typography: { Text: () => null } }))
+vi.mock('antd', () => ({
+  message: { error: mocks.error },
+  Select: ({ id, value, defaultValue, disabled, options, onChange }: {
+    id?: string
+    value?: string
+    defaultValue?: string
+    disabled?: boolean
+    options?: { value: string; label: string; disabled?: boolean }[]
+    onChange?: (value: string) => void
+  }) => (
+    <select id={id} value={value} defaultValue={defaultValue} disabled={disabled} onChange={(event) => onChange?.(event.target.value)}>
+      {options?.map((option) => <option key={option.value} value={option.value} disabled={option.disabled}>{option.label}</option>)}
+    </select>
+  ),
+  Alert: () => null,
+  Space: () => null,
+  Typography: { Text: () => null },
+}))
 
 let host: HTMLDivElement
 let root: Root
@@ -92,6 +109,33 @@ function deferred() {
 }
 
 describe('background course creation', () => {
+  it('labels both choices and disables unconfigured providers', async () => {
+    mocks.providers.mockResolvedValue({ default: 'deepseek', providers: { deepseek: true, teamily: false } })
+    await render()
+    open()
+    const type = host.querySelector<HTMLSelectElement>('#create-course-type')!
+    const provider = host.querySelector<HTMLSelectElement>('#create-course-provider')!
+    expect(type.labels?.[0].textContent).toBe('student.createCourse.typeLabel')
+    expect(type.value).toBe('Structured')
+    expect(provider.labels?.[0].textContent).toBe('student.createCourse.avatarProviderLabel')
+    expect(provider.options[0].disabled).toBe(false)
+    expect(provider.options[1].disabled).toBe(true)
+  })
+
+  it('keeps the major field disabled and unfocusable', async () => {
+    await render()
+    open()
+    const title = host.querySelector<HTMLInputElement>('dialog input')!
+    const major = host.querySelectorAll<HTMLInputElement>('dialog input')[2]
+    expect(major.disabled).toBe(true)
+    title.focus()
+    expect(document.activeElement).toBe(title)
+    act(() => major.parentElement!.dispatchEvent(new MouseEvent('pointerdown', { bubbles: true })))
+    expect(document.activeElement).not.toBe(title)
+    major.focus()
+    expect(document.activeElement).not.toBe(major)
+  })
+
   it('sends the selected model and keeps it locked while the request runs', async () => {
     const request = deferred()
     await render()

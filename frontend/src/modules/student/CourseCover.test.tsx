@@ -24,4 +24,13 @@ describe('course cover', () => {
     expect(html).toContain('student.coverTopics.git')
     expect(html).toContain('<svg')
   })
+
+  it('adds visible hearts to course cover art only at maximum affection', () => {
+    const sprite = { palette: ['#000000'], pixels: ['0'] }
+    const loved = renderToStaticMarkup(<CourseCover title="Git" sprite={sprite} affection={100} />)
+    const notMax = renderToStaticMarkup(<CourseCover title="Git" sprite={sprite} affection={99} />)
+    expect(loved).toContain('data-affection-hearts="true"')
+    expect(loved.match(/<path/g)).toHaveLength(2)
+    expect(notMax).not.toContain('data-affection-hearts')
+  })
 })

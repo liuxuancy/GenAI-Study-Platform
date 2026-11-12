@@ -72,7 +72,34 @@ body {
   text-rendering: optimizeLegibility;
 }
 
+html:has(dialog:modal),
+body:has(dialog:modal),
+html:has([data-file-preview-modal]),
+body:has([data-file-preview-modal]) {
+  overflow: hidden;
+}
+
+dialog:modal,
+.ant-modal-wrap {
+  overscroll-behavior: contain;
+}
+
 ::selection {
   background: var(--ink);
   color: #fff;
+}
+
+.ant-select-dropdown.ant-select-dropdown {
+  padding: 4px;
+  border: 1px solid #e4e9e5;
+  border-radius: 9px;
+  font-size: 12px;
+}
+
+.ant-select-dropdown.ant-select-dropdown .ant-select-item {
+  min-height: 36px;
+  padding: 10px 12px;
+  border-radius: 6px;
+  font-size: 12px;
+  line-height: 16px;
 }

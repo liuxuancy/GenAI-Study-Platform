@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { Alert, Select, Space, Typography } from 'antd'
 import { getAiProviderOptions, type AiGenerateProvider } from '@/core/api/ai'
 import { useI18n } from '@/core/i18n/useI18n'
+import styles from './AiProviderSelect.module.css'
 
 const storageKey = 'caveclass.ai.provider'
 const courseStorageKey = 'caveclass.ai.courseAvatarProvider'
@@ -80,7 +81,8 @@ export function useAiProviderSelect({ courseAvatar = false }: { courseAvatar?: b
 
   const selector = (
     <Select<AiGenerateProvider>
-      size="small"
+      className={styles.select}
+      aria-label={t('ai.providerLabel')}
       loading={loading}
       value={provider}
       options={options}

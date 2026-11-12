@@ -62,6 +62,18 @@ func chapterTitleFromJSON(contentJSON, chapterKey string) string {
 	return ""
 }
 
+func quizChapterInfo(contentJSON, chapterKey, personalKey, personalTitle string) (string, string, bool) {
+	if personalKey != "" {
+		chapterKey = personalKey
+	}
+	name := chapterTitleFromJSON(contentJSON, chapterKey)
+	missing := personalKey != "" && name == ""
+	if missing {
+		name = personalTitle
+	}
+	return chapterKey, name, missing
+}
+
 // SaveCourseContent 把正文入库。必须先通过 parse.ParseCourseJSON，不改课程名、所有者和是否放出。
 func (service *Service) SaveCourseContent(ctx context.Context, principal *access.Principal, courseID int64, raw string) error {
 	if principal.Role != access.RoleStudent && principal.Role != access.RoleTeacher {

@@ -1,0 +1,32 @@
+.form {
+  max-width: 420px;
+}
+
+.form :global(.ant-input),
+.form :global(.ant-input-affix-wrapper) {
+  min-height: 42px;
+  border-radius: 9px;
+}
+
+.form :global(.ant-input-affix-wrapper) :global(.ant-input) {
+  min-height: 0;
+}
+
+.actionButton:global(.ant-btn-primary) {
+  height: auto;
+  padding: 13px 19px;
+  border: 0;
+  border-radius: var(--radius-md);
+  background: var(--color-teal);
+  color: #fff;
+  font-family: var(--font-ui);
+  font-size: 13px;
+  font-weight: 700;
+  line-height: normal;
+  box-shadow: var(--shadow-card);
+}
+
+.actionButton:global(.ant-btn-primary:not(:disabled):hover) {
+  background: #1a383c;
+  color: #fff;
+}

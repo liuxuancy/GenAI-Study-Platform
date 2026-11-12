@@ -3,6 +3,10 @@ package llm
 import (
 	"context"
 	_ "embed"
+	"encoding/json"
+	"fmt"
+	"regexp"
+	"strconv"
 	"strings"
 )
 
@@ -90,6 +94,18 @@ func mockTextForPrompt(promptText, courseText string) string {
 		return mockPixelDialogueText(promptText)
 	case "templateId: gal_script_v1":
 		return MockGalScriptText()
+	case "templateId: student_quiz_v1":
+		match := regexp.MustCompile(`Generate exactly ([0-9]+) distinct`).FindStringSubmatch(promptText)
+		count := 0
+		if len(match) == 2 {
+			count, _ = strconv.Atoi(match[1])
+		}
+		questions := make([]map[string]any, 0, count)
+		for i := 1; i <= count; i++ {
+			questions = append(questions, map[string]any{"question": fmt.Sprintf("Mock question %d", i), "options": []string{"A", "B"}, "correctIndex": 0, "explanation": "Mock explanation"})
+		}
+		encoded, _ := json.Marshal(map[string]any{"questions": questions})
+		return string(encoded)
 	default:
 		return courseText
 	}

@@ -23,7 +23,22 @@ vi.mock('react-router-dom', () => ({
   useLocation: () => ({ pathname: '/student/courses' }),
   Link: ({ children, to, ...props }: { children: React.ReactNode; to: string }) => <a href={to} {...props}>{children}</a>,
 }))
-vi.mock('antd', () => ({ message: { error: mocks.error }, Select: () => null, Alert: () => null, Space: () => null, Typography: { Text: () => null } }))
+vi.mock('antd', () => ({
+  message: { error: mocks.error },
+  Select: ({ value, defaultValue, options, onChange, disabled, 'aria-label': label }: {
+    value?: string
+    defaultValue?: string
+    options?: { value: string; label: string; disabled?: boolean }[]
+    onChange?: (value: string) => void
+    disabled?: boolean
+    'aria-label'?: string
+  }) => (
+    <select value={value} defaultValue={defaultValue} disabled={disabled} aria-label={label} onChange={(event) => onChange?.(event.target.value)}>
+      {options?.map((option) => <option key={option.value} value={option.value} disabled={option.disabled}>{option.label}</option>)}
+    </select>
+  ),
+  Alert: () => null, Space: () => null, Typography: { Text: () => null },
+}))
 vi.mock('@/modules/student/studentCourseVisuals', () => ({ CourseCover: () => <div /> }))
 
 let host: HTMLDivElement
@@ -71,6 +86,7 @@ it('refreshes the course list after creation finishes with the dialog closed', a
     setter.call(input, 'New course')
     input.dispatchEvent(new Event('input', { bubbles: true }))
   })
+
   act(() => host.querySelector('form')!.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true })))
   act(() => host.querySelector<HTMLButtonElement>('dialog button[type="button"]')!.click())
   await act(async () => resolve(course))
@@ -78,4 +94,30 @@ it('refreshes the course list after creation finishes with the dialog closed', a
   expect(mocks.list).toHaveBeenCalledTimes(2)
   expect(host.textContent).toContain('New course')
   expect(host.querySelector('a[href="/student/courses/42"]')).not.toBeNull()
+})
+
+it('filters and sorts courses using the selected options', async () => {
+  const course = {
+    description: '', courseType: 'structured', visibility: 'private', owned: true,
+    chapterCount: 0, affection: 0, avatar: null,
+  }
+  mocks.list.mockResolvedValue([
+    { ...course, id: 1, title: 'Zebra', percent: 100 },
+    { ...course, id: 2, title: 'Alpha', percent: 0 },
+  ])
+  await act(async () => root.render(<CourseCreationProvider><MyCoursesPage /></CourseCreationProvider>))
+  const sort = host.querySelector<HTMLSelectElement>('[aria-label="student.myCourses.sortAria"]')!
+  act(() => {
+    sort.value = 'title'
+    sort.dispatchEvent(new Event('change', { bubbles: true }))
+  })
+  expect(Array.from(new Set(Array.from(host.querySelectorAll('a[href^="/student/courses/"]'), (link) => link.getAttribute('href')))))
+    .toEqual(['/student/courses/2', '/student/courses/1'])
+  const filter = host.querySelector<HTMLSelectElement>('[aria-label="student.myCourses.progressFilterAria"]')!
+  act(() => {
+    filter.value = 'completed'
+    filter.dispatchEvent(new Event('change', { bubbles: true }))
+  })
+  expect(host.querySelector('a[href="/student/courses/1"]')).not.toBeNull()
+  expect(host.querySelector('a[href="/student/courses/2"]')).toBeNull()
 })

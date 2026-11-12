@@ -176,6 +176,14 @@ type CourseQuestion struct {
 // TableName 方法名是 GORM 规定的，不能改成 GetTableName。
 func (CourseQuestion) TableName() string { return "course_question" }
 
+type StudentQuizChapter struct {
+	QuestionID   int64  `gorm:"primaryKey"`
+	ChapterKey   string `gorm:"size:128;not null"`
+	ChapterTitle string `gorm:"size:200;not null"`
+}
+
+func (StudentQuizChapter) TableName() string { return "student_quiz_chapter" }
+
 // CourseQuestionContent 对应 course_question_content，业务上的 Question。
 type CourseQuestionContent struct {
 	ID            int64  `gorm:"primaryKey"`
