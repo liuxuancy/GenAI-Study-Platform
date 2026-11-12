@@ -61,9 +61,14 @@ type PublishCourseResourceInput struct {
 }
 
 type ResourcePreviewResult struct {
-	Kind    string `json:"kind"`
-	URL     string `json:"url,omitempty"`
-	Message string `json:"message,omitempty"`
+	Kind      string `json:"kind"`
+	URL       string `json:"url,omitempty"`
+	StreamURL string `json:"streamUrl,omitempty"`
+	Message   string `json:"message,omitempty"`
+}
+
+func courseResourcePreviewStreamPath(courseID, resourceID int64) string {
+	return fmt.Sprintf("/api/courses/%d/resources/%d/preview/stream", courseID, resourceID)
 }
 
 type ResourceDownloadResult struct {
@@ -533,12 +538,20 @@ func (service *Service) GetCourseResourcePreview(ctx context.Context, principal 
 			logs.CtxError(ctx, "[GetCourseResourcePreview] failed, err: %v", err)
 			return nil, err
 		}
-		url, err := client.PresignedPDFInlineGetURL(ctx, row.ObjectKey, row.DisplayName, limits.PresignTTL)
+		previewTTL := limits.PresignTTL
+		if previewTTL < 30*time.Minute {
+			previewTTL = 30 * time.Minute
+		}
+		url, err := client.PresignedPDFInlineGetURL(ctx, row.ObjectKey, row.DisplayName, previewTTL)
 		if err != nil {
 			logs.CtxError(ctx, "[GetCourseResourcePreview] failed, err: %v", err)
 			return nil, errs.Internal(fmt.Errorf("presign pdf preview: %w", err))
 		}
-		output := &ResourcePreviewResult{Kind: kind, URL: url}
+		output := &ResourcePreviewResult{
+			Kind:      kind,
+			URL:       url,
+			StreamURL: courseResourcePreviewStreamPath(courseID, resourceID),
+		}
 		logs.CtxInfo(ctx, "[GetCourseResourcePreview] done: resource_id=%d resp=%+v", resourceID, output)
 		return output, nil
 	case "image":
@@ -585,6 +598,39 @@ func (service *Service) GetCourseResourcePreview(ctx context.Context, principal 
 		logs.CtxInfo(ctx, "[GetCourseResourcePreview] done: resource_id=%d resp=%+v", resourceID, output)
 		return output, nil
 	}
+}
+
+// StreamCourseResourcePDFPreview 服务端从 COS 拉取 PDF 并流式转发（不向前端暴露 COS 密钥；Range 由服务端签名拉取）。
+func (service *Service) StreamCourseResourcePDFPreview(
+	ctx context.Context,
+	principal *access.Principal,
+	courseID, resourceID int64,
+	rangeHeader string,
+) (*cos.ObjectHTTPResponse, error) {
+	row, err := service.loadCourseResource(ctx, courseID, resourceID)
+	if err != nil {
+		logs.CtxError(ctx, "[StreamCourseResourcePDFPreview] failed, err: %v", err)
+		return nil, err
+	}
+	requirePublished := principal.Role == access.RoleStudent
+	if err := service.canAccessResource(ctx, principal, row, requirePublished); err != nil {
+		logs.CtxError(ctx, "[StreamCourseResourcePDFPreview] failed, err: %v", err)
+		return nil, err
+	}
+	if previewKindForResource(row) != "pdf" {
+		return nil, errs.BadRequest("only pdf resources support stream preview")
+	}
+	client, _, err := service.requireCOS()
+	if err != nil {
+		logs.CtxError(ctx, "[StreamCourseResourcePDFPreview] failed, err: %v", err)
+		return nil, err
+	}
+	obj, err := client.GetObjectHTTP(ctx, row.ObjectKey, rangeHeader)
+	if err != nil {
+		logs.CtxError(ctx, "[StreamCourseResourcePDFPreview] failed, err: %v", err)
+		return nil, errs.Internal(fmt.Errorf("cos get object: %w", err))
+	}
+	return obj, nil
 }
 
 // GetCourseResourceDownload shared download URL

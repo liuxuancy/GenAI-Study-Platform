@@ -177,10 +177,9 @@
   border-radius: 4px;
 }
 
-.pdfPagePending {
+.pdfPagesHidden {
+  visibility: hidden;
   min-height: 360px;
-  background: linear-gradient(180deg, #faf8f5 0%, #f0ebe6 100%);
-  border-radius: 4px;
 }
 
 .pdfPageError {

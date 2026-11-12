@@ -28,6 +28,8 @@ export interface CourseResourceListResult {
 export interface ResourcePreviewResult {
   kind: string
   url?: string
+  /** PDF 同源流式中转（不暴露 COS 签名；fetch 时带 Bearer） */
+  streamUrl?: string
   message?: string
 }
 

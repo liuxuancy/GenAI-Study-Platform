@@ -10,22 +10,21 @@ import {
 } from '@ant-design/icons'
 import * as pdfjs from 'pdfjs-dist'
 import type { PDFDocumentProxy, PDFPageProxy } from 'pdfjs-dist'
+import pdfWorkerSrc from 'pdfjs-dist/build/pdf.worker.min.mjs?url'
 
 import type { ResourcePreviewResult } from '@/modules/courseResources/api'
+import { useAuthStore } from '@/core/auth/store'
 import { useI18n } from '@/core/i18n/useI18n'
 import styles from './FilePreview.module.css'
 
-pdfjs.GlobalWorkerOptions.workerSrc = new URL(
-  'pdfjs-dist/build/pdf.worker.min.mjs',
-  import.meta.url,
-).toString()
+/** Vite 生产构建需 ?url，否则 worker 404，pdf.js 会误报「链接过期」。 */
+pdfjs.GlobalWorkerOptions.workerSrc = pdfWorkerSrc
 
 const PDF_MAX_CSS_WIDTH = 900
 const PDF_MAX_CSS_SCALE = 1.35
 const PDF_MIN_ZOOM = 0.65
 const PDF_MAX_ZOOM = 2.2
 const PDF_ZOOM_STEP = 0.15
-/** Cap DPR to limit memory on very dense displays */
 const PDF_MAX_OUTPUT_SCALE = 2.5
 
 export interface FilePreviewProps {
@@ -39,12 +38,48 @@ export interface FilePreviewProps {
   onDownload: () => void
 }
 
-async function fetchPdfBytes(previewUrl: string): Promise<Uint8Array> {
-  const response = await fetch(previewUrl, { mode: 'cors', credentials: 'omit' })
+function toAbsoluteUrl(pathOrUrl: string): string {
+  try {
+    return new URL(pathOrUrl, window.location.origin).href
+  } catch {
+    return pathOrUrl
+  }
+}
+
+/** 整包 GET，不带 Range，避免预签名未签 Range 导致 403。 */
+async function fetchPresignedPdfBytes(cosUrl: string): Promise<Uint8Array> {
+  const response = await fetch(cosUrl, { mode: 'cors', credentials: 'omit' })
   if (!response.ok) {
-    throw new Error(`fetch ${response.status}`)
+    throw new Error(`cos_fetch_${response.status}`)
   }
   return new Uint8Array(await response.arrayBuffer())
+}
+
+async function fetchStreamPdfBytes(streamPath: string, token: string | null): Promise<Uint8Array> {
+  const headers: Record<string, string> = {}
+  if (token) {
+    headers.Authorization = `Bearer ${token}`
+  }
+  const response = await fetch(toAbsoluteUrl(streamPath), { credentials: 'omit', headers })
+  if (!response.ok) {
+    throw new Error(`stream_fetch_${response.status}`)
+  }
+  return new Uint8Array(await response.arrayBuffer())
+}
+
+async function loadPdfBytes(preview: ResourcePreviewResult, token: string | null): Promise<Uint8Array> {
+  const cosUrl = preview.url?.startsWith('http') ? preview.url : ''
+  if (cosUrl) {
+    try {
+      return await fetchPresignedPdfBytes(cosUrl)
+    } catch {
+      /* 香港桶常见 Range/CORS 403，走同源中转 */
+    }
+  }
+  if (preview.streamUrl) {
+    return fetchStreamPdfBytes(preview.streamUrl, token)
+  }
+  throw new Error('pdf_source_missing')
 }
 
 function outputScaleForCanvas(): number {
@@ -96,6 +131,7 @@ export function FilePreview({
   onDownload,
 }: FilePreviewProps) {
   const { t } = useI18n()
+  const [pdfLoading, setPdfLoading] = useState(false)
   const [pdfReady, setPdfReady] = useState(false)
   const [pdfError, setPdfError] = useState('')
   const [imageError, setImageError] = useState(false)
@@ -107,6 +143,7 @@ export function FilePreview({
 
   useEffect(() => {
     if (!open) {
+      setPdfLoading(false)
       setPdfReady(false)
       setPdfError('')
       setImageError(false)
@@ -128,12 +165,12 @@ export function FilePreview({
   }, [open, onClose])
 
   useEffect(() => {
-    if (!open || preview?.kind !== 'pdf' || !preview.url) {
+    if (!open || preview?.kind !== 'pdf' || (!preview.url && !preview.streamUrl)) {
       return
     }
     let cancelled = false
-    const previewUrl = preview.url
 
+    setPdfLoading(true)
     setPdfReady(false)
     setPdfError('')
     setPdfPage(1)
@@ -141,9 +178,17 @@ export function FilePreview({
 
     const run = async () => {
       try {
-        const bytes = await fetchPdfBytes(previewUrl)
+        const token = useAuthStore.getState().token
+        const bytes = await loadPdfBytes(preview, token)
         if (cancelled) return
-        const loadingTask = pdfjs.getDocument({ data: bytes, disableRange: true, disableStream: true })
+        // 复制一份交给 Worker，避免生产环境 SharedArrayBuffer / detach 问题；禁止走 URL Range 拉取。
+        const loadingTask = pdfjs.getDocument({
+          data: bytes.slice(0),
+          disableRange: true,
+          disableStream: true,
+          disableAutoFetch: true,
+          useSystemFonts: true,
+        })
         const pdfDoc = await loadingTask.promise
         if (cancelled) {
           void pdfDoc.destroy()
@@ -155,7 +200,10 @@ export function FilePreview({
       } catch {
         if (!cancelled) {
           setPdfError(t('filePreview.pdfLoadFailed'))
-          setPdfReady(false)
+        }
+      } finally {
+        if (!cancelled) {
+          setPdfLoading(false)
         }
       }
     }
@@ -165,7 +213,7 @@ export function FilePreview({
       void pdfDocRef.current?.destroy()
       pdfDocRef.current = null
     }
-  }, [open, preview?.kind, preview?.url, t])
+  }, [open, preview, t])
 
   const paintCurrentPage = useCallback(async () => {
     const host = containerRef.current
@@ -190,8 +238,9 @@ export function FilePreview({
     return null
   }
 
-  const isPdfPreview = preview?.kind === 'pdf' && Boolean(preview.url)
+  const isPdfPreview = preview?.kind === 'pdf' && Boolean(preview.url || preview.streamUrl)
   const typeLabel = (fileType || 'file').toUpperCase()
+  const pdfFailed = Boolean(pdfError)
 
   function renderPdfControls() {
     if (!pdfReady || pdfTotalPages < 1) return null
@@ -282,23 +331,29 @@ export function FilePreview({
         />
       )
     }
-    if (preview?.kind === 'pdf' && preview.url) {
-      if (pdfError) {
+    if (preview?.kind === 'pdf' && (preview.url || preview.streamUrl)) {
+      if (pdfFailed) {
         return (
           <div className={styles.stateBlock}>
+            <FileExclamationOutlined className={styles.stateIcon} />
             <p className={styles.message}>{pdfError}</p>
-            <Button type="primary" href={preview.url} target="_blank" rel="noopener noreferrer" icon={<DownloadOutlined />}>
+            <Button type="primary" icon={<DownloadOutlined />} onClick={onDownload}>
               {t('filePreview.downloadPdf')}
             </Button>
-            <Button onClick={onDownload}>{t('filePreview.download')}</Button>
           </div>
         )
       }
       return (
         <div className={styles.pdfWrap}>
           {renderPdfControls()}
-          {!pdfReady ? <Spin className={styles.pdfSpinner} size="large" tip={t('filePreview.loading')} /> : null}
-          <div ref={containerRef} className={styles.pdfPages} aria-busy={!pdfReady} />
+          {pdfLoading || !pdfReady ? (
+            <Spin className={styles.pdfSpinner} size="large" tip={t('filePreview.loading')} />
+          ) : null}
+          <div
+            ref={containerRef}
+            className={`${styles.pdfPages}${pdfLoading ? ` ${styles.pdfPagesHidden}` : ''}`}
+            aria-busy={pdfLoading}
+          />
         </div>
       )
     }
@@ -328,9 +383,15 @@ export function FilePreview({
           <span className={styles.badge}>{typeLabel}</span>
         </div>
         <div className={styles.toolbarActions}>
-          <Button icon={<DownloadOutlined />} onClick={onDownload}>
-            {t('filePreview.download')}
-          </Button>
+          {!pdfFailed && !pdfLoading && isPdfPreview ? (
+            <Button icon={<DownloadOutlined />} onClick={onDownload}>
+              {t('filePreview.download')}
+            </Button>
+          ) : !isPdfPreview ? (
+            <Button icon={<DownloadOutlined />} onClick={onDownload}>
+              {t('filePreview.download')}
+            </Button>
+          ) : null}
           <Button type="primary" onClick={onClose}>
             {t('filePreview.close')}
           </Button>
