@@ -5,6 +5,7 @@ import * as pdfjs from 'pdfjs-dist'
 import type { PDFDocumentProxy, PDFPageProxy } from 'pdfjs-dist'
 
 import type { ResourcePreviewResult } from '@/modules/courseResources/api'
+import { useAuthStore } from '@/core/auth/store'
 import { useI18n } from '@/core/i18n/useI18n'
 import styles from './FilePreview.module.css'
 
@@ -126,11 +127,15 @@ export function FilePreview({
       }
 
       try {
+        const previewUrl = preview.url!
+        const sameOrigin = previewUrl.startsWith('/api/')
+        const token = useAuthStore.getState().token
         const loadingTask = pdfjs.getDocument({
-          url: preview.url!,
+          url: previewUrl,
+          ...(sameOrigin && token ? { httpHeaders: { Authorization: `Bearer ${token}` } } : {}),
           withCredentials: false,
-          disableRange: false,
-          disableStream: false,
+          disableRange: !sameOrigin,
+          disableStream: !sameOrigin,
           rangeChunkSize: 65536,
         })
         pdfDoc = await loadingTask.promise
