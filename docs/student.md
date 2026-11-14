@@ -34,7 +34,6 @@
 | 课程分享/AI 生成 | `PUT /student/courses/:id/sharing`、`POST /student/courses/:id/generate`、`GET /ai/providers` | 仅课程所有者显示分享与生成按钮；分享切换同班可见性，生成/重新生成课程内容 |
 | 课程资料 | `GET /student/courses/:id/resources`、`POST /student/courses/:id/resources` | 学生仅能上传自己创建的课程资料；上传资料在课程共享给同班后可见 |
 | 章节问答 | `POST /student/courses/:id/chapters/:chapterKey/ask`、`GET /student/courses/:id/conversations`、`GET /student/courses/:id/conversations/:conversationId`、`DELETE /student/courses/:id/conversations/:conversationId` | 课程内 AI 助手按课程、章节及当前用户维护对话历史；提问可带活动、小节选中文字和 conversationId |
-| 学习时长 | `POST /student/courses/:id/learning/heartbeat` | 仅学生打开真实课程页时上报可见页面时长；切后台、离开页面或累计到阈值时 flush |
 | 课程资源 | `GET /student/courses/:id/resources`、`GET /courses/:courseId/resources/:resourceId/preview`、`GET /courses/:courseId/resources/:resourceId/download` | 资源面板按文件类型、章节、搜索词筛选已发布资源；预览/下载返回短时 URL |
 | 测验中心/套题 | `GET /student/courses`、`GET /student/questions`、`GET /student/courses/:id`、`GET /ai/providers`、`POST /student/courses/:id/questions/generate` | 页面加载套题和课程；用户选择整课或章节、题数、难度及模型后，服务端根据正文生成并直接保存 |
 | 答题 | `GET /student/questions/:id`、`PUT /student/questions/:id/contents/:contentId` | 加载单套题；保存答案时传 `option`，最后一次提交可同时传 `submit: true` |
@@ -84,7 +83,6 @@
 - **导图位置**：展开或收起气泡造成布局变化时，小人优先保持在原气泡边缘或连接线的相对位置；如果原位置对应的分支已消失，则重新寻找可用路线。
 - **像素形象**：在学生创建课程时生成，存在 `course_pixel_avatar`，一门课一行。列表和详情带上五张网格和双语对白，按界面语言显示。生成时要求初始图站立、25% 挥手、50% 拿书、75% 举起双手欢呼、100% 跳跃并带爱心；不校验各档像素差异，实际动作及图片差异取决于模型输出，可能相同或相似。页面按当前学生的 `affection` 选图：小于 25 用初始图，25–49 用 25%，50–74 用 50%，75–99 用 75%，100 用 100%。新要求不改变已有形象。没有形象行时继续用原来的封面。旧形象缺少对白时，服务后台按性格逐个补生成并保存，不改变像素图；失败会记录日志并延迟重试，产生的 AI 用量计入课程所有者。补齐前小人不显示对白，导图打开时会自动刷新。
 - **分享状态**：所有者切换分享时调用 `PUT /student/courses/:id/sharing`，写入 `course.is_publish`（0/1）；读列表/详情时按发布状态和 `course_class` 计算可见标签。学生自己的分享课程通过同班可见，不新增 `course_class` 行。
-- **学习时长**：课程页可见时上报 heartbeat，后端写入 `student_learning_event`；它记录活动时长，不代替课程进度表。
 
 ### 后端已登记、但当前学生 UI 未直接调用的接口
 
@@ -116,7 +114,7 @@
 - 课程页把已完成 activity 的 ID 存在 `localStorage`，键为 `caveclass.lesson-done.<userId>.<courseId>`；本地完成比例按课程树叶节点数计算。
 - 页面显示/保存比例取服务端进度与本地叶节点比例的较大值。只有点击完成/继续等主操作才会标记 activity 完成并调用 `PUT .../progress`；服务端要求比例在 `0–100`，且课程必须对当前学生可见。
 - 首页课程状态：未开始 `percent === 0`，进行中 `0 < percent < 100`，已完成 `percent === 100`。继续学习优先选进行中的课程，其次未完成课程。
-- 学习时长由课程页心跳写入事件；后台将课程心跳按时长聚合，进度保存、答题、交卷和章节问答也会写学习事件。
+- 学习看板仍由进度保存、答题、交卷和章节问答等写入 `student_learning_event`；课程页心跳上报已下线，不再调用 `POST /student/courses/:id/learning/heartbeat`。
 - 学习中心任务由课程进度和套题状态推导：课程未完成时推荐继续；未交卷套题可形成测验任务；已交卷且分数低于 70 分时形成复习任务。点击课程任务进入对应课程详情，点击测验或复习任务进入对应套题详情；点击任务前的完成状态图标不会跳转或更改状态。当前首页统计卡的“待完成测验”只计前端状态为 `pending` 的套题，不包含 `in_progress`；学习任务列表则包含未交卷的进行中套题。
 
 ### 套题可见性、答题和交卷

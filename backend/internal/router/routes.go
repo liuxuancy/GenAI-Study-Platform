@@ -106,7 +106,6 @@ func registerRoutes(api *gin.RouterGroup, deps Deps) {
 	studentRoutes.DELETE("/courses/:id/conversations/:conversationId", access.RequireLogin(), resp.ToGinHandler(courseHandler.DeleteAIConversation))
 	studentRoutes.GET("/learning/dashboard", access.RequireLogin(), resp.ToGinHandler(courseHandler.GetLearningDashboard))
 	studentRoutes.POST("/learning/insights", access.RequireLogin(), resp.ToGinHandler(courseHandler.GenerateLearningInsight))
-	studentRoutes.POST("/courses/:id/learning/heartbeat", access.RequireLogin(), resp.ToGinHandler(courseHandler.RecordCourseHeartbeat))
 	studentRoutes.GET("/questions", access.RequireLogin(), resp.ToGinHandler(courseHandler.GetQuestionList))
 	studentRoutes.POST("/questions", access.RequireLogin(), resp.ToGinHandler(courseHandler.CreateQuestion))
 	studentRoutes.GET("/questions/:id", access.RequireLogin(), resp.ToGinHandler(courseHandler.GetQuestion))
@@ -154,5 +153,6 @@ func registerRoutes(api *gin.RouterGroup, deps Deps) {
 	studentRoutes.POST("/courses/:id/resources", access.RequireLogin(), resp.ToGinHandler(courseHandler.UploadStudentCourseResource))
 
 	api.GET("/courses/:courseId/resources/:resourceId/preview", access.RequireLogin(), resp.ToGinHandler(courseHandler.GetCourseResourcePreview))
+	api.GET("/courses/:courseId/resources/:resourceId/preview/stream", access.RequireLogin(), courseHandler.ServeCourseResourcePreviewStream)
 	api.GET("/courses/:courseId/resources/:resourceId/download", access.RequireLogin(), resp.ToGinHandler(courseHandler.GetCourseResourceDownload))
 }

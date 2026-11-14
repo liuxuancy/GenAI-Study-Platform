@@ -1,10 +1,13 @@
 package course
 
 import (
+	"io"
+	"net/http"
 	"strconv"
 	"strings"
 
 	"github.com/gin-gonic/gin"
+	"github.com/liuxuancy/Libs/logs"
 
 	"caveclass/internal/framework/access"
 	"caveclass/internal/platform/errs"
@@ -158,6 +161,60 @@ func (handler *Handler) GetCourseResourcePreview(ctx *gin.Context) (any, error) 
 		return nil, err
 	}
 	return handler.service.GetCourseResourcePreview(ctx.Request.Context(), principal, courseID, resourceID)
+}
+
+// ServeCourseResourcePreviewStream GET /api/courses/:courseId/resources/:resourceId/preview/stream
+func (handler *Handler) ServeCourseResourcePreviewStream(ctx *gin.Context) {
+	principal, err := access.GetCurrentPrincipal(ctx)
+	if err != nil {
+		_ = ctx.Error(err)
+		return
+	}
+	courseID, err := courseResourcePathCourseID(ctx)
+	if err != nil {
+		_ = ctx.Error(err)
+		return
+	}
+	resourceID, err := resp.GetInt64PathParam(ctx, "resourceId")
+	if err != nil {
+		_ = ctx.Error(err)
+		return
+	}
+	obj, err := handler.service.StreamCourseResourcePDFPreview(
+		ctx.Request.Context(), principal, courseID, resourceID, ctx.GetHeader("Range"),
+	)
+	if err != nil {
+		_ = ctx.Error(err)
+		return
+	}
+	defer obj.Body.Close()
+	writeCOSStreamHeaders(ctx, obj.Header)
+	ctx.Status(obj.StatusCode)
+	if _, err := io.Copy(ctx.Writer, obj.Body); err != nil {
+		logs.CtxWarn(ctx.Request.Context(), "[ServeCourseResourcePreviewStream] stream interrupted: %v", err)
+	}
+}
+
+func writeCOSStreamHeaders(ctx *gin.Context, src http.Header) {
+	if src == nil {
+		return
+	}
+	for _, key := range []string{
+		"Content-Type",
+		"Content-Length",
+		"Content-Range",
+		"Accept-Ranges",
+		"ETag",
+		"Cache-Control",
+	} {
+		if value := src.Get(key); value != "" {
+			ctx.Header(key, value)
+		}
+	}
+	if src.Get("Content-Type") == "" {
+		ctx.Header("Content-Type", "application/pdf")
+	}
+	ctx.Header("Content-Disposition", "inline")
 }
 
 // GetCourseResourceDownload GET /api/courses/:courseId/resources/:resourceId/download

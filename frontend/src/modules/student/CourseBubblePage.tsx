@@ -52,7 +52,6 @@ import {
   separatorWidth,
   syllabusWidth,
 } from '@/modules/student/learning/workspaceLayout'
-import { useCourseLearningHeartbeat } from '@/modules/student/learning/useCourseLearningHeartbeat'
 import { GalStoryPanel } from '@/modules/student/gal/GalStoryPanel'
 
 type CourseViewTab = 'learn' | 'resources' | 'map' | 'story'
@@ -108,8 +107,6 @@ export function CourseBubblePage() {
     error: aiProviderError,
     optionsAvailable: aiOptionsAvailable,
   } = useAiProviderSelect()
-
-  useCourseLearningHeartbeat(courseId, currentUser?.role === 'ROLE_STUDENT' && Boolean(courseId) && courseId !== 'new')
 
   useEffect(() => {
     if (currentUser?.role !== 'ROLE_STUDENT' || !courseId || courseId === 'new') {

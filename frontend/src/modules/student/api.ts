@@ -276,8 +276,3 @@ export function postLearningInsight(input: { provider?: string; language?: strin
   return http.post<LearningInsightResult>('/student/learning/insights', input)
 }
 
-export function postCourseLearningHeartbeat(courseId: string, seconds: number) {
-  return http.post<{ recorded: boolean }>(`/student/courses/${courseId}/learning/heartbeat`, {
-    seconds,
-  })
-}
