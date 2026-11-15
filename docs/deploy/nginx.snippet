@@ -1,5 +1,18 @@
 # 宝塔「网站」-> 配置文件：站点 root 指向前端 dist，/api 反代后端
 # root /www/wwwroot/caveclass/frontend/dist;
+#
+# 若访问 /peer-evaluation.html 出现 SPA「Page not found」，多半是伪静态把所有请求
+# 重写到 index.html。请在 location / 之前加入下面两段（路径按 REPO_DIR 修改）：
+
+location = /peer-evaluation.html {
+    root /www/wwwroot/caveclass/frontend/dist;
+    default_type text/html;
+}
+
+location ^~ /UI/assets/ {
+    root /www/wwwroot/caveclass/frontend/dist;
+    try_files $uri =404;
+}
 
 location /api/ {
     proxy_pass http://127.0.0.1:8080;
