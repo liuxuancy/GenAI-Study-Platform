@@ -40,6 +40,10 @@ cd "$REPO_DIR/frontend"
 corepack enable pnpm 2>/dev/null || true
 pnpm install --frozen-lockfile
 pnpm build
+if [ ! -f dist/peer-evaluation.html ]; then
+  echo "error: dist/peer-evaluation.html missing after build"
+  exit 1
+fi
 
 # 后端二进制 -> backend/bin/caveclass-server
 cd "$REPO_DIR/backend"
