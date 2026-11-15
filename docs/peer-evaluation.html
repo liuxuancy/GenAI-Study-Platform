@@ -1,0 +1,461 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light">
+  <title>CaveClass · Access</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Fraunces:opsz,wght@9..144,300..700&family=Noto+Sans+SC:wght@400;500;600;700&family=Source+Serif+4:opsz,wght@8..60,300..700&display=swap">
+  <link rel="stylesheet" href="UI/assets/app.css">
+  <style>
+    :root {
+      --accent: #c84d35;
+      --font-ui: 'DM Sans', 'Noto Sans SC', system-ui, sans-serif;
+    }
+
+    .page-topbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 20px;
+      flex-wrap: wrap;
+    }
+
+    .topbar-actions {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      flex-wrap: wrap;
+    }
+
+    .lang-switch {
+      display: inline-flex;
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      overflow: hidden;
+      background: #fff;
+      font-family: var(--font-ui);
+    }
+    .lang-switch button {
+      border: 0;
+      background: transparent;
+      padding: 6px 12px;
+      font-size: 12px;
+      font-weight: 600;
+      letter-spacing: 0.02em;
+      cursor: pointer;
+      color: var(--ink-3);
+      line-height: 1.2;
+    }
+    .lang-switch button:hover { color: var(--ink); }
+    .lang-switch button.is-on {
+      background: var(--ink);
+      color: #fff;
+    }
+
+    .page.page--full {
+      max-width: none;
+      width: 100%;
+    }
+
+    .info-main {
+      width: 100%;
+      max-width: none;
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      padding: clamp(16px, 2.8vh, 28px) 0 clamp(16px, 2.5vh, 24px);
+      min-height: 0;
+    }
+
+    .page-intro {
+      margin-bottom: clamp(16px, 2.5vh, 24px);
+      padding-bottom: clamp(12px, 2vh, 20px);
+      border-bottom: 1px solid var(--line);
+    }
+
+    .page-intro h1 {
+      font-family: var(--f-display);
+      font-size: clamp(26px, 3.2vw, 36px);
+      font-weight: 600;
+      letter-spacing: -0.02em;
+      line-height: 1.15;
+      margin: 10px 0 0;
+    }
+
+    .content-grid {
+      flex: 1;
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+      gap: clamp(20px, 3vw, 40px);
+      align-content: start;
+      width: 100%;
+    }
+
+    .section {
+      margin: 0;
+      min-width: 0;
+    }
+
+    .section--full {
+      grid-column: 1 / -1;
+    }
+
+    .section h2 {
+      font-family: var(--f-display);
+      font-size: 20px;
+      font-weight: 600;
+      margin: 12px 0 14px;
+      letter-spacing: -0.01em;
+    }
+
+    .link-grid {
+      display: grid;
+      gap: 0;
+      border: 1px solid var(--line);
+      background: #fff;
+    }
+
+    .content-grid .table td,
+    .content-grid .table th {
+      padding-top: 11px;
+      padding-bottom: 11px;
+    }
+
+    .link-row {
+      display: grid;
+      grid-template-columns: minmax(100px, 22%) 1fr;
+      gap: 12px 20px;
+      padding: 16px 20px;
+      border-bottom: 1px solid var(--line);
+      align-items: baseline;
+    }
+    .link-row:last-child { border-bottom: 0; }
+
+    .link-row dt {
+      margin: 0;
+      font-family: var(--font-ui);
+      font-size: 12px;
+      font-weight: 600;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      color: var(--ink-3);
+    }
+
+    .link-row dd {
+      margin: 0;
+      font-size: 15px;
+      word-break: break-word;
+    }
+
+    .link-row a {
+      color: var(--accent);
+      border-bottom: 1px solid var(--line);
+      padding-bottom: 1px;
+      transition: border-color 0.18s var(--ease);
+    }
+    .link-row a:hover { border-color: var(--accent); }
+
+    .sub {
+      display: block;
+      margin-top: 6px;
+      font-family: var(--font-ui);
+      font-size: 13px;
+      color: var(--ink-2);
+    }
+
+    .hint {
+      margin: 0 0 12px;
+      font-size: 15px;
+      color: var(--ink-2);
+    }
+
+    .table-wrap { margin-top: 8px; }
+
+    .ext::after {
+      content: ' ↗';
+      font-size: 0.85em;
+      opacity: 0.65;
+    }
+
+    @media (max-width: 900px) {
+      .content-grid {
+        grid-template-columns: 1fr;
+      }
+      .section--full {
+        grid-column: auto;
+      }
+    }
+
+    @media (max-width: 640px) {
+      .link-row {
+        grid-template-columns: 1fr;
+        gap: 6px;
+      }
+    }
+  </style>
+</head>
+<body>
+
+<div class="page page--full">
+  <header class="page-topbar">
+    <a class="brand" href="https://caveclass.umberk.cn/" target="_blank" rel="noopener noreferrer" aria-label="CaveClass">
+      <span class="mark" aria-hidden="true">C</span>
+      <span class="brand-text">
+        <strong>CaveClass</strong>
+        <small data-i18n="brandTagline">Courses, explained by AI</small>
+      </span>
+    </a>
+    <div class="topbar-actions">
+      <div class="lang-switch" role="group" aria-label="Language">
+        <button type="button" data-lang="zh">中文</button>
+        <button type="button" data-lang="en" class="is-on">EN</button>
+      </div>
+    </div>
+  </header>
+
+  <main class="info-main">
+    <header class="page-intro">
+      <p class="eyebrow">COMP5241</p>
+      <h1 data-i18n="title">Access information</h1>
+    </header>
+
+    <div class="content-grid">
+    <section class="section" aria-labelledby="sec-links">
+      <p class="eyebrow" id="sec-links" data-i18n="secLinksEyebrow">Links</p>
+      <h2 data-i18n="secLinksTitle">Repository &amp; deployment</h2>
+      <dl class="link-grid">
+        <div class="link-row">
+          <dt data-i18n="lblRepo">Repository</dt>
+          <dd><a class="ext" href="https://github.com/liuxuancy/GenAI-Study-Platform" target="_blank" rel="noopener noreferrer">https://github.com/liuxuancy/GenAI-Study-Platform</a></dd>
+        </div>
+        <div class="link-row">
+          <dt data-i18n="lblDeploy">App</dt>
+          <dd><a class="ext" href="https://caveclass.umberk.cn/" target="_blank" rel="noopener noreferrer">https://caveclass.umberk.cn/</a></dd>
+        </div>
+        <div class="link-row">
+          <dt data-i18n="lblOps">Operations log</dt>
+          <dd>
+            <a class="ext" href="https://workspace.cydevlab.cn/logs" target="_blank" rel="noopener noreferrer">https://workspace.cydevlab.cn/logs</a>
+            <span class="sub" data-i18n="opsCred">Log console: caveclass / 123456</span>
+          </dd>
+        </div>
+        <div class="link-row">
+          <dt data-i18n="lblSlides">Slides</dt>
+          <dd><a class="ext" href="https://caveclass-resources-hk-1385365202.cos.ap-hongkong.myqcloud.com/courses/Sildes/CaveClass_Presentation_COMP5241.pdf" target="_blank" rel="noopener noreferrer" data-i18n="slidesLinkLabel">CaveClass_Presentation_COMP5241.pdf</a></dd>
+        </div>
+      </dl>
+    </section>
+
+    <section class="section" aria-labelledby="sec-videos">
+      <p class="eyebrow" id="sec-videos" data-i18n="secVideosEyebrow">Videos</p>
+      <h2 data-i18n="secVideosTitle">Demonstration</h2>
+      <div class="table-wrap">
+        <table class="table">
+          <thead>
+            <tr>
+              <th data-i18n="thVideo">Title</th>
+              <th data-i18n="thLink">Link</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td data-i18n="v1Name">System overview</td>
+              <td><a class="ext" href="https://youtu.be/0ckW_dLMw0g" target="_blank" rel="noopener noreferrer">YouTube</a></td>
+            </tr>
+            <tr>
+              <td data-i18n="v2Name">Instructor workflow</td>
+              <td><a class="ext" href="https://youtu.be/ndMQPCUki34" target="_blank" rel="noopener noreferrer">YouTube</a></td>
+            </tr>
+            <tr>
+              <td data-i18n="v3Name">Student workflow</td>
+              <td><a class="ext" href="https://youtu.be/3zxK8ybr5Bw" target="_blank" rel="noopener noreferrer">YouTube</a></td>
+            </tr>
+            <tr>
+              <td data-i18n="v4Name">Administrator workflow</td>
+              <td><a class="ext" href="https://youtu.be/hb5o4pzfhd0" target="_blank" rel="noopener noreferrer">YouTube</a></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="section section--full" aria-labelledby="sec-accounts">
+      <p class="eyebrow" id="sec-accounts" data-i18n="secAcctEyebrow">Login</p>
+      <h2 data-i18n="secAcctTitle">Test accounts</h2>
+      <p class="hint" data-i18n="acctHint">Use the app URL above. Select the matching role on the sign-in page.</p>
+      <div class="table-wrap">
+        <table class="table">
+          <thead>
+            <tr>
+              <th data-i18n="thUser">Username</th>
+              <th data-i18n="thPass">Password</th>
+              <th data-i18n="thRole">Role</th>
+              <th data-i18n="thNotes">Notes</th>
+            </tr>
+          </thead>
+          <tbody id="acctBody"></tbody>
+        </table>
+      </div>
+    </section>
+    </div>
+  </main>
+
+  <footer class="foot">
+    <span>© 2026 CaveClass</span>
+  </footer>
+</div>
+
+<script>
+(function () {
+  'use strict';
+
+  var ACCOUNTS = [
+    { user: 'admin', pass: 'admin123', roleKey: 'roleAdmin', noteKey: 'nAdmin' },
+    { user: 'teacher1', pass: 'teacher123', roleKey: 'roleTeacher', noteKey: 'nTeacher1' },
+    { user: 'teacher2', pass: 'teacher123', roleKey: 'roleTeacher', noteKey: 'nTeacher2' },
+    { user: 'teacher3', pass: 'teacher123', roleKey: 'roleTeacher', noteKey: 'nTeacher3' },
+    { user: 'student1', pass: 'student123', roleKey: 'roleStudent', noteKey: 'nStudent1' },
+    { user: 'student2', pass: 'student123', roleKey: 'roleStudent', noteKey: 'nStudent2' },
+    { user: 'student3', pass: 'student123', roleKey: 'roleStudent', noteKey: 'nStudent3' },
+    { user: 'student4', pass: 'student123', roleKey: 'roleStudent', noteKey: 'nStudent4' },
+    { user: 'student5', pass: 'student123', roleKey: 'roleStudent', noteKey: 'nStudent5' },
+    { user: 'student6', pass: 'student123', roleKey: 'roleStudent', noteKey: 'nStudent6' }
+  ];
+
+  var MESSAGES = {
+    en: {
+      brandTagline: 'Courses, explained by AI',
+      title: 'Access information',
+      secLinksEyebrow: 'Links',
+      secLinksTitle: 'Repository & deployment',
+      lblRepo: 'Repository',
+      lblDeploy: 'App',
+      lblOps: 'Operations log',
+      lblSlides: 'Slides',
+      slidesLinkLabel: 'CaveClass_Presentation_COMP5241.pdf',
+      opsCred: 'Log console sign-in: caveclass / 123456',
+      secVideosEyebrow: 'Videos',
+      secVideosTitle: 'Demonstration',
+      thVideo: 'Title',
+      thLink: 'Link',
+      v1Name: 'System overview',
+      v2Name: 'Instructor workflow',
+      v3Name: 'Student workflow',
+      v4Name: 'Administrator workflow',
+      secAcctEyebrow: 'Login',
+      secAcctTitle: 'Test accounts',
+      acctHint: 'Use the app URL above. Select the matching role on the sign-in page.',
+      thUser: 'Username',
+      thPass: 'Password',
+      thRole: 'Role',
+      thNotes: 'Notes',
+      roleAdmin: 'Administrator',
+      roleTeacher: 'Instructor',
+      roleStudent: 'Student',
+      nAdmin: 'System administration, users and permissions',
+      nTeacher1: 'Demo Class + Data Structures',
+      nTeacher2: 'Data Structures',
+      nTeacher3: 'No class assigned',
+      nStudent1: 'Demo Class',
+      nStudent2: 'Demo Class',
+      nStudent3: 'Data Structures',
+      nStudent4: 'Disabled — sign-in should fail',
+      nStudent5: 'Demo Class',
+      nStudent6: 'Evening Class',
+      pageTitle: 'CaveClass · Access'
+    },
+    zh: {
+      brandTagline: 'AI 带你读懂课程',
+      title: '访问说明',
+      secLinksEyebrow: '链接',
+      secLinksTitle: '仓库与部署',
+      lblRepo: '代码仓库',
+      lblDeploy: '线上应用',
+      lblOps: '运维日志',
+      lblSlides: '答辩幻灯片',
+      slidesLinkLabel: 'CaveClass_Presentation_COMP5241.pdf',
+      opsCred: '日志台登录：caveclass / 123456',
+      secVideosEyebrow: '视频',
+      secVideosTitle: '功能演示',
+      thVideo: '标题',
+      thLink: '链接',
+      v1Name: '系统概览',
+      v2Name: '讲师工作流',
+      v3Name: '学生工作流',
+      v4Name: '管理员工作流',
+      secAcctEyebrow: '登录',
+      secAcctTitle: '测试账号',
+      acctHint: '请打开上方线上应用；登录前先选择对应身份（学生 / 讲师 / 管理员）。',
+      thUser: '用户名',
+      thPass: '密码',
+      thRole: '角色',
+      thNotes: '说明',
+      roleAdmin: '管理员',
+      roleTeacher: '讲师',
+      roleStudent: '学生',
+      nAdmin: '系统管理、用户与权限',
+      nTeacher1: 'Demo Class、数据结构课',
+      nTeacher2: '数据结构课',
+      nTeacher3: '未分配班级',
+      nStudent1: 'Demo Class',
+      nStudent2: 'Demo Class',
+      nStudent3: '数据结构课',
+      nStudent4: '已禁用，登录应失败',
+      nStudent5: 'Demo Class',
+      nStudent6: '晚间班',
+      pageTitle: 'CaveClass · 访问说明'
+    }
+  };
+
+  var locale = localStorage.getItem('peerEvalLocale') || 'en';
+  if (locale !== 'en' && locale !== 'zh') locale = 'en';
+
+  function t(key) {
+    var bag = MESSAGES[locale];
+    return (bag && bag[key]) || MESSAGES.en[key] || key;
+  }
+
+  function applyI18n() {
+    document.documentElement.lang = locale === 'zh' ? 'zh-Hans' : 'en';
+    document.title = t('pageTitle');
+    document.querySelectorAll('[data-i18n]').forEach(function (el) {
+      var key = el.getAttribute('data-i18n');
+      el.textContent = t(key);
+    });
+    document.querySelectorAll('.lang-switch button').forEach(function (btn) {
+      btn.classList.toggle('is-on', btn.getAttribute('data-lang') === locale);
+    });
+    renderAccounts();
+  }
+
+  function renderAccounts() {
+    var tbody = document.getElementById('acctBody');
+    if (!tbody) return;
+    tbody.innerHTML = ACCOUNTS.map(function (row) {
+      return '<tr>'
+        + '<td>' + row.user + '</td>'
+        + '<td><code style="font-family:var(--font-ui);font-size:14px;">' + row.pass + '</code></td>'
+        + '<td>' + t(row.roleKey) + '</td>'
+        + '<td>' + t(row.noteKey) + '</td>'
+        + '</tr>';
+    }).join('');
+  }
+
+  document.querySelectorAll('.lang-switch button').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      var next = btn.getAttribute('data-lang');
+      if (next === locale) return;
+      locale = next;
+      localStorage.setItem('peerEvalLocale', locale);
+      applyI18n();
+    });
+  });
+
+  applyI18n();
+})();
+</script>
+</body>
+</html>

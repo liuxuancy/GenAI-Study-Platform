@@ -1,0 +1,633 @@
+/* ==================================================================
+   CaveClass design system v2.0 — flat · editorial · white + serif
+   ------------------------------------------------------------------
+   0  tokens
+   1  base
+   2  primitives   (eyebrow, buttons, pills, fields, tables, progress)
+   3  login page
+   4  app shell    (sidebar + app bar)
+   5  app patterns (cards, stats, reader, charts, roster)
+   6  responsive
+   ================================================================== */
+
+/* ============================================================
+   0. Tokens
+   ============================================================ */
+:root{
+  --bg:#FFFFFF;
+  --surface:#FAFAFB;
+  --ink:#111114;
+  --ink-2:#55555E;
+  --ink-3:#8C8C96;
+  --ink-4:#B6B6BE;
+  --line:#E8E8EC;
+  --line-2:#F1F1F4;
+  --accent:#C0442C;
+
+  --f-display:'Fraunces',Georgia,'Times New Roman',serif;
+  --f-text:'Source Serif 4',Georgia,'Times New Roman',serif;
+
+  --gutter:clamp(20px,4vw,56px);
+  --ease:cubic-bezier(.4,0,.2,1);
+  --pad-card:26px;
+}
+
+*,*::before,*::after{box-sizing:border-box;}
+html{-webkit-text-size-adjust:100%;}
+body{
+  margin:0;
+  background:var(--bg);
+  color:var(--ink);
+  font-family:var(--f-text);
+  font-size:16px;
+  line-height:1.6;
+  font-optical-sizing:auto;
+  -webkit-font-smoothing:antialiased;
+  text-rendering:optimizeLegibility;
+}
+a{color:inherit;text-decoration:none;}
+button,input,select,textarea{font:inherit;color:inherit;letter-spacing:inherit;}
+img,svg{max-width:100%;}
+::selection{background:var(--ink);color:#fff;}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px;}
+
+/* ============================================================
+   1. Primitives
+   ============================================================ */
+
+/* micro-label — the only place uppercase + tracking is used */
+.eyebrow{
+  display:flex;align-items:center;gap:12px;margin:0;
+  font-size:11px;line-height:1;letter-spacing:.18em;text-transform:uppercase;
+  color:var(--ink-3);
+}
+.eyebrow::before{content:'';width:24px;height:1px;background:var(--ink-4);flex:none;}
+
+/* brand */
+.brand{display:flex;align-items:center;gap:14px;}
+.mark{
+  width:38px;height:38px;flex:none;
+  background:var(--accent);color:#fff;
+  display:grid;place-items:center;
+  font-family:var(--f-display);font-size:22px;font-weight:600;line-height:1;
+  padding-bottom:2px;
+}
+.brand-text strong{
+  display:block;font-family:var(--f-display);
+  font-size:20px;font-weight:600;letter-spacing:-.01em;line-height:1.1;
+}
+.brand-text small{
+  display:block;margin-top:4px;
+  font-size:10.5px;letter-spacing:.16em;text-transform:uppercase;color:var(--ink-3);
+}
+
+.tlink{
+  color:var(--ink-2);border-bottom:1px solid var(--line);padding-bottom:2px;
+  transition:color .18s var(--ease),border-color .18s var(--ease);cursor:pointer;
+}
+.tlink:hover{color:var(--accent);border-color:var(--accent);}
+
+/* segmented control + tabs */
+.seg{display:grid;border:1px solid var(--line);background:#fff;}
+.seg--3{grid-template-columns:repeat(3,1fr);}
+.seg button{
+  background:none;border:0;cursor:pointer;padding:10px 14px;
+  font-family:var(--f-text);font-size:13.5px;letter-spacing:.02em;color:var(--ink-2);
+  transition:background .18s var(--ease),color .18s var(--ease);white-space:nowrap;
+}
+.seg button + button{border-left:1px solid var(--line);}
+.seg button:hover{background:var(--surface);color:var(--ink);}
+.seg button.is-on{background:var(--ink);color:#fff;}
+
+/* underline text field */
+.field{
+  display:block;position:relative;
+  margin-top:24px;padding-bottom:9px;
+  border-bottom:1px solid var(--line);
+}
+.field .lab{
+  display:block;
+  font-size:10.5px;letter-spacing:.16em;text-transform:uppercase;
+  color:var(--ink-3);transition:color .18s var(--ease);
+}
+.field input,.field textarea{
+  display:block;width:100%;background:none;border:0;outline:none;
+  padding:6px 0 2px;
+  font-family:var(--f-text);font-size:16.5px;color:var(--ink);
+  resize:none;
+}
+.field input::placeholder,.field textarea::placeholder{color:var(--ink-4);}
+.field::after{
+  content:'';position:absolute;left:0;right:0;bottom:-1px;height:2px;
+  background:var(--ink);transform:scaleX(0);transform-origin:left center;
+  transition:transform .24s var(--ease);
+}
+.field:focus-within::after{transform:scaleX(1);}
+.field:focus-within .lab{color:var(--ink);}
+/* quiet in-field action, e.g. Show / Hide on a password field */
+.field-aside{
+  position:absolute;right:0;bottom:9px;padding:2px 0;
+  background:none;border:0;cursor:pointer;
+  font-family:var(--f-text);font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;
+  color:var(--ink-3);transition:color .18s var(--ease);
+}
+.field-aside:hover{color:var(--ink);}
+
+/* checkbox */
+.check{display:inline-flex;align-items:center;gap:10px;cursor:pointer;color:var(--ink-2);}
+.check .box{
+  width:17px;height:17px;flex:none;position:relative;
+  border:1px solid var(--ink-4);background:#fff;
+  display:grid;place-items:center;
+  transition:background .16s var(--ease),border-color .16s var(--ease);
+}
+.check .box svg{width:11px;height:11px;display:block;opacity:0;transition:opacity .16s var(--ease);}
+.check .box svg path{fill:none;stroke:#fff;stroke-width:2.6;stroke-linecap:round;stroke-linejoin:round;}
+.check input{position:absolute;opacity:0;width:1px;height:1px;}
+.check input:checked ~ .box{background:var(--ink);border-color:var(--ink);}
+.check input:checked ~ .box svg{opacity:1;}
+.check input:focus-visible ~ .box{outline:2px solid var(--ink);outline-offset:2px;}
+.check:hover{color:var(--ink);}
+.check input:focus-visible ~ .box{outline:2px solid var(--accent);outline-offset:2px;}
+.num{font-variant-numeric:tabular-nums;}
+/* the label column is capped rather than fixed so a long course title has
+   somewhere to go on a wide screen, but the bar keeps at least a third of
+   the row on a narrow one */
+.bar-row{
+  display:grid;grid-template-columns:minmax(0,min(380px,38%)) 1fr 58px;
+  align-items:center;gap:18px;
+  padding:11px 0;border-bottom:1px solid var(--line);
+}
+/* a chapter with no published explanation cannot be "0% complete" — nobody
+   is able to finish it, so the track is drawn as an empty outline instead */
+.bar-row.is-unpub .bar-label{color:var(--ink-4);}
+
+/* sparkline — geometry stretches, labels stay HTML so they never distort */
+.chart{display:flex;flex-direction:column;gap:10px;}
+
+/* toast */
+.toast{
+  position:fixed;left:50%;bottom:32px;z-index:90;
+  transform:translateX(-50%) translateY(10px);
+  max-width:calc(100vw - 40px);
+  padding:13px 20px;background:var(--ink);color:#fff;
+  font-size:14px;text-align:center;
+  opacity:0;pointer-events:none;
+  transition:opacity .24s var(--ease),transform .24s var(--ease);
+}
+.toast.is-on{opacity:1;transform:translateX(-50%) translateY(0);}
+
+/* ============================================================
+   3. Login page
+   ============================================================ */
+.page{
+  max-width:1280px;margin:0 auto;
+  padding:0 var(--gutter);
+  min-height:100vh;
+  display:flex;flex-direction:column;
+}
+.page-topbar{
+  display:flex;align-items:center;justify-content:space-between;gap:20px;
+  padding:clamp(20px,3.4vh,36px) 0;
+  border-bottom:1px solid var(--line);
+}
+.top-note{margin:0;font-size:10.5px;letter-spacing:.16em;text-transform:uppercase;color:var(--ink-3);}
+.stage{
+  flex:1;
+  display:grid;grid-template-columns:minmax(0,1.06fr) minmax(0,.94fr);
+  gap:0;align-items:start;
+  padding:clamp(34px,6vh,76px) 0 clamp(30px,5.4vh,64px);
+}
+.intro{max-width:600px;padding-right:clamp(28px,4vw,76px);}
+.intro h1{
+  font-family:var(--f-display);font-weight:500;
+  font-variation-settings:'opsz' 40;
+  font-size:clamp(32px,3.9vw,54px);
+  line-height:1.06;letter-spacing:-.024em;
+  margin:28px 0 0;text-wrap:balance;
+}
+.lede{font-size:17.5px;line-height:1.62;color:var(--ink-2);margin:22px 0 0;max-width:46ch;}
+.points{list-style:none;margin:clamp(26px,4.4vh,44px) 0 0;padding:0;border-top:1px solid var(--line);}
+.points li{display:flex;gap:20px;align-items:flex-start;padding:17px 0;border-bottom:1px solid var(--line);}
+.points .num{
+  flex:none;padding-top:3px;
+  font-family:var(--f-display);font-size:13px;font-weight:500;
+  letter-spacing:.04em;color:var(--ink-3);font-variant-numeric:tabular-nums;
+}
+.points h3{font-family:var(--f-display);font-size:17px;font-weight:600;letter-spacing:-.005em;margin:0 0 3px;}
+.points p{margin:0;font-size:15.5px;line-height:1.55;color:var(--ink-2);}
+.specs{
+  list-style:none;display:flex;flex-wrap:wrap;align-items:center;
+  gap:10px 20px;margin:26px 0 0;padding:0;
+  font-size:10.5px;letter-spacing:.16em;text-transform:uppercase;color:var(--ink-3);
+}
+.specs li{display:flex;align-items:center;gap:20px;}
+.specs li + li::before{content:'';width:3px;height:3px;background:var(--ink-4);}
+.panel-wrap{
+  border-left:1px solid var(--line);
+  padding-left:clamp(28px,4vw,76px);
+  max-width:470px;width:100%;justify-self:end;
+}
+.panel h2{
+  font-family:var(--f-display);font-weight:500;font-size:34px;
+  letter-spacing:-.02em;line-height:1.12;font-variation-settings:'opsz' 40;
+  margin:22px 0 0;
+}
+.panel-sub{margin:10px 0 0;font-size:15px;color:var(--ink-2);}
+.panel .seg{margin:30px 0 0;}
+.role-note{margin:12px 0 0;min-height:40px;font-size:13px;line-height:1.5;color:var(--ink-3);}
+.row{display:flex;align-items:center;justify-content:space-between;gap:16px;margin:22px 0 0;font-size:14px;}
+.panel .cta{
+  display:block;width:100%;margin:30px 0 0;padding:15px 20px;
+  background:var(--ink);color:#fff;border:1px solid var(--ink);cursor:pointer;
+  font-family:var(--f-text);font-size:16px;letter-spacing:.02em;
+  transition:background .18s var(--ease),border-color .18s var(--ease);
+}
+.panel .cta:hover{background:#2B2B33;border-color:#2B2B33;}
+.panel .cta:active{background:#000;border-color:#000;}
+.panel .cta[aria-busy="true"]{color:rgba(255,255,255,.72);cursor:progress;}
+.panel-rule{height:1px;background:var(--line);margin:30px 0 0;border:0;}
+.panel-foot{margin:18px 0 0;font-size:14px;color:var(--ink-2);}
+.legal{margin:24px 0 0;font-size:12px;line-height:1.6;color:var(--ink-3);max-width:42ch;}
+.legal a{border-bottom:1px solid var(--line);}
+.legal a:hover{color:var(--accent);border-color:var(--accent);}
+.foot{
+  display:flex;align-items:center;justify-content:space-between;gap:18px;
+  padding:20px 0 clamp(22px,3.4vh,32px);
+  border-top:1px solid var(--line);
+  font-size:12.5px;color:var(--ink-3);
+}
+.foot-links{display:flex;gap:22px;}
+.foot a:hover{color:var(--ink);}
+
+/* ============================================================
+   4. App shell
+   ============================================================ */
+.app{
+  display:grid;
+  grid-template-columns:264px minmax(0,1fr);
+  min-height:100vh;
+}
+.side{
+  border-right:1px solid var(--line);
+  padding:26px 0 26px;
+  display:flex;flex-direction:column;gap:26px;
+  position:sticky;top:0;height:100vh;overflow-y:auto;
+}
+.side-brand{padding:0 24px 22px;border-bottom:1px solid var(--line);}
+.nav-group{display:flex;flex-direction:column;gap:2px;padding:0 12px;}
+.nav-group + .nav-group{margin-top:22px;}
+.nav-title{
+  font-size:10px;letter-spacing:.18em;text-transform:uppercase;color:var(--ink-4);
+  padding:0 12px 9px;
+}
+.nav a,.nav button{
+  display:flex;align-items:center;gap:11px;
+  padding:9px 12px;background:none;border:0;cursor:pointer;text-align:left;
+  font-size:14.5px;color:var(--ink-2);position:relative;
+  transition:background .16s var(--ease),color .16s var(--ease);
+}
+.nav a::before{
+  content:'';position:absolute;left:0;top:6px;bottom:6px;width:2px;background:var(--ink);
+  transform:scaleY(0);transition:transform .2s var(--ease);
+}
+.nav a:hover{background:var(--surface);color:var(--ink);}
+.nav a.is-on{background:var(--surface);color:var(--ink);font-weight:600;}
+.nav a.is-on::before{transform:scaleY(1);}
+.side-foot{margin-top:auto;padding:20px 24px 0;border-top:1px solid var(--line);}
+.side-foot a.signout{display:inline-block;margin-top:14px;font-size:13px;}
+
+.main{min-width:0;display:flex;flex-direction:column;}
+.appbar{
+  display:flex;align-items:center;justify-content:space-between;gap:20px;
+  padding:18px clamp(22px,3vw,40px);
+  border-bottom:1px solid var(--line);
+  position:sticky;top:0;background:var(--bg);z-index:20;
+}
+.appbar .crumbs{display:flex;align-items:center;gap:12px;font-size:13.5px;color:var(--ink-3);}
+.appbar .crumbs a:hover{color:var(--ink);}
+.appbar .crumbs span.sep{color:var(--ink-4);}
+.appbar .crumbs strong{font-weight:400;color:var(--ink);}
+.content{
+  padding:clamp(26px,3.4vw,44px) clamp(22px,3vw,40px) 64px;
+  width:100%;max-width:1320px;
+}
+/* a native select wants to be as wide as its longest option, which
+   overflows the page on a phone — let it shrink instead */
+.chapter-select .select{flex:1 1 0;min-width:0;}
+/* a row whose right-hand side is a progress meter. The meter needs an
+   explicit flex basis — `max-width` alone only caps it, so as a plain flex
+   child it would shrink to the meter's own min-width and leave a hole
+   across the middle of the row */
+.row-bar{flex:0 0 clamp(120px,22vw,260px);}
+/* chapter whose explanation has not been written yet: a hollow square in the
+   marker column, so "readable" and "outline only" are distinguishable at a
+   glance without spending width on a label */
+.chapter-list .ch-num i{display:block;width:7px;height:7px;border:1px solid var(--ink-4);margin-top:6px;}
+/* the ask column is sticky, so a long thread must scroll inside itself
+   rather than push the panel past the viewport */
+.ask .thread{max-height:min(52vh,460px);overflow-y:auto;padding-right:8px;}
+
+/* ---------- student x chapter reach grid ----------
+   One square per student per chapter. Four states are distinguishable
+   without colour: filled, ringed, empty, absent. */
+.grid-wrap{overflow-x:auto;}
+/* the exact CSV shape we expect, shown verbatim */
+.code-sample{
+  margin:0;padding:12px 14px;border:1px solid var(--line);background:var(--surface);
+  font-family:ui-monospace,SFMono-Regular,Menlo,monospace;
+  font-size:12px;line-height:1.75;color:var(--ink-2);overflow-x:auto;
+}
+
+/* ============================================================
+   7. Admin workspace
+   ------------------------------------------------------------
+   The first screens in the product that carry real density: lists,
+   editable roles, two-state rows. Same rules as everywhere else —
+   hairline rules carry the structure, the ink fill is reserved for
+   the primary action, and the single accent appears only where
+   something is unavailable or destructive. Nothing is a card:
+   a list is a list.
+   ============================================================ */
+
+/* ---------- page header ---------- */
+.page-head{margin:0 0 clamp(24px,3.2vw,36px);}
+.page-head h1{
+  font-family:var(--f-display);font-weight:500;font-variation-settings:'opsz' 40;
+  font-size:clamp(28px,3.1vw,38px);line-height:1.08;letter-spacing:-.022em;
+  margin:20px 0 0;
+}
+.page-head .lede{margin:14px 0 0;font-size:16.5px;line-height:1.6;max-width:66ch;}
+
+/* ---------- toolbar: search + filter ---------- */
+.toolbar{
+  display:flex;align-items:center;justify-content:space-between;
+  gap:14px 22px;flex-wrap:wrap;
+  padding:15px 0 16px;border-top:1px solid var(--ink);
+}
+.search{display:block;flex:1 1 240px;max-width:360px;}
+.search input{
+  width:100%;background:none;border:0;border-bottom:1px solid var(--line);
+  padding:8px 0;font-family:var(--f-text);font-size:14.5px;color:var(--ink);
+  transition:border-color .18s var(--ease);
+}
+.search input::placeholder{color:var(--ink-4);}
+.search input:hover{border-color:var(--ink-4);}
+.search input:focus{outline:none;border-color:var(--ink);}
+.search input::-webkit-search-decoration,
+.search input::-webkit-search-cancel-button{-webkit-appearance:none;}
+.seg--2{grid-template-columns:repeat(2,1fr);}
+.seg--4{grid-template-columns:repeat(4,1fr);}
+.seg--4 button{padding:10px 12px;}
+
+/* ---------- list ---------- */
+.table-wrap{overflow-x:auto;}
+.table{width:100%;border-collapse:collapse;font-size:14.5px;}
+.table th{
+  padding:11px 16px 10px 0;text-align:left;white-space:nowrap;
+  font-size:10px;font-weight:400;letter-spacing:.16em;text-transform:uppercase;
+  color:var(--ink-3);border-bottom:1px solid var(--line);
+}
+.table td{padding:14px 16px 14px 0;border-bottom:1px solid var(--line);vertical-align:middle;}
+.table th:last-child,.table td:last-child{padding-right:0;}
+.table tbody tr{transition:background .14s var(--ease);}
+.table tbody tr:hover{background:var(--surface);}
+.table .ta-r{text-align:right;}
+/* the identifying cell: a rank or a name, never a label. The flex lives on
+   an inner div, not on the cell — setting display:flex on a <td> drops it out
+   of the table layout, and its border-bottom then lands at the content edge
+   instead of the row edge, breaking the rule into segments. */
+.lead-in{display:flex;align-items:flex-start;gap:14px;}
+.lead-in .who{min-width:0;}
+
+.who strong{display:block;font-weight:600;letter-spacing:-.004em;}
+.who small{display:block;margin-top:3px;font-size:12.5px;color:var(--ink-3);}
+.rank{
+  flex:none;width:26px;padding-top:2px;
+  font-family:var(--f-display);font-size:13px;color:var(--ink-4);
+  font-variant-numeric:tabular-nums;
+}
+.mono{
+  font-family:ui-monospace,SFMono-Regular,Menlo,monospace;
+  font-size:12.5px;letter-spacing:.03em;color:var(--ink-2);
+}
+.quieter{color:var(--ink-3);font-size:13.5px;}
+
+/* status marker — a filled square means live, a hollow one means stopped.
+   The accent appears only on the stopped state, so "frozen" and "removed"
+   read the same everywhere in the admin screens. */
+.tag{
+  display:inline-flex;align-items:center;gap:8px;white-space:nowrap;
+  font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--ink-2);
+}
+.tag::before{content:'';width:6px;height:6px;flex:none;background:currentColor;}
+.tag--off{color:var(--accent);}
+.tag--off::before{background:none;box-shadow:inset 0 0 0 1px currentColor;}
+
+/* ---------- controls ---------- */
+.btn{
+  display:inline-flex;align-items:center;justify-content:center;gap:8px;
+  padding:9px 15px;background:var(--ink);color:#fff;border:1px solid var(--ink);
+  font-family:var(--f-text);font-size:14px;letter-spacing:.015em;cursor:pointer;
+  transition:background .18s var(--ease),border-color .18s var(--ease),color .18s var(--ease);
+}
+.btn:hover{background:#2B2B33;border-color:#2B2B33;}
+.btn:active{background:#000;border-color:#000;}
+.btn--quiet{background:none;color:var(--ink-2);border-color:var(--line);}
+.btn--quiet:hover{background:var(--surface);color:var(--ink);border-color:var(--ink-4);}
+/* the row's consequential action: firmer than the quiet one at rest, accent
+   only under the pointer. Fifteen red words down a column would make the
+   accent decoration; the state tag is where red belongs. */
+.btn--danger{background:none;color:var(--ink);border-color:var(--ink-4);}
+.btn--danger:hover{background:var(--accent);color:#fff;border-color:var(--accent);}
+.btn--sm{padding:6px 11px;font-size:12.5px;}
+.btn:disabled{opacity:.4;cursor:not-allowed;background:none;color:var(--ink-3);border-color:var(--line);}
+.row-acts{display:flex;align-items:center;justify-content:flex-end;gap:8px;flex-wrap:wrap;}
+
+/* a native select repainted: no bevel, no platform blue, our own chevron */
+.minisel{
+  -webkit-appearance:none;appearance:none;
+  background:#fff url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='9' height='6'%3E%3Cpath d='M.8.8 4.5 4.6 8.2.8' fill='none' stroke='%238C8C96' stroke-width='1'/%3E%3C/svg%3E") no-repeat right 9px center;
+  border:1px solid var(--line);padding:6px 26px 6px 10px;
+  font-family:var(--f-text);font-size:13px;color:var(--ink);cursor:pointer;
+  transition:border-color .18s var(--ease);
+}
+.minisel:hover{border-color:var(--ink-4);}
+.minisel:focus-visible{border-color:var(--ink);}
+
+/* ---------- figures ---------- */
+/* the two rules belong to the band, not to each figure: drawn per cell they
+   break into four short underlines at every column gap */
+.stats{
+  display:grid;grid-template-columns:repeat(4,minmax(0,1fr));
+  column-gap:clamp(16px,2.6vw,34px);margin:26px 0 0;
+  border-top:1px solid var(--ink);border-bottom:1px solid var(--line);
+}
+.stat{padding:20px 0 22px;}
+.stat .k{font-size:10px;letter-spacing:.16em;text-transform:uppercase;color:var(--ink-3);}
+.stat .v{
+  margin-top:10px;
+  font-family:var(--f-display);font-weight:500;font-variation-settings:'opsz' 40;
+  font-size:clamp(26px,2.8vw,38px);line-height:1;letter-spacing:-.02em;
+  font-variant-numeric:tabular-nums;
+}
+.stat .s{margin-top:8px;font-size:12.5px;line-height:1.45;color:var(--ink-3);}
+
+/* ---------- section head ---------- */
+.subhead{
+  display:flex;align-items:flex-end;justify-content:space-between;gap:14px 26px;flex-wrap:wrap;
+  margin:clamp(30px,4vw,44px) 0 0;padding-top:22px;border-top:1px solid var(--ink);
+}
+.subhead h2{
+  font-family:var(--f-display);font-weight:500;font-variation-settings:'opsz' 40;
+  font-size:23px;line-height:1.15;letter-spacing:-.012em;margin:0;
+}
+.subhead p{margin:7px 0 0;font-size:13.5px;line-height:1.5;color:var(--ink-3);max-width:64ch;}
+.subhead .ctl{display:flex;align-items:center;gap:14px;flex-wrap:wrap;}
+
+/* a share of the total, drawn as a hairline track — no fill colour
+   except the flag, so the bar never competes with the numbers */
+.meter{display:block;width:104px;height:3px;margin-top:7px;background:var(--line);}
+.meter i{display:block;height:100%;width:0;background:var(--ink);transition:width .3s var(--ease);}
+.meter i.is-heavy{background:var(--accent);}
+.ta-r .meter{margin-left:auto;}
+.is-heavy{color:var(--accent);}
+/* without these the table hands all spare width to whichever column holds
+   the longest word, which leaves the figures stranded at the far right */
+.table .col-role{width:190px;}
+.table .col-tok{width:190px;}
+.table .col-share{width:110px;}
+
+/* ---------- footnotes ---------- */
+.note{margin:22px 0 0;font-size:13.5px;line-height:1.62;color:var(--ink-3);max-width:82ch;}
+.note b{font-weight:600;color:var(--ink-2);}
+.table-foot{
+  display:flex;align-items:baseline;justify-content:space-between;
+  gap:10px 22px;flex-wrap:wrap;
+  margin:14px 0 0;font-size:12.5px;color:var(--ink-3);
+}
+.table-foot span:first-child{color:var(--ink-2);}
+.table-foot .num{font-variant-numeric:tabular-nums;}
+.empty{padding:34px 0;font-size:14px;color:var(--ink-3);border-bottom:1px solid var(--line);}
+
+/* ---------- dialog ---------- */
+.sheet{
+  width:min(520px,calc(100vw - 36px));max-height:calc(100vh - 60px);overflow:auto;
+  padding:0;border:1px solid var(--ink);background:var(--bg);color:var(--ink);
+}
+.sheet::backdrop{background:rgba(17,17,20,.34);}
+.sheet-in{padding:clamp(22px,3.2vw,32px);}
+.sheet h2{
+  font-family:var(--f-display);font-weight:500;font-variation-settings:'opsz' 40;
+  font-size:26px;line-height:1.15;letter-spacing:-.015em;margin:16px 0 0;
+}
+.sheet p{margin:12px 0 0;font-size:14px;line-height:1.6;color:var(--ink-2);}
+.sheet .field{margin-top:24px;}
+.sheet .field input{
+  padding-right:78px;
+  font-family:ui-monospace,SFMono-Regular,Menlo,monospace;
+  font-size:15.5px;letter-spacing:.04em;
+}
+.sheet-acts{display:flex;justify-content:flex-end;gap:10px;flex-wrap:wrap;margin-top:26px;}
+
+@media (max-width:1120px){
+  .stats{grid-template-columns:repeat(2,minmax(0,1fr));}
+  /* with two rows the band needs a divider between them; it can only be
+     drawn per cell, so it carries the gaps */
+  .stat:nth-child(-n+2){border-bottom:1px solid var(--line);}
+}
+@media (max-width:900px){
+  /* the first column that has to go when width runs out */
+  .table .col-opt{display:none;}
+}
+@media (max-width:880px){
+  /* two buttons no longer share a line in a narrow column; stacked and
+     right-aligned they stay legible instead of wrapping raggedly */
+  .row-acts{flex-direction:column;align-items:flex-end;gap:6px;}
+}
+@media (max-width:700px){
+  /* five columns cannot be read on a phone, so a row becomes a small
+     block: the identifying cell on its own line, then label/value pairs.
+     The labels live in data-label so the markup carries them once. */
+  .table thead{display:none;}
+  .table,.table tbody{display:block;width:100%;}
+  .table tr{
+    display:grid;grid-template-columns:repeat(2,minmax(0,1fr));
+    gap:12px 18px;padding:16px 0;border-bottom:1px solid var(--line);
+  }
+  .table tr:hover{background:none;}
+  .table td{display:block;padding:0;border:0;}
+  .table td[data-label]::before{
+    content:attr(data-label);display:block;margin-bottom:5px;
+    font-size:9.5px;letter-spacing:.16em;text-transform:uppercase;color:var(--ink-4);
+  }
+  .table td.lead,.table td.ta-r{grid-column:1 / -1;}
+  .table td.ta-r{text-align:left;}
+  .table td.ta-r .meter{margin-left:0;}
+  .row-acts{flex-direction:row;align-items:flex-start;justify-content:flex-start;gap:8px;}
+  .table-foot{display:block;}
+  .table-foot span{display:block;margin-bottom:4px;}
+}
+@media (max-width:600px){
+  .page-head h1{font-size:27px;}
+  .search{flex:1 1 100%;max-width:none;}
+  .seg--4 button{padding:9px 8px;font-size:12.5px;}
+  .stats{column-gap:18px;}
+  .stat .v{font-size:26px;}
+}
+
+/* ---------- responsive ---------- */
+@media (max-width:1240px){
+  .reader-grid{grid-template-columns:minmax(0,1fr) 300px;}
+  .chapters{display:none;}
+  .reader{padding-left:0;}
+  .chapter-select{display:flex;}
+}
+@media (max-width:900px){
+  .app{grid-template-columns:1fr;}
+  .side{display:none;}
+  .stage{grid-template-columns:1fr;padding-top:clamp(26px,5vh,44px);}
+  .panel-wrap{
+    order:1;justify-self:stretch;max-width:520px;
+    border-left:0;border-top:0;margin-top:0;padding-left:0;padding-top:0;
+  }
+  .intro{
+    order:2;max-width:none;padding-right:0;
+    border-top:1px solid var(--line);margin-top:clamp(38px,7vh,58px);
+    padding-top:clamp(30px,5vh,44px);
+  }
+  .panel h2{margin-top:18px;}
+}
+@media (max-width:640px){
+  /* a row with a meter on it stacks instead: side by side, the meter
+     squeezes the meta line into four lines on a phone */
+  .rows > *{flex-wrap:wrap;row-gap:12px;}
+  /* as a flex container the term becomes its own item and wraps inside
+     itself, hanging the second line under the term rather than the left
+     edge — as a plain block the whole caption is one wrapping run */
+  .eyebrow{display:block;}
+  .eyebrow::before{display:inline-block;vertical-align:middle;margin-right:12px;}
+  .appbar{flex-wrap:wrap;gap:12px;}
+}
+@media (max-width:560px){
+  :root{--pad-card:20px;}
+  .top-note{display:none;}
+  .intro h1{font-size:31px;}
+  .lede{font-size:16px;}
+  .panel h2{font-size:28px;}
+  .panel-wrap{max-width:none;}
+  .row{flex-wrap:wrap;gap:14px;}
+  .foot{flex-direction:column;align-items:flex-start;gap:8px;}
+}
+@media (prefers-reduced-motion:no-preference){
+  @keyframes rise{from{opacity:0;transform:translateY(12px);}to{opacity:1;transform:none;}}
+  .intro{animation:rise .5s var(--ease) both;}
+  .panel-wrap{animation:rise .5s var(--ease) .07s both;}
+}
+@media (prefers-reduced-motion:reduce){
+  *{animation:none !important;transition:none !important;}
+}
+@media print{
+  .side,.appbar,.btn,.toast{display:none !important;}
+  .app{grid-template-columns:1fr;}
+}

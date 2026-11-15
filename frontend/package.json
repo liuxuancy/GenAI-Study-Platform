@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "prebuild": "mkdir -p public/UI/assets && cp ../docs/UI/assets/app.css public/UI/assets/ && cp ../docs/peer-evaluation.html public/",
     "build": "tsc && vite build",
     "preview": "vite preview",
     "test": "vitest run"
