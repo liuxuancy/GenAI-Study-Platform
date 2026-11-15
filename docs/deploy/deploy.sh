@@ -30,6 +30,11 @@ if [ "${INIT_DB:-0}" = "1" ]; then
   bash "$SCRIPT_DIR/init-db.sh"
 fi
 
+# 访问说明静态页（docs -> public，随 build 进 dist）
+mkdir -p "$REPO_DIR/frontend/public/UI/assets"
+cp "$REPO_DIR/docs/UI/assets/app.css" "$REPO_DIR/frontend/public/UI/assets/"
+cp "$REPO_DIR/docs/peer-evaluation.html" "$REPO_DIR/frontend/public/"
+
 # 前端静态资源 -> frontend/dist
 cd "$REPO_DIR/frontend"
 corepack enable pnpm 2>/dev/null || true
