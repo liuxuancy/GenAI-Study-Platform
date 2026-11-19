@@ -216,6 +216,7 @@ export const enStudent: MessageTree = {
         difficultyLabel: 'Difficulty',
         courseLabel: 'Course',
         selectCourse: 'Select a course',
+        courseRequiredHint: 'Select a course before generating a quiz.',
         pickCourseError: 'Select a course.',
         chapterLabel: 'Quiz scope',
         allChapters: 'Entire course (unlinked)',

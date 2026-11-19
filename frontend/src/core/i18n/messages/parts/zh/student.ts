@@ -214,6 +214,7 @@ export const zhStudent: MessageTree = {
         difficultyLabel: '难度',
         courseLabel: '课程',
         selectCourse: '选择课程',
+        courseRequiredHint: '请先选择课程，才能生成测验。',
         pickCourseError: '请选择课程。',
         chapterLabel: '出题范围',
         allChapters: '整门课程（未关联章节）',

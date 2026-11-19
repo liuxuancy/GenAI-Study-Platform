@@ -659,6 +659,7 @@ function CreateQuizDialog({
                 ...(courses ?? []).map((course) => ({ value: String(course.id), label: course.title })),
               ]}
             />
+            {!courseId ? <p className={styles.courseRequiredHint}>{t('student.quiz.create.courseRequiredHint')}</p> : null}
           </div>
           <div className={homeStyles.field}>
             <label htmlFor="quiz-create-chapter">{t('student.quiz.create.chapterLabel')}</label>
@@ -702,7 +703,7 @@ function CreateQuizDialog({
             <button className={`${homeStyles.cancel} ${styles.cancelButton}`} type="button" disabled={saving} onClick={() => setDialogOpen(false)}>
               {t('student.quiz.create.cancel')}
             </button>
-            <button className={homeStyles.create} type="submit" disabled={saving || courseLoading || Boolean(courseError) || !courseTree || selection.loading || !selection.optionsAvailable}>
+            <button className={`${homeStyles.create} ${styles.generateButton}`} type="submit" disabled={saving || courseLoading || Boolean(courseError) || !courseTree || selection.loading || !selection.optionsAvailable}>
               {t(saving ? 'student.quiz.create.generating' : 'student.quiz.create.generate')}
             </button>
           </div>

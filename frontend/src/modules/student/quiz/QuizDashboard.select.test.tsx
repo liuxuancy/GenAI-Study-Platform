@@ -80,6 +80,27 @@ it('generates and saves a quiz with the selected settings', async () => {
   act(() => root.unmount())
 })
 
+it('explains why quiz generation is disabled before a course is selected', async () => {
+  Object.defineProperty(globalThis, 'IS_REACT_ACT_ENVIRONMENT', { configurable: true, value: true })
+  Object.defineProperty(HTMLDialogElement.prototype, 'showModal', {
+    configurable: true, value(this: HTMLDialogElement) { this.open = true },
+  })
+  Object.defineProperty(HTMLDialogElement.prototype, 'close', {
+    configurable: true, value(this: HTMLDialogElement) { this.open = false },
+  })
+  mocks.questions.mockResolvedValue([])
+  const host = document.createElement('div')
+  document.body.appendChild(host)
+  const root = createRoot(host)
+  await act(async () => root.render(<QuizDashboard />))
+  act(() => Array.from(host.querySelectorAll('button')).find((button) => button.textContent === 'student.quiz.create.button')!.click())
+
+  expect(host.textContent).toContain('student.quiz.create.courseRequiredHint')
+  expect(host.querySelector<HTMLButtonElement>('dialog button[type="submit"]')!.disabled).toBe(true)
+  expect(mocks.create).not.toHaveBeenCalled()
+  act(() => root.unmount())
+})
+
 it.each(['grouped', 'flat'] as const)('scrolls to the created quiz in %s view after closing the dialog', async (mode) => {
   Object.defineProperty(globalThis, 'IS_REACT_ACT_ENVIRONMENT', { configurable: true, value: true })
   Object.defineProperty(HTMLDialogElement.prototype, 'showModal', {
